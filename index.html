@@ -1829,7 +1829,7 @@ function filterP(el,val){
 // ══════════════════════════════════════════════════════
 const VIEW_CFG={
   'contacts-view':{title:'Contactos',main:'＋ Nuevo contacto',mainFn:'openContactModal()',sec:null},
-  'studios-view':{title:'Estudios de Arquitectura',main:'🏛️ ＋ Nuevo estudio',mainFn:'openStudioModal()',sec:null},
+  'studios-view':{title:'Estudios de Arquitectura',main:null,sec:null},
   'studio-profile-view':{title:'Perfil del Estudio',main:null,sec:null},
   'projects-view':{title:'Proyectos',main:'＋ Nuevo proyecto',mainFn:'openProjectModal()',sec:'＋ Contacto',secFn:'openContactModal()'},
   'profile-view':{title:'Perfil de contacto',main:null,sec:null},
@@ -2819,30 +2819,51 @@ function populateStudioSelect(selectedId){
 
 function filterStudioDropdown(q){
   const all=D.studios||[];
-  const filtered=q.trim()===''?all:all.filter(s=>s.name.toLowerCase().includes(q.toLowerCase())||
-    (s.city||'').toLowerCase().includes(q.toLowerCase()));
-  renderStudioDropdown(filtered);
+  const nq=norm(q);
+  const filtered=nq===''?all:all.filter(s=>norm(s.name).includes(nq)||norm(s.city||'').includes(nq)||norm(s.email||'').includes(nq));
+  renderStudioDropdown(filtered, q.trim());
 }
 
-function renderStudioDropdown(studios){
+function renderStudioDropdown(studios, rawQ){
   const dd=$('c-studio-dropdown');
   if(!dd)return;
-  if(!studios.length){
-    dd.innerHTML=`<div style="padding:10px 12px;font-size:13px;color:var(--text3)">Sin resultados</div>`;
-  }else{
-    dd.innerHTML=studios.map(s=>`
+  let html='';
+  if(studios.length){
+    html+=studios.map(s=>`
       <div onclick="selectStudio(${s.id},'${s.name.replace(/'/g,"\'")}')"
         style="padding:9px 12px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);transition:background .12s"
         onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-        <span style="font-size:15px">🏛️</span>
-        <div>
+        <span style="font-size:15px">&#127963;</span>
+        <div style="flex:1;min-width:0">
           <div style="font-weight:600">${s.name}</div>
           ${s.city?`<div style="font-size:11px;color:var(--text3)">${s.city}</div>`:''}
         </div>
-        ${s.agent!==ME.id&&ME.role!=='admin'?`<span style="font-size:10px;color:var(--text3);margin-left:auto">otro vendedor</span>`:''}
+        ${s.agent!==ME.id&&ME.role!=='admin'?`<span style="font-size:10px;color:var(--text3)">otro vendedor</span>`:''}
       </div>`).join('');
+  } else {
+    html+=`<div style="padding:10px 12px;font-size:13px;color:var(--text3)">Sin resultados${rawQ?' para "'+rawQ+'"':''}</div>`;
   }
+  const label=rawQ?`&#65291; Crear estudio "<strong>${rawQ}</strong>"`:'&#65291; Crear nuevo estudio';
+  html+=`<div onclick="crearEstudioDesdeModal('${(rawQ||'').replace(/'/g,"\'")}')"
+    style="padding:10px 14px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;
+           background:rgba(79,124,255,.08);border-top:1px solid var(--border);color:var(--accent);
+           font-weight:600;transition:background .12s"
+    onmouseover="this.style.background='rgba(79,124,255,.18)'" onmouseout="this.style.background='rgba(79,124,255,.08)'">
+    ${label}
+  </div>`;
+  dd.innerHTML=html;
   dd.style.display='block';
+}
+
+function crearEstudioDesdeModal(nombrePrefill){
+  S._afterStudioSave='selectFromContact';
+  S._studioNamePrefill=nombrePrefill||'';
+  hideStudioDropdown();
+  openStudioModal();
+  if(nombrePrefill&&$('s-name')){
+    $('s-name').value=nombrePrefill;
+    checkStudioDuplicate(nombrePrefill);
+  }
 }
 
 function showStudioDropdown(){
@@ -4149,7 +4170,16 @@ function saveStudio(){
     const newStudio={id:nid(),code:nextCode('E'),...obj,date:today()};
     D.studios.push(newStudio);
     saveData();closeM('modal-studio');renderStudios();
-    toast('Estudio creado 🎉');
+    // If created from contact modal, auto-select the new studio
+    if(S._afterStudioSave==='selectFromContact'){
+      S._afterStudioSave=null;
+      selectStudio(newStudio.id,newStudio.name);
+      renderStudioDropdown([],'');
+      hideStudioDropdown();
+      toast('Estudio "'+newStudio.name+'" creado y seleccionado ✓');
+    } else {
+      toast('Estudio creado 🎉');
+    }
   }
 }
 function deleteStudio(id){
