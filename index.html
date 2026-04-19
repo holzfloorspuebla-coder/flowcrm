@@ -133,6 +133,18 @@ tr.selected td{background:rgba(79,124,255,.06);}
 .proj-act-text{font-size:13px;color:var(--text2);line-height:1.5;flex:1;}
 .alarm-color-swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:3px solid transparent;transition:all .15s;flex-shrink:0;}
 .alarm-color-swatch.selected{border-color:#fff;transform:scale(1.15);}
+.card.task-alarm{animation:task-alarm-pulse 1.8s ease-in-out infinite;}
+@keyframes task-alarm-pulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(0,0,0,0);background:var(--surface2);border-color:var(--task-color,#a07cff);}
+  50%{box-shadow:0 0 0 7px var(--task-glow,rgba(160,124,255,0.25));background:var(--task-bg,rgba(160,124,255,0.10));border-color:var(--task-color,#a07cff);}
+}
+.task-badge{display:inline-flex;align-items:center;gap:3px;color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;margin-bottom:5px;}
+.task-item{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;}
+.task-item.done{opacity:.5;}
+.task-item-body{flex:1;min-width:0;}
+.task-item-text{font-size:13px;color:var(--text);line-height:1.5;}
+.task-item-meta{font-size:11px;color:var(--text3);margin-top:3px;}
+.task-color-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;margin-top:4px;}
 .alarm-row{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--surface2);border-radius:10px;margin-bottom:8px;}
 .alarm-row-name{flex:1;min-width:0;}
 .alarm-row-stage{font-size:12px;font-weight:600;}
@@ -527,6 +539,7 @@ select.inp{cursor:pointer;}
         <div id="pf-stage-sel"></div>
         <div class="sdiv">Proyectos asociados</div>
         <div id="pf-projects"></div>
+        <div id="pf-tasks-section"></div>
         <div class="sdiv">Notas y seguimiento</div>
         <div id="pf-notes"></div>
         <div class="note-add">
@@ -1565,8 +1578,116 @@ function isLightColor(hex){
   return(r*299+g*587+b*114)/1000>140;
 }
 
+// ── TASK ALARMS (admin-only manual tasks) ──
+function getTaskAlarm(entityId){
+  if(ME.role!=='admin') return null;
+  const tasks=(D.adminTasks||[]).filter(t=>t.entityId===entityId&&!t.done);
+  if(!tasks.length) return null;
+  // Find earliest due task
+  const now=today();
+  const due=tasks.filter(t=>t.dueDate&&t.dueDate<=now);
+  if(!due.length) return null;
+  return{active:true,color:due[0].color||'#a07cff',task:due[0]};
+}
+function taskBadgeHtml(entityId){
+  const ta=getTaskAlarm(entityId);
+  if(!ta) return '';
+  return`<div class="task-badge" style="background:${ta.color}">📌 Tarea</div>`;
+}
+
 // Called whenever an activity is saved — update lastActivity on linked records
 // (activities already store contactId/projectId so getAlarm auto-picks them up)
+
+
+// ══════════════════════════════════════════════════════
+//  ADMIN TASKS (manual task alarms)
+// ══════════════════════════════════════════════════════
+function renderTasksSection(entityId, entityType){
+  if(ME.role!=='admin') return '';
+  if(!D.adminTasks) D.adminTasks=[];
+  const tasks=D.adminTasks.filter(t=>t.entityId===entityId);
+  const pending=tasks.filter(t=>!t.done);
+  const done=tasks.filter(t=>t.done);
+  const colors=['#ff5c5c', '#ff8c42', '#f5c842', '#a07cff', '#4f7cff', '#3ecf8e', '#ff69b4', '#00bcd4', '#9c27b0', '#e91e63'];
+  const colorSwatches=colors.map(c=>`<div class="alarm-color-swatch task-color-swatch" style="background:${c}" data-color="${c}" onclick="selectTaskColor(this,'${entityId}')"></div>`).join('');
+  const taskList=tasks.length?`<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+    ${tasks.slice().reverse().map(t=>`
+      <div class="task-item${t.done?' done':''}" style="border-left:3px solid ${t.color||'#a07cff'}">
+        <div class="task-color-dot" style="background:${t.color||'#a07cff'}"></div>
+        <div class="task-item-body">
+          <div class="task-item-text">${t.text}</div>
+          <div class="task-item-meta">📅 ${t.dueDate||'Sin fecha'} ${t.done?'· ✅ Completada':''}</div>
+        </div>
+        ${!t.done?`<button class="btn btn-primary btn-sm" style="font-size:11px;padding:4px 10px;background:var(--green);border-color:var(--green)" onclick="completeTask('${t.id}','${entityId}','${entityType}')">✓ Hecha</button>`:''}
+      </div>`).join('')}
+  </div>`:'';
+  return`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:16px">
+    <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">📌 Tareas pendientes <span style="font-size:11px;font-weight:400;color:var(--text3)">(solo admin)</span></div>
+    ${taskList}
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <textarea id="task-inp-${entityId}" class="note-inp" rows="2" placeholder="Descripción de la tarea..." style="font-family:'DM Sans',sans-serif;font-size:13px;resize:none"></textarea>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <input type="date" id="task-date-${entityId}" class="inp" style="max-width:160px;height:36px;font-size:13px" value="${new Date(Date.now()+86400000).toISOString().slice(0,10)}">
+        <div style="display:flex;gap:6px;align-items:center" id="task-colors-${entityId}">${colorSwatches}</div>
+        <button class="btn btn-primary btn-sm" onclick="addTask('${entityId}','${entityType}')">＋ Añadir tarea</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function selectTaskColor(el, entityId){
+  const container=document.getElementById('task-colors-'+entityId);
+  container.querySelectorAll('.task-color-swatch').forEach(s=>s.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function getSelectedTaskColor(entityId){
+  const container=document.getElementById('task-colors-'+entityId);
+  if(!container) return '#a07cff';
+  const sel=container.querySelector('.task-color-swatch.selected');
+  return sel?sel.dataset.color:'#a07cff';
+}
+
+function addTask(entityId, entityType){
+  const inp=document.getElementById('task-inp-'+entityId);
+  const dateInp=document.getElementById('task-date-'+entityId);
+  const text=(inp?.value||'').trim();
+  if(!text){toast('Escribe una descripción para la tarea','⚠️');return;}
+  if(!D.adminTasks) D.adminTasks=[];
+  const color=getSelectedTaskColor(entityId);
+  D.adminTasks.push({
+    id:String(nid()),
+    entityId:String(entityId),
+    entityType,
+    text,
+    dueDate:dateInp?.value||today(),
+    color,
+    done:false,
+    createdAt:today(),
+    agent:ME.id
+  });
+  inp.value='';
+  saveData();
+  refreshTasksSection(entityId, entityType);
+  renderCKanban(); renderPKanban();
+  toast('Tarea añadida 📌');
+}
+
+function completeTask(taskId, entityId, entityType){
+  if(!D.adminTasks) return;
+  const t=D.adminTasks.find(x=>x.id===taskId);
+  if(t){ t.done=true; t.doneAt=today(); }
+  saveData();
+  refreshTasksSection(entityId, entityType);
+  renderCKanban(); renderPKanban();
+  toast('Tarea completada ✅');
+}
+
+function refreshTasksSection(entityId, entityType){
+  const el=document.getElementById('pf-tasks-section')||document.getElementById('proj-tasks-section-'+entityId);
+  if(el) el.innerHTML=renderTasksSection(entityId, entityType);
+}
+
 
 // ══════════════════════════════════════════════════════
 //  SIDEBAR & USER HEADER
@@ -1675,8 +1796,10 @@ function cCardH(c,col){
   if(c._isStudio){
     const ag=USERS.find(a=>a.id===c.agent);
     const alarm=getAlarm(c.id,c.stage,c.stageDate||c.date,'contact');
-    const alarmStyle=alarm?.active?`border-color:${alarm.color};--alarm-color:${alarm.color};--alarm-glow:${alarm.color}44;--alarm-bg:${alarm.color}18;`:'';
-    return`<div class="card${alarm?.active?' alarm':''}" draggable="true" id="cc-${c.id}"
+    const talarm=getTaskAlarm(c.id);
+    const alarmStyle=(alarm?.active?`border-color:${alarm.color};--alarm-color:${alarm.color};--alarm-glow:${alarm.color}44;--alarm-bg:${alarm.color}18;`:'')+(talarm?.active&&!alarm?.active?`border-color:${talarm.color};--task-color:${talarm.color};--task-glow:${talarm.color}44;--task-bg:${talarm.color}18;`:'');
+    const alarmClass=alarm?.active?' alarm':(talarm?.active?' task-alarm':'');
+    return`<div class="card${alarmClass}" draggable="true" id="cc-${c.id}"
       ondragstart="ds(event,'${c.id}','c')"
       onclick="openStudioProfile(${c.studioId})"
       style="${alarmStyle}">
@@ -1692,9 +1815,11 @@ function cCardH(c,col){
   const np=visibleProjects().filter(p=>p.contactIds?.includes(c.id)).length;
   const tags=(c.tags||[]).map(tH).join('');
   const alarm=getAlarm(c.id, c.stage, c.stageDate||c.date, 'contact');
-  const alarmStyle=alarm?.active?`border-color:${alarm.color};--alarm-color:${alarm.color};--alarm-glow:${alarm.color}44;--alarm-bg:${alarm.color}18;`:'';
-  return`<div class="card${alarm?.active?' alarm':''}" draggable="true" id="cc-${c.id}" ondragstart="ds(event,${c.id},'c')" onclick="openProfile(${c.id})" style="${alarmStyle}">
-    ${alarmBadgeHtml(alarm)}
+  const talarm2=getTaskAlarm(c.id);
+  const alarmStyle2=(alarm?.active?`border-color:${alarm.color};--alarm-color:${alarm.color};--alarm-glow:${alarm.color}44;--alarm-bg:${alarm.color}18;`:'')+(talarm2?.active&&!alarm?.active?`border-color:${talarm2.color};--task-color:${talarm2.color};--task-glow:${talarm2.color}44;--task-bg:${talarm2.color}18;`:'');
+  const alarmClass2=alarm?.active?' alarm':(talarm2?.active?' task-alarm':'');
+  return`<div class="card${alarmClass2}" draggable="true" id="cc-${c.id}" ondragstart="ds(event,${c.id},'c')" onclick="openProfile(${c.id})" style="${alarmStyle2}">
+    ${alarmBadgeHtml(alarm)}${taskBadgeHtml(c.id)}
     <div class="card-top">${avEl(c.name[0],col,28)}<div class="card-name">${c.name}</div></div>
     <div class="card-sub">🏛️ ${(D.studios||[]).find(s=>s.id===c.studioId)?.name||'—'}</div>
     <div class="card-sub">🔖 ${c.type}${c.city?' · 📍'+c.city:''}</div>
@@ -1915,12 +2040,14 @@ function pCardH(p,col){
   const contacts=visibleContacts().filter(c=>p.contactIds?.includes(c.id));
   const tags=(p.tags||[]).map(tH).join('');
   const alarm=getAlarm(p.id, p.stage, p.stageDate||p.date, 'project');
-  const palarmStyle=alarm?.active?`border-color:${alarm.color};--alarm-color:${alarm.color};--alarm-glow:${alarm.color}44;--alarm-bg:${alarm.color}18;`:'';
+  const talarmP=getTaskAlarm(p.id);
+  const palarmStyle=(alarm?.active?`border-color:${alarm.color};--alarm-color:${alarm.color};--alarm-glow:${alarm.color}44;--alarm-bg:${alarm.color}18;`:'')+(talarmP?.active&&!alarm?.active?`border-color:${talarmP.color};--task-color:${talarmP.color};--task-glow:${talarmP.color}44;--task-bg:${talarmP.color}18;`:'');
+  const palarmClass=alarm?.active?' alarm':(talarmP?.active?' task-alarm':'');
   const isRO=p._readOnly||p.stage===POSTVENTA_ID;
   const dragAttr=isRO?'':`ondragstart="ds(event,${p.id},'p')"`;
-  return`<div class="card${alarm?.active?' alarm':''}" draggable="${isRO?'false':'true'}" id="pc-${p.id}" ${dragAttr} onclick="openProjDetail(${p.id})" style="${palarmStyle}${isRO?'opacity:.85;':''}">
+  return`<div class="card${palarmClass}" draggable="${isRO?'false':'true'}" id="pc-${p.id}" ${dragAttr} onclick="openProjDetail(${p.id})" style="${palarmStyle}${isRO?'opacity:.85;':''}">
     ${isRO?'<div style="font-size:9px;color:var(--orange);font-weight:700;letter-spacing:.06em;margin-bottom:4px;opacity:.7">🔒 POSTVENTA</div>':''}
-    ${alarmBadgeHtml(alarm)}
+    ${alarmBadgeHtml(alarm)}${taskBadgeHtml(p.id)}
     <div class="card-top">${avEl('📁',col,28)}<div class="card-name">${p.name}</div></div>
     ${p.city?`<div class="card-sub">📍 ${p.city}</div>`:''}
     <div class="card-val">${fmtVal(p.value)}</div>
@@ -2056,6 +2183,9 @@ function openProfile(id){
     :`<div class="empty"><div class="eico">📁</div><p>Sin proyectos asociados.</p></div>`;
 
   renderProfileNotes(id,owned);
+  // Render admin tasks section
+  const tasksEl=$('pf-tasks-section');
+  if(tasksEl) tasksEl.innerHTML=renderTasksSection(String(id),'contact');
   goView('profile-view');
 }
 function renderProfileNotes(id,owned){
@@ -2182,7 +2312,8 @@ function openProjDetail(id){
         <span>📋 Registro de actividades</span>
         ${getAlarm(p.id,p.stage,p.stageDate||p.date,'project')?.active?`<span style="font-size:10px;background:var(--alarm-color,#ff5c5c)22;color:var(--alarm-color,#ff5c5c);padding:2px 8px;border-radius:10px;font-weight:700">⚠️ Alarma activa — añade actividad para resetear</span>`:''}
       </div>
-      <div class="proj-act-log" id="proj-act-log-${id}">${renderProjActLog(p)}</div>
+      <div id="proj-tasks-section-${id}">${ME.role==='admin'?renderTasksSection(String(id),'project'):''}</div>
+    <div class="proj-act-log" id="proj-act-log-${id}">${renderProjActLog(p)}</div>
       ${owned?`<div style="display:flex;gap:8px;margin-top:4px">
         <textarea class="note-inp" id="proj-act-inp-${id}" rows="2" placeholder="Describe la actividad realizada (llamada, visita, envío de propuesta...)..." style="flex:1;font-family:'DM Sans',sans-serif;font-size:13px;resize:none"></textarea>
         <button class="btn btn-primary btn-sm" style="align-self:flex-end;white-space:nowrap" onclick="addProjActivity(${id})">＋ Registrar</button>
@@ -3623,6 +3754,7 @@ function deleteSegment(idx){
 function removeType(t){D.contactTypes=D.contactTypes.filter(x=>x!==t);saveData();renderSettings();}
 function saveAlarmCfg(stageId, daysVal, colorVal){
   if(!D.stageAlarms)D.stageAlarms={};
+  if(!D.adminTasks)D.adminTasks=[];
   const existing=D.stageAlarms[stageId]||{};
   if(daysVal!==null){
     const days=parseInt(daysVal);
