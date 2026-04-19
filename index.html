@@ -1581,7 +1581,7 @@ function studioVirtualContacts(){
       email:s.email,email2:s.email2,
       city:s.city,state:s.state,
       agent:s.agent,
-      stage:s.pipelineStage||'c-lead',
+      stage:s.stage||s.pipelineStage||'c-lead',
       stageDate:s.stageDate,
       tags:[],notesList:[],notes:s.notes||'',
       date:s.date,
@@ -2703,7 +2703,8 @@ function changeContactStage(id,stage){
 function changeStudioStage(id,stage){
   const s=(D.studios||[]).find(x=>x.id===id);
   if(!s){toast('Estudio no encontrado','⚠️');return;}
-  s.stage=stage;s.stageDate=today();saveData();renderCKanban();toast('Etapa actualizada');
+  s.stage=stage;s.stageDate=today();saveData();renderCKanban();
+  toast('Etapa actualizada');
 }
 function deleteContact(id){
   const c=D.contacts.find(x=>x.id===id);
