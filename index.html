@@ -413,6 +413,9 @@ select.inp{cursor:pointer;}
           <div class="pipeline-bar">
             <div class="chip active" onclick="filterC(this,'all')">Todos</div>
             <div id="c-agent-chips"></div>
+            <div style="margin-left:auto">
+              <div class="srch"><span>🔍</span><input type="text" id="kanban-search" placeholder="Buscar en pipeline..." oninput="renderCKanban()" style="width:200px" autocomplete="off"></div>
+            </div>
           </div>
           <div class="kanban" id="c-kanban"></div>
         </div>
@@ -2237,14 +2240,21 @@ function swTab(mod,name,el){
 //  CONTACT KANBAN
 // ══════════════════════════════════════════════════════
 function renderCKanban(){
+  const kq=norm(document.getElementById('kanban-search')?.value||'');
   $('c-kanban').innerHTML=C_STAGES.map(st=>{
     // Contacts in this stage
     let items=visibleContacts().filter(c=>c.stage===st.id);
     if(S.cFilter!=='all')items=items.filter(c=>c.agent===S.cFilter);
+    // Apply search filter
+    if(kq) items=items.filter(c=>{
+      const studio=(D.studios||[]).find(s=>s.id===c.studioId);
+      return norm(c.name).includes(kq)||norm(studio?.name||'').includes(kq)||norm(c.email||'').includes(kq)||norm(c.phone||'').includes(kq);
+    });
     // Studios without architects also appear in pipeline (as virtual contacts)
     const studioItems=studioVirtualContacts().filter(s=>s.stage===st.id);
     const filteredStudios=S.cFilter==='all'?studioItems:studioItems.filter(s=>s.agent===S.cFilter);
-    items=[...items,...filteredStudios];
+    const filteredStudios2=kq?filteredStudios.filter(s=>norm(s.name).includes(kq)):filteredStudios;
+    items=[...items,...filteredStudios2];
     return`<div class="col" id="ccol-${st.id}" ondragover="dov(event,'${st.id}','c')" ondrop="drp(event,'${st.id}','c')" ondragleave="dlv()">
       <div class="col-head"><div class="col-dot" style="background:${st.color}"></div><div class="col-title">${st.name}</div><div class="col-count">${items.length}</div></div>
       <div class="col-cards">${items.map(c=>cCardH(c,st.color)).join('')}
@@ -2689,6 +2699,11 @@ function changeContactStage(id,stage){
   const c=D.contacts.find(x=>x.id===id);
   if(!c||!canEdit(c.agent)){toast('Sin permiso','⚠️');return;}
   c.stage=stage;c.stageDate=today();saveData();renderCKanban();toast('Etapa actualizada');
+}
+function changeStudioStage(id,stage){
+  const s=(D.studios||[]).find(x=>x.id===id);
+  if(!s){toast('Estudio no encontrado','⚠️');return;}
+  s.stage=stage;s.stageDate=today();saveData();renderCKanban();toast('Etapa actualizada');
 }
 function deleteContact(id){
   const c=D.contacts.find(x=>x.id===id);
@@ -4403,7 +4418,13 @@ function openStudioProfile(id){
       ${owned?`<button class="btn btn-ghost btn-sm" onclick="openStudioModal(${id})">✏️ Editar</button>`:''}
       ${ME.role==='admin'?`<button class="btn btn-red btn-sm" onclick="deleteStudio(${id})">🗑️</button>`:''}
       ${owned?`<button class="btn btn-primary btn-sm" onclick="openArchitectModal(${id})">👤 ＋ Arquitecto</button>`:''}
-    </div>`;
+    </div>
+    ${owned?`<div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:12px;color:var(--text3)">Etapa en pipeline:</span>
+      <select class="inp" style="max-width:240px;height:34px;font-size:13px" onchange="changeStudioStage(${id},this.value)">
+        ${C_STAGES.map(st=>`<option value="${st.id}" ${(s.stage||'c-lead')===st.id?'selected':''}>${st.name}</option>`).join('')}
+      </select>
+    </div>`:''}`;
   $('spf-body').innerHTML=`
     <div class="ig" style="margin-bottom:18px">
       <div><div class="il">Vendedor responsable</div><div class="iv">${agH(s.agent,20)}</div></div>
