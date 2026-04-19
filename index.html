@@ -1814,11 +1814,14 @@ function completeTask(taskId, entityId, entityType){
   saveData();
   refreshTasksSection(entityId, entityType);
   renderCKanban(); renderPKanban();
+  if(typeof renderTareas==='function') renderTareas();
   toast('Tarea completada ✅');
 }
 
 function refreshTasksSection(entityId, entityType){
-  const el=document.getElementById('pf-tasks-section')||document.getElementById('proj-tasks-section-'+entityId);
+  const el=document.getElementById('pf-tasks-section')
+    ||document.getElementById('proj-tasks-section-'+entityId)
+    ||document.getElementById('spf-tasks-section');
   if(el) el.innerHTML=renderTasksSection(entityId, entityType);
 }
 
@@ -3177,10 +3180,9 @@ function populateStudioSelect(selectedId){
 function filterStudioDropdown(q){
   const all=D.studios||[];
   const nq=norm(q);
-  const filtered=nq===''?all:all.filter(s=>norm(s.name).includes(nq)||norm(s.city||'').includes(nq)||norm(s.email||'').includes(nq));
+  const filtered=nq?all.filter(s=>norm(s.name).includes(nq)||norm(s.city||'').includes(nq)):all;
   renderStudioDropdown(filtered, q.trim());
 }
-
 function renderStudioDropdown(studios, rawQ){
   const dd=$('c-studio-dropdown');
   if(!dd)return;
@@ -4413,6 +4415,7 @@ function openStudioProfile(id){
       ${s.linkedin?`<div><div class="il">LinkedIn</div><div class="iv"><a href="${s.linkedin.startsWith('http')?s.linkedin:'https://'+s.linkedin}" target="_blank" style="color:#0a66c2;text-decoration:none">💼 LinkedIn</a></div></div>`:''}
       ${s.notes?`<div style="grid-column:span 3"><div class="il">Notas</div><div class="iv" style="color:var(--text2)">${s.notes}</div></div>`:''}
     </div>
+    <div id="spf-tasks-section"></div>
     <div class="sdiv">Arquitectos del estudio</div>
     ${archs.length?archs.map(c=>{
       const projs=D.projects.filter(p=>p.contactIds?.includes(c.id));
@@ -4435,6 +4438,13 @@ function openStudioProfile(id){
       </div>`;
     }).join(''):'<div style="color:var(--text3);font-size:13px;padding:10px 0">Sin arquitectos vinculados todavía.</div>'}
   `;
+  // Render tasks section for admin
+  if(ME.role==='admin'){
+    setTimeout(()=>{
+      const tid=document.getElementById('spf-tasks-section');
+      if(tid) tid.innerHTML=renderTasksSection(String(id),'studio');
+    },0);
+  }
   goView('studio-profile-view');
 }
 function openStudioModal(editId){
