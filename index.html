@@ -365,6 +365,11 @@ select.inp{cursor:pointer;}
     <div class="ns">Sistema</div>
     <button class="ni" id="ni-inbox" onclick="goView('inbox-view')"><span class="ic">🔔</span>Solicitudes <span id="inbox-badge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:auto">0</span></button>
     <button class="ni" onclick="goView('settings-view')"><span class="ic">⚙️</span>Configuración</button>
+    <div style="padding:10px 14px 4px">
+      <button onclick="openUnifiedCreate()" class="btn btn-primary" style="width:100%;font-size:13px;font-weight:700;padding:10px">
+        &#65291; Crear nuevo...
+      </button>
+    </div>
   </nav>
   <div class="user-footer">
     <div class="user-card">
@@ -658,6 +663,134 @@ select.inp{cursor:pointer;}
 </div>
 
 <!-- ══ MODAL CONTACTO ══ -->
+<!-- UNIFIED CREATE MODAL -->
+<div class="overlay hidden" id="modal-unified-create">
+  <div class="modal" style="max-width:620px;max-height:90vh;overflow-y:auto">
+    <div class="modal-hd">
+      <h2 id="muc-title">&#65291; Nuevo registro</h2>
+      <button class="modal-close" onclick="closeM('modal-unified-create')">&#10005;</button>
+    </div>
+    <!-- Tabs -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:18px">
+      <button id="muc-tab-studio" onclick="switchUCTab('studio')" style="flex:1;padding:10px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--accent);color:var(--accent)">&#127963; Estudio</button>
+      <button id="muc-tab-contact" onclick="switchUCTab('contact')" style="flex:1;padding:10px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text3)">&#128101; Contacto</button>
+      <button id="muc-tab-project" onclick="switchUCTab('project')" style="flex:1;padding:10px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text3)">&#128193; Proyecto</button>
+    </div>
+
+    <!-- ESTUDIO TAB -->
+    <div id="muc-studio-tab">
+      <div class="r3">
+        <div class="fg" style="grid-column:span 2"><label class="lbl">Nombre del estudio *</label><input class="inp" id="muc-s-name" oninput="checkMUCStudioDup(this.value)" placeholder="Nombre del estudio"></div>
+        <div class="fg"><label class="lbl">Price List</label><input class="inp" id="muc-s-pricelist" placeholder="Entry, Arq1..."></div>
+      </div>
+      <div id="muc-s-dup-warn" style="display:none;background:rgba(255,92,92,.12);border:1px solid var(--red);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--red);margin-bottom:10px">&#9888; Ya existe un estudio con ese nombre</div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">Ciudad</label><input class="inp" id="muc-s-city" placeholder="Ciudad"></div>
+        <div class="fg"><label class="lbl">Estado</label><input class="inp" id="muc-s-state" placeholder="Estado"></div>
+        <div class="fg"><label class="lbl">Vendedor</label>
+          <select class="inp" id="muc-s-agent"></select>
+        </div>
+      </div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">Email</label><input class="inp" id="muc-s-email" type="email" placeholder="info@estudio.mx"></div>
+        <div class="fg"><label class="lbl">Teléfono</label><input class="inp" id="muc-s-phone" placeholder="+52 55..."></div>
+        <div class="fg"><label class="lbl">WhatsApp</label><input class="inp" id="muc-s-whatsapp" placeholder="+52 55..."></div>
+      </div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">Web</label><input class="inp" id="muc-s-web" placeholder="https://..."></div>
+        <div class="fg"><label class="lbl">Instagram</label><input class="inp" id="muc-s-instagram" placeholder="@estudio"></div>
+        <div class="fg"><label class="lbl">LinkedIn</label><input class="inp" id="muc-s-linkedin" placeholder="linkedin.com/..."></div>
+      </div>
+      <div class="fg"><label class="lbl">Notas</label><textarea class="inp" id="muc-s-notes" rows="2" style="resize:none"></textarea></div>
+    </div>
+
+    <!-- CONTACTO TAB -->
+    <div id="muc-contact-tab" style="display:none">
+      <div class="r3">
+        <div class="fg" style="grid-column:span 2"><label class="lbl">Nombre *</label><input class="inp" id="muc-c-name" placeholder="Nombre completo"></div>
+        <div class="fg"><label class="lbl">Tipo</label>
+          <select class="inp" id="muc-c-type">
+            <option value="Arquitecto">Arquitecto</option>
+            <option value="Constructora">Constructora</option>
+            <option value="Interiorista">Interiorista</option>
+            <option value="Desarrollador">Desarrollador</option>
+            <option value="Contratista">Contratista</option>
+            <option value="Particular">Particular</option>
+            <option value="Distribuidor">Distribuidor</option>
+          </select>
+        </div>
+      </div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">Email</label><input class="inp" id="muc-c-email" type="email" placeholder="correo@..."></div>
+        <div class="fg"><label class="lbl">Teléfono</label><input class="inp" id="muc-c-phone" placeholder="+52 55..."></div>
+        <div class="fg"><label class="lbl">WhatsApp</label><input class="inp" id="muc-c-whatsapp" placeholder="+52 55..."></div>
+      </div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">Ciudad</label><input class="inp" id="muc-c-city" placeholder="Ciudad"></div>
+        <div class="fg"><label class="lbl">Estado</label><input class="inp" id="muc-c-state" placeholder="Estado"></div>
+        <div class="fg"><label class="lbl">Vendedor</label>
+          <select class="inp" id="muc-c-agent"></select>
+        </div>
+      </div>
+      <div class="fg" style="margin-bottom:10px">
+        <label class="lbl">Estudio de arquitectura</label>
+        <div style="position:relative">
+          <input class="inp" id="muc-c-studio-search" placeholder="Buscar o crear estudio..." autocomplete="off"
+            oninput="filterMUCStudio(this.value)" onfocus="filterMUCStudio(this.value)" style="padding-right:30px">
+          <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px">&#128269;</span>
+        </div>
+        <div id="muc-c-studio-dropdown" style="display:none;position:absolute;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:calc(100% - 48px);box-shadow:0 6px 24px rgba(0,0,0,.4)"></div>
+        <input type="hidden" id="muc-c-studio-id">
+        <div id="muc-c-studio-selected" style="display:none;margin-top:5px;align-items:center;gap:7px;background:var(--surface2);border-radius:7px;padding:6px 10px">
+          <span>&#127963;</span>
+          <span id="muc-c-studio-name" style="font-size:13px;font-weight:600;flex:1"></span>
+          <button type="button" onclick="clearMUCStudio()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px">&#10005;</button>
+        </div>
+      </div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">Instagram</label><input class="inp" id="muc-c-instagram" placeholder="@perfil"></div>
+        <div class="fg"><label class="lbl">LinkedIn</label><input class="inp" id="muc-c-linkedin" placeholder="linkedin.com/..."></div>
+        <div class="fg"><label class="lbl">Price List</label><input class="inp" id="muc-c-pricelist" placeholder="Entry..."></div>
+      </div>
+    </div>
+
+    <!-- PROYECTO TAB -->
+    <div id="muc-project-tab" style="display:none">
+      <div class="r3">
+        <div class="fg" style="grid-column:span 2"><label class="lbl">Nombre del proyecto *</label><input class="inp" id="muc-p-name" placeholder="P001 - Cliente - Descripción"></div>
+        <div class="fg"><label class="lbl">Valor (MXN)</label><input class="inp" id="muc-p-value" type="number" placeholder="0"></div>
+      </div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">Ciudad</label><input class="inp" id="muc-p-city" placeholder="Ciudad"></div>
+        <div class="fg"><label class="lbl">Segmento</label>
+          <select class="inp" id="muc-p-segment">
+            <option value="">— Sin segmento —</option>
+          </select>
+        </div>
+        <div class="fg"><label class="lbl">Vendedor</label>
+          <select class="inp" id="muc-p-agent"></select>
+        </div>
+      </div>
+      <div class="fg" style="margin-bottom:10px">
+        <label class="lbl">Contacto vinculado</label>
+        <div style="position:relative">
+          <input class="inp" id="muc-p-contact-search" placeholder="Buscar contacto..." autocomplete="off"
+            oninput="filterMUCContact(this.value)" onfocus="filterMUCContact(this.value)" style="padding-right:30px">
+          <span style="position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:13px">&#128269;</span>
+        </div>
+        <div id="muc-p-contact-dropdown" style="display:none;position:absolute;z-index:60;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:180px;overflow-y:auto;width:calc(100% - 48px);box-shadow:0 6px 24px rgba(0,0,0,.4)"></div>
+        <div id="muc-p-contacts-list" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:6px"></div>
+      </div>
+      <div class="fg"><label class="lbl">Notas</label><textarea class="inp" id="muc-p-notes" rows="2" style="resize:none"></textarea></div>
+    </div>
+
+    <div class="modal-ft" style="margin-top:16px">
+      <button class="btn btn-ghost" onclick="closeM('modal-unified-create')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveUnifiedCreate()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay hidden" id="modal-contact">
   <div class="modal wide">
     <div class="modal-hd"><h2 id="mc-title">Nuevo Contacto</h2><button class="modal-close" onclick="closeM('modal-contact')">✕</button></div>
@@ -1692,6 +1825,227 @@ function refreshTasksSection(entityId, entityType){
 
 
 // ══════════════════════════════════════════════════════
+
+// ══════════════════════════════════════════════════════
+//  UNIFIED CREATE MODAL
+// ══════════════════════════════════════════════════════
+let _mucTab='studio';
+let _mucPContactIds=[];
+
+function openUnifiedCreate(defaultTab){
+  _mucTab=defaultTab||'studio';
+  _mucPContactIds=[];
+  // Populate selects
+  const agentOpts=ME.role==='admin'?USERS:USERS.filter(u=>u.id===ME.id);
+  const agentHTML=agentOpts.map(a=>`<option value="${a.id}" ${a.id===ME.id?'selected':''}>${a.name}</option>`).join('');
+  ['muc-s-agent','muc-c-agent','muc-p-agent'].forEach(id=>{if($(id))$(id).innerHTML=agentHTML;});
+  const segs=D.segments||DEFAULT_SEGMENTS;
+  if($('muc-p-segment')){
+    $('muc-p-segment').innerHTML=`<option value="">— Sin segmento —</option>`+segs.map(s=>`<option value="${s.id}">${s.icon} ${s.label}</option>`).join('');
+  }
+  // Clear all fields
+  ['muc-s-name','muc-s-city','muc-s-state','muc-s-email','muc-s-phone','muc-s-whatsapp','muc-s-web','muc-s-instagram','muc-s-linkedin','muc-s-pricelist','muc-s-notes'].forEach(id=>{if($(id))$(id).value='';});
+  ['muc-c-name','muc-c-email','muc-c-phone','muc-c-whatsapp','muc-c-city','muc-c-state','muc-c-instagram','muc-c-linkedin','muc-c-pricelist'].forEach(id=>{if($(id))$(id).value='';});
+  ['muc-p-name','muc-p-city','muc-p-notes'].forEach(id=>{if($(id))$(id).value='';});
+  if($('muc-p-value'))$('muc-p-value').value='';
+  clearMUCStudio(); clearMUCPContact();
+  if($('muc-s-dup-warn'))$('muc-s-dup-warn').style.display='none';
+  switchUCTab(_mucTab);
+  $('modal-unified-create').classList.remove('hidden');
+}
+
+function switchUCTab(tab){
+  _mucTab=tab;
+  ['studio','contact','project'].forEach(t=>{
+    const tabEl=$('muc-'+t+'-tab');
+    const btnEl=$('muc-tab-'+t);
+    if(tabEl) tabEl.style.display=t===tab?'':'none';
+    if(btnEl){
+      btnEl.style.borderBottomColor=t===tab?'var(--accent)':'transparent';
+      btnEl.style.color=t===tab?'var(--accent)':'var(--text3)';
+    }
+  });
+  const titles={studio:'&#127963; Nuevo Estudio',contact:'&#128101; Nuevo Contacto',project:'&#128193; Nuevo Proyecto'};
+  if($('muc-title'))$('muc-title').innerHTML='&#65291; '+titles[tab].split(' ').slice(1).join(' ');
+}
+
+function checkMUCStudioDup(val){
+  const dup=(D.studios||[]).find(s=>norm(s.name)===norm(val));
+  const warn=$('muc-s-dup-warn');
+  if(warn) warn.style.display=dup?'block':'none';
+}
+
+// Studio search in contact tab
+function filterMUCStudio(q){
+  const dd=$('muc-c-studio-dropdown');
+  if(!dd)return;
+  const nq=norm(q);
+  const all=D.studios||[];
+  const filtered=nq?all.filter(s=>norm(s.name).includes(nq)||norm(s.city||'').includes(nq)):all;
+  let html=filtered.slice(0,8).map(s=>`
+    <div onclick="selectMUCStudio(${s.id},'${s.name.replace(/'/g,"\'")}')"
+      style="padding:9px 12px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)"
+      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <span>&#127963;</span><div><div style="font-weight:600">${s.name}</div>${s.city?`<div style="font-size:11px;color:var(--text3)">${s.city}</div>`:''}</div>
+    </div>`).join('');
+  if(!filtered.length) html+=`<div style="padding:10px 12px;font-size:13px;color:var(--text3)">Sin resultados</div>`;
+  html+=`<div onclick="createMUCStudioInline('${(q||'').replace(/'/g,"\'")}')"
+    style="padding:10px 14px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;background:rgba(79,124,255,.08);border-top:1px solid var(--border);color:var(--accent);font-weight:600"
+    onmouseover="this.style.background='rgba(79,124,255,.18)'" onmouseout="this.style.background='rgba(79,124,255,.08)'">
+    &#65291; Crear estudio${q?' "'+q+'"':' nuevo'}
+  </div>`;
+  dd.innerHTML=html;
+  dd.style.display='block';
+}
+
+function createMUCStudioInline(name){
+  // Switch to studio tab with prefill, save will return to contact tab
+  if($('muc-c-studio-dropdown'))$('muc-c-studio-dropdown').style.display='none';
+  S._mucReturnToContact=true;
+  S._mucStudioPrefill=name;
+  switchUCTab('studio');
+  if($('muc-s-name')){$('muc-s-name').value=name;checkMUCStudioDup(name);}
+  toast('Rellena los datos del estudio y guarda','ℹ️');
+}
+
+function selectMUCStudio(id,name){
+  if($('muc-c-studio-id'))$('muc-c-studio-id').value=id;
+  if($('muc-c-studio-name'))$('muc-c-studio-name').textContent=name;
+  if($('muc-c-studio-selected'))$('muc-c-studio-selected').style.display='flex';
+  if($('muc-c-studio-search'))$('muc-c-studio-search').style.display='none';
+  if($('muc-c-studio-dropdown'))$('muc-c-studio-dropdown').style.display='none';
+}
+function clearMUCStudio(){
+  if($('muc-c-studio-id'))$('muc-c-studio-id').value='';
+  if($('muc-c-studio-selected'))$('muc-c-studio-selected').style.display='none';
+  if($('muc-c-studio-search')){$('muc-c-studio-search').style.display='block';$('muc-c-studio-search').value='';}
+}
+
+// Contact search in project tab
+function filterMUCContact(q){
+  const dd=$('muc-p-contact-dropdown');
+  if(!dd)return;
+  const nq=norm(q);
+  const all=visibleContacts();
+  const filtered=nq?all.filter(c=>norm(c.name).includes(nq)||norm((D.studios||[]).find(s=>s.id===c.studioId)?.name||'').includes(nq)):all;
+  dd.innerHTML=filtered.slice(0,8).map(c=>{
+    const st=(D.studios||[]).find(s=>s.id===c.studioId);
+    const already=_mucPContactIds.includes(c.id);
+    return`<div onclick="${already?'':('addMUCContact('+c.id+',''+c.name.replace(/'/g,"\'")+'')')}"
+      style="padding:9px 12px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);opacity:${already?.5:1}"
+      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <span>&#128101;</span>
+      <div><div style="font-weight:600">${c.name}</div>${st?`<div style="font-size:11px;color:var(--text3)">&#127963; ${st.name}</div>`:''}</div>
+      ${already?`<span style="font-size:10px;color:var(--green);margin-left:auto">&#10003;</span>`:''}
+    </div>`;
+  }).join('');
+  dd.style.display='block';
+}
+
+function addMUCContact(id,name){
+  if(_mucPContactIds.includes(id)) return;
+  _mucPContactIds.push(id);
+  if($('muc-p-contact-dropdown'))$('muc-p-contact-dropdown').style.display='none';
+  if($('muc-p-contact-search'))$('muc-p-contact-search').value='';
+  renderMUCPContacts();
+}
+function removeMUCContact(id){
+  _mucPContactIds=_mucPContactIds.filter(x=>x!==id);
+  renderMUCPContacts();
+}
+function clearMUCPContact(){
+  _mucPContactIds=[];
+  renderMUCPContacts();
+}
+function renderMUCPContacts(){
+  const el=$('muc-p-contacts-list');
+  if(!el) return;
+  el.innerHTML=_mucPContactIds.map(id=>{
+    const c=D.contacts.find(x=>x.id===id);
+    if(!c) return '';
+    return`<div style="display:flex;align-items:center;gap:5px;background:var(--surface2);border-radius:6px;padding:4px 8px;font-size:12px">
+      &#128101; ${c.name}
+      <button onclick="removeMUCContact(${id})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:0 2px">&#10005;</button>
+    </div>`;
+  }).join('');
+}
+
+function saveUnifiedCreate(){
+  if(_mucTab==='studio'){
+    const name=($('muc-s-name')?.value||'').trim();
+    if(!name){toast('El nombre del estudio es requerido','⚠️');return;}
+    const dup=(D.studios||[]).find(s=>norm(s.name)===norm(name));
+    if(dup){toast('Ya existe un estudio con ese nombre','⚠️');return;}
+    const newS={id:nid(),code:nextCode('E'),
+      name,city:$('muc-s-city')?.value.trim()||'',state:$('muc-s-state')?.value.trim()||'',
+      email:$('muc-s-email')?.value.trim()||'',email2:'',
+      phone:$('muc-s-phone')?.value.trim()||'',whatsapp:$('muc-s-whatsapp')?.value.trim()||'',
+      web:$('muc-s-web')?.value.trim()||'',instagram:$('muc-s-instagram')?.value.trim()||'',
+      linkedin:$('muc-s-linkedin')?.value.trim()||'',priceList:$('muc-s-pricelist')?.value.trim()||'',
+      notes:$('muc-s-notes')?.value.trim()||'',segment:'',
+      agent:parseInt($('muc-s-agent')?.value)||ME.id,date:today()
+    };
+    if(!D.studios)D.studios=[];
+    D.studios.push(newS);
+    saveData();renderStudios();
+    // If came from contact tab, switch back and select studio
+    if(S._mucReturnToContact){
+      S._mucReturnToContact=false;
+      switchUCTab('contact');
+      selectMUCStudio(newS.id,newS.name);
+    } else {
+      closeM('modal-unified-create');
+    }
+    toast('Estudio creado ✓');
+  } else if(_mucTab==='contact'){
+    const name=($('muc-c-name')?.value||'').trim();
+    if(!name){toast('El nombre del contacto es requerido','⚠️');return;}
+    const studioId=parseInt($('muc-c-studio-id')?.value)||null;
+    const obj={
+      name,mailingName:'',type:$('muc-c-type')?.value||'Arquitecto',
+      email:$('muc-c-email')?.value.trim()||'',email2:'',
+      phone:$('muc-c-phone')?.value.trim()||'',whatsapp:$('muc-c-whatsapp')?.value.trim()||'',
+      city:$('muc-c-city')?.value.trim()||'',state:$('muc-c-state')?.value.trim()||'',
+      instagram:$('muc-c-instagram')?.value.trim()||'',linkedin:$('muc-c-linkedin')?.value.trim()||'',
+      priceList:$('muc-c-pricelist')?.value.trim()||'',
+      studioId,agent:parseInt($('muc-c-agent')?.value)||ME.id,
+      stage:'c-lead',tags:[],notes:'',notesList:[]
+    };
+    if(!D.contacts)D.contacts=[];
+    D.contacts.push({id:nid(),code:nextCode('A'),...obj,date:today()});
+    saveData();renderCTable();renderCKanban();
+    closeM('modal-unified-create');
+    toast('Contacto creado ✓');
+  } else if(_mucTab==='project'){
+    const name=($('muc-p-name')?.value||'').trim();
+    if(!name){toast('El nombre del proyecto es requerido','⚠️');return;}
+    const obj={
+      name,value:parseFloat($('muc-p-value')?.value)||0,
+      city:$('muc-p-city')?.value.trim()||'',
+      segment:$('muc-p-segment')?.value||'',
+      notes:$('muc-p-notes')?.value.trim()||'',
+      agent:parseInt($('muc-p-agent')?.value)||ME.id,
+      contactIds:[..._mucPContactIds],
+      stage:'p-contacto',tags:[],closeDate:''
+    };
+    if(!D.projects)D.projects=[];
+    D.projects.push({id:nid(),...obj,date:today()});
+    saveData();renderPTable();renderPKanban();
+    closeM('modal-unified-create');
+    toast('Proyecto creado ✓');
+  }
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#muc-c-studio-search')&&!e.target.closest('#muc-c-studio-dropdown')){
+    const dd=$('muc-c-studio-dropdown');if(dd)dd.style.display='none';
+  }
+  if(!e.target.closest('#muc-p-contact-search')&&!e.target.closest('#muc-p-contact-dropdown')){
+    const dd=$('muc-p-contact-dropdown');if(dd)dd.style.display='none';
+  }
+});
+
 //  TAREAS VIEW (admin only)
 // ══════════════════════════════════════════════════════
 function showTareasNav(){
