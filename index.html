@@ -465,7 +465,6 @@ select.inp{cursor:pointer;}
     <div class="view hidden" id="studios-view">
       <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
         <div class="toolbar" style="gap:8px;flex-wrap:wrap">
-          <div class="srch"><span>🔍</span><input type="text" id="studio-search" placeholder="Buscar por nombre, email, teléfono..." oninput="renderStudios(this.value)"></div>
           <div id="studio-agent-filter" style="display:flex;gap:5px"></div>
           <div style="margin-left:auto;display:flex;gap:7px">
             <button class="btn btn-ghost btn-sm" id="studios-select-btn" onclick="toggleStudiosSelectMode()">☑️ Seleccionar</button>
@@ -3813,17 +3812,22 @@ function filterPContactList(q){
 // ══════════════════════════════════════════════════════
 function renderStudios(filter=''){
   if(!D.studios)D.studios=[];
-  const q=(filter||'').toLowerCase();
+  const q=norm(filter||'');
+  const qRaw=(filter||'').replace(/\D/g,'');
   const filtered=D.studios.filter(s=>!q||
-    (s.name||'').toLowerCase().includes(q)||
-    (s.email||'').toLowerCase().includes(q)||
-    (s.phone||'').replace(/\D/g,'').includes(q.replace(/\D/g,''))||
-    (s.city||'').toLowerCase().includes(q)||
-    (s.state||'').toLowerCase().includes(q)
+    norm(s.name).includes(q)||
+    norm(s.email).includes(q)||
+    norm(s.email2).includes(q)||
+    (s.phone||'').replace(/\D/g,'').includes(qRaw)||
+    (s.whatsapp||'').replace(/\D/g,'').includes(qRaw)||
+    norm(s.city).includes(q)||
+    norm(s.state).includes(q)||
+    norm(s.instagram).includes(q)||
+    norm(s.web).includes(q)
   );
   if(ME.role==='admin'){
     $('studio-agent-filter').innerHTML=
-      `<div class="chip active" style="font-size:11px;padding:3px 9px" onclick="this.parentNode.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');renderStudios($('studio-search').value||'')">Todos</div>`+
+      `<div class="chip active" style="font-size:11px;padding:3px 9px" onclick="this.parentNode.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');renderStudios('')">Todos</div>`+
       USERS.map(u=>`<div class="chip" style="font-size:11px;padding:3px 9px;display:flex;align-items:center;gap:4px" onclick="document.querySelectorAll('#studio-agent-filter .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');renderStudiosFiltered(${u.id})">
         <span style="width:6px;height:6px;border-radius:50%;background:${u.color};display:inline-block"></span>${u.name.split(' ')[0]}
       </div>`).join('');
@@ -4111,13 +4115,44 @@ function globalSearch(val){
     [p.name,p.city].some(f=>f?.toLowerCase().includes(q))
   ).slice(0,5);
 
-  if(!cMatch.length && !pMatch.length){
+  // Search studios
+  const sMatch=(D.studios||[]).filter(s=>{
+    return [s.name,s.email,s.email2,s.phone,s.whatsapp,s.city,s.state,s.instagram,s.web].some(f=>norm(f).includes(nq));
+  }).slice(0,5);
+
+  if(!cMatch.length && !pMatch.length && !sMatch.length){
     box.innerHTML=`<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Sin resultados para "<strong>${val}</strong>"</div>`;
     box.style.display='block';
     return;
   }
 
   let html='';
+
+  if(sMatch.length){
+    html+=`<div style="padding:8px 12px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)">Estudios (${sMatch.length})</div>`;
+    html+=sMatch.map(s=>{
+      const ag=USERS.find(a=>a.id===s.agent);
+      const showPhone=(s.phone||s.whatsapp||'').toLowerCase().includes(q);
+      const showEmail=(s.email||'').toLowerCase().includes(q);
+      return`<div class="search-result-item" data-type="studio" data-id="${s.id}" tabindex="-1"
+        onclick="selectSearchResult('studio',${s.id})"
+        onmouseover="highlightSearch(this)">
+        <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;transition:background .12s">
+          <div style="width:30px;height:30px;border-radius:8px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🏛️</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name}</div>
+            <div style="font-size:11px;color:var(--text2);margin-top:1px;display:flex;gap:8px;flex-wrap:wrap">
+              ${s.city?`<span>📍 ${s.city}${s.state?', '+s.state:''}</span>`:''}
+              ${showPhone?`<span>📞 ${s.phone||s.whatsapp}</span>`:''}
+              ${showEmail?`<span>✉️ ${s.email}</span>`:''}
+              ${ag?`<span style="color:var(--text3)">${ag.name.split(' ')[0]}</span>`:''}
+            </div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+    if(cMatch.length||pMatch.length) html+=`<div style="border-top:1px solid var(--border);margin:4px 0"></div>`;
+  }
 
   if(cMatch.length){
     html+=`<div style="padding:8px 12px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)">Contactos (${cMatch.length})</div>`;
@@ -4187,6 +4222,7 @@ function highlightSearch(el){
 function selectSearchResult(type, id){
   closeSearch();
   if(type==='contact') openProfile(id);
+  else if(type==='studio') openStudioProfile(id);
   else { goView('projects-view'); openProjDetail(id); }
 }
 
