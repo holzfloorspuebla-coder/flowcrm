@@ -1510,17 +1510,7 @@ function ensureCodes(){
 }
 
 function cleanStudioContacts(){
-  // Remove contacts with type='Estudio' that have a matching studio in D.studios
-  // These are artifacts from old imports and should not be in D.contacts
-  if(!D.contacts||!D.studios) return;
-  const studioNames=new Set((D.studios||[]).map(s=>norm(s.name)));
-  const before=D.contacts.length;
-  D.contacts=D.contacts.filter(c=>!(c.type==='Estudio'&&studioNames.has(norm(c.name))));
-  const removed=before-D.contacts.length;
-  if(removed>0){
-    saveData();
-    console.log(`Cleaned ${removed} artifact studio contacts from D.contacts`);
-  }
+  // Disabled - contacts with type='Estudio' are now valid pipeline entries
 }
 function today(){return new Date().toISOString().slice(0,10);}
 function fmtVal(v){return'$'+Number(v||0).toLocaleString('es-MX');}
