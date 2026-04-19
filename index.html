@@ -569,10 +569,11 @@ select.inp{cursor:pointer;}
 
     <!-- BANDEJA DE SOLICITUDES -->
     <!-- TAREAS VIEW -->
-    <div class="view hidden" id="tareas-view">
-      <div style="max-width:720px;margin:0 auto;padding:0 0 40px">
-        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:22px">
-          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">&#10133; Nueva tarea</div>
+    <div class="view hidden" id="tareas-view" style="display:flex;flex-direction:column;overflow:hidden">
+      <!-- New task form -->
+      <div style="flex-shrink:0;padding:0 22px 16px;max-width:1200px;width:100%;margin:0 auto;box-sizing:border-box">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px 20px">
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">&#10133; Nueva tarea</div>
           <textarea id="nueva-tarea-texto" class="note-inp" rows="2" placeholder="Descripcion de la tarea..." style="font-family:'DM Sans',sans-serif;font-size:13px;resize:none;margin-bottom:10px"></textarea>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <div style="display:flex;flex-direction:column;gap:3px">
@@ -597,7 +598,19 @@ select.inp{cursor:pointer;}
             <button class="btn btn-primary" style="margin-top:auto" onclick="crearTareaGeneral()">Anadir tarea</button>
           </div>
         </div>
-        <div id="tareas-lista"></div>
+      </div>
+      <!-- Two-column task list with scroll -->
+      <div style="flex:1;overflow-y:auto;padding:0 22px 22px;max-width:1200px;width:100%;margin:0 auto;box-sizing:border-box">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+          <div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:10px">&#9201; Pendientes</div>
+            <div id="tareas-pending"></div>
+          </div>
+          <div>
+            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--green);margin-bottom:10px">&#9989; Completadas</div>
+            <div id="tareas-done"></div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2091,51 +2104,62 @@ function crearTareaGeneral(){
 }
 
 function renderTareas(){
-  const el=document.getElementById('tareas-lista');
-  if(!el) return;
+  const pendEl=document.getElementById('tareas-pending');
+  const doneEl=document.getElementById('tareas-done');
+  if(!pendEl&&!doneEl) return;
   if(!D.adminTasks) D.adminTasks=[];
-  const allTasks=D.adminTasks.map(t=>{
-    let entityLabel='';
+  const todayStr=today();
+
+  function buildLabel(t){
     if(t.entityId&&t.entityType==='contact'){
       const c=D.contacts.find(x=>String(x.id)===String(t.entityId));
-      if(c) entityLabel=`<span onclick="openProfile(${c.id})" style="color:var(--accent);cursor:pointer">👤 ${c.name}</span>`;
+      if(c) return`<span onclick="openProfile(${c.id})" style="color:var(--accent);cursor:pointer">&#128101; ${c.name}</span>`;
     } else if(t.entityId&&t.entityType==='project'){
       const p=D.projects.find(x=>String(x.id)===String(t.entityId));
-      if(p) entityLabel=`<span onclick="openProjDetail(${p.id})" style="color:var(--accent);cursor:pointer">📁 ${p.name}</span>`;
-    } else {
-      entityLabel='<span style="color:var(--text3)">Tarea general</span>';
+      if(p) return`<span onclick="openProjDetail(${p.id})" style="color:var(--accent);cursor:pointer">&#128193; ${p.name}</span>`;
+    } else if(t.entityId&&t.entityType==='studio'){
+      const s=(D.studios||[]).find(x=>String(x.id)===String(t.entityId));
+      if(s) return`<span onclick="openStudioProfile(${s.id})" style="color:var(--accent);cursor:pointer">&#127963; ${s.name}</span>`;
     }
-    return{...t,entityLabel};
-  });
-  const pending=allTasks.filter(t=>!t.done).sort((a,b)=>(a.dueDate||'9999')>(b.dueDate||'9999')?1:-1);
-  const done=allTasks.filter(t=>t.done).sort((a,b)=>(b.doneAt||'')>(a.doneAt||'')?1:-1);
-  const sorted=[...pending,...done];
-  if(!sorted.length){
-    el.innerHTML='<div class="empty"><div class="eico">📌</div><p>No hay tareas pendientes.<br>Crea una tarea arriba.</p></div>';
-    return;
+    return'<span style="color:var(--text3)">Tarea general</span>';
   }
-  const todayStr=today();
-  el.innerHTML=sorted.map(t=>{
+
+  function cardHTML(t){
     const overdue=!t.done&&t.dueDate&&t.dueDate<todayStr;
     const dueSoon=!t.done&&t.dueDate&&t.dueDate===todayStr;
     const dateColor=overdue?'var(--red)':dueSoon?'var(--yellow)':'var(--text3)';
-    const dateLabel=overdue?`⚠️ Vencida: ${t.dueDate}`:dueSoon?`🔔 Hoy: ${t.dueDate}`:(t.dueDate?`📅 ${t.dueDate}`:'Sin fecha');
-    return`<div style="background:var(--surface2);border:1px solid var(--border);border-left:4px solid ${t.done?'var(--border)':t.color};border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;opacity:${t.done?'.5':'1'}">
-      <div style="width:10px;height:10px;border-radius:50%;background:${t.done?'var(--border)':t.color};flex-shrink:0;margin-top:4px"></div>
+    const dateLabel=overdue?`&#9888;&#65039; Vencida: ${t.dueDate}`:dueSoon?`&#128276; Hoy: ${t.dueDate}`:(t.dueDate?`&#128197; ${t.dueDate}`:'Sin fecha');
+    const borderColor=t.done?'var(--border)':t.color;
+    return`<div style="background:var(--surface2);border:1px solid var(--border);border-left:4px solid ${borderColor};border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start">
+      <div style="width:9px;height:9px;border-radius:50%;background:${borderColor};flex-shrink:0;margin-top:4px"></div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;${t.done?'text-decoration:line-through':''}">${t.text}</div>
-        <div style="font-size:11px;display:flex;gap:12px;flex-wrap:wrap;margin-top:3px">
-          <span>${t.entityLabel}</span>
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;${t.done?'text-decoration:line-through;opacity:.6':''}">${t.text}</div>
+        <div style="font-size:11px;display:flex;gap:10px;flex-wrap:wrap;margin-top:2px;color:var(--text3)">
+          <span>${buildLabel(t)}</span>
           <span style="color:${dateColor}">${dateLabel}</span>
-          ${t.done?`<span style="color:var(--green)">✅ Completada ${t.doneAt||''}</span>`:''}
+          ${t.done&&t.doneAt?`<span style="color:var(--green)">&#10003; ${t.doneAt}</span>`:''}
         </div>
       </div>
-      <div style="display:flex;gap:6px;flex-shrink:0">
-        ${!t.done?`<button class="btn btn-primary btn-sm" style="background:var(--green);border-color:var(--green);font-size:11px" onclick="completarTareaVista('${t.id}')">✓ Hecha</button>`:''}
-        <button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--red)" onclick="eliminarTareaVista('${t.id}')">✕</button>
+      <div style="display:flex;gap:5px;flex-shrink:0;align-items:center">
+        ${!t.done?`<button class="btn btn-primary btn-sm" style="background:var(--green);border-color:var(--green);font-size:11px;padding:4px 10px" onclick="completarTareaVista('${t.id}')">&#10003; Hecha</button>`:''}
+        <button class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--text3);padding:4px 8px" title="Eliminar tarea" onclick="eliminarTareaVista('${t.id}')">&#128465;</button>
       </div>
     </div>`;
-  }).join('');
+  }
+
+  const pending=D.adminTasks.filter(t=>!t.done).sort((a,b)=>(a.dueDate||'9999')>(b.dueDate||'9999')?1:-1);
+  const done=D.adminTasks.filter(t=>t.done).sort((a,b)=>(b.doneAt||'')>(a.doneAt||'')?1:-1);
+
+  if(pendEl){
+    pendEl.innerHTML=pending.length
+      ?pending.map(cardHTML).join('')
+      :'<div style="color:var(--text3);font-size:13px;padding:8px 0">&#127881; Sin tareas pendientes</div>';
+  }
+  if(doneEl){
+    doneEl.innerHTML=done.length
+      ?done.map(cardHTML).join('')
+      :'<div style="color:var(--text3);font-size:13px;padding:8px 0">Sin tareas completadas</div>';
+  }
 }
 
 function completarTareaVista(taskId){
