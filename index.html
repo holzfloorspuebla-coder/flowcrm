@@ -2695,6 +2695,51 @@ function deleteNote(cid,idx){
   if(ME.role!=='admin'&&n.agent!==ME.id){toast('Solo puedes borrar tus propias notas','⚠️');return;}
   c.notesList.splice(idx,1);saveData();renderProfileNotes(cid,canEdit(c.agent));
 }
+function renderStudioNotes(id, owned){
+  const s=(D.studios||[]).find(x=>x.id===id);
+  const notes=s?.notesList||[];
+  const el=document.getElementById('spf-notes');
+  if(!el) return;
+  el.innerHTML=notes.length
+    ?notes.slice().reverse().map((n,ri)=>{
+        const i=notes.length-1-ri;
+        const nu=USERS.find(u=>u.id===n.agent);
+        const canDel=ME.role==='admin'||n.agent===ME.id;
+        return`<div class="note-item">
+          <div class="note-header">
+            <div style="display:flex;align-items:center;gap:7px">${nu?avEl(nu.name[0],nu.color,16):''}<span style="font-size:11px;font-weight:600">${nu?.name||'—'}</span></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="note-meta">${n.date}</span>
+              ${canDel?`<button class="btn btn-ghost btn-sm" style="padding:2px 7px;font-size:11px" onclick="deleteStudioNote(${id},${i})">✕</button>`:''}
+            </div>
+          </div>
+          <div class="note-text">${n.text}</div>
+        </div>`;
+      }).join('')
+    :`<div style="color:var(--text3);font-size:13px;padding:4px 0 10px">Sin notas todavía.</div>`;
+  const inp=document.getElementById('spf-note-inp');
+  if(inp) inp.disabled=!owned;
+}
+function addStudioNote(id){
+  const inp=document.getElementById('spf-note-inp');
+  const text=inp?.value.trim();if(!text)return;
+  const s=(D.studios||[]).find(x=>x.id===id);if(!s)return;
+  if(!canEdit(s.agent)){toast('No tienes permiso para editar este estudio','⚠️');return;}
+  if(!s.notesList)s.notesList=[];
+  s.notesList.push({text,date:today(),agent:ME.id});
+  saveData();if(inp)inp.value='';
+  const owned=ME.role==='admin'||s.agent===ME.id;
+  renderStudioNotes(id,owned);
+  toast('Nota añadida');
+}
+function deleteStudioNote(sid,idx){
+  const s=(D.studios||[]).find(x=>x.id===sid);if(!s||!s.notesList)return;
+  const n=s.notesList[idx];
+  if(ME.role!=='admin'&&n.agent!==ME.id){toast('Solo puedes borrar tus propias notas','⚠️');return;}
+  s.notesList.splice(idx,1);saveData();
+  const owned=ME.role==='admin'||s.agent===ME.id;
+  renderStudioNotes(sid,owned);
+}
+
 function changeContactStage(id,stage){
   const c=D.contacts.find(x=>x.id===id);
   if(!c||!canEdit(c.agent)){toast('Sin permiso','⚠️');return;}
@@ -4438,6 +4483,12 @@ function openStudioProfile(id){
       ${s.notes?`<div style="grid-column:span 3"><div class="il">Notas</div><div class="iv" style="color:var(--text2)">${s.notes}</div></div>`:''}
     </div>
     <div id="spf-tasks-section"></div>
+    <div class="sdiv">Notas y registro de actividad</div>
+    <div id="spf-notes"></div>
+    <div class="note-add">
+      <textarea class="note-inp" id="spf-note-inp" placeholder="Añade una nota o registro de actividad..." rows="2"></textarea>
+      <button class="btn btn-primary btn-sm" onclick="addStudioNote(${id})">Añadir</button>
+    </div>
     <div class="sdiv">Arquitectos del estudio</div>
     ${archs.length?archs.map(c=>{
       const projs=D.projects.filter(p=>p.contactIds?.includes(c.id));
@@ -4460,13 +4511,15 @@ function openStudioProfile(id){
       </div>`;
     }).join(''):'<div style="color:var(--text3);font-size:13px;padding:10px 0">Sin arquitectos vinculados todavía.</div>'}
   `;
-  // Render tasks section for admin
-  if(ME.role==='admin'){
-    setTimeout(()=>{
+  // Render tasks and notes sections
+  const owned2=ME.role==='admin'||s.agent===ME.id;
+  setTimeout(()=>{
+    if(ME.role==='admin'){
       const tid=document.getElementById('spf-tasks-section');
       if(tid) tid.innerHTML=renderTasksSection(String(id),'studio');
-    },0);
-  }
+    }
+    renderStudioNotes(id, owned2);
+  },0);
   goView('studio-profile-view');
 }
 function openStudioModal(editId){
