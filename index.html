@@ -360,6 +360,8 @@ select.inp{cursor:pointer;}
     <div class="ns">Análisis</div>
     <button class="ni" onclick="goView('kpi-view')"><span class="ic">🎯</span>KPIs</button>
 
+    <div class="ns" id="ns-tareas" style="display:none">Tareas</div>
+    <button class="ni" id="ni-tareas" onclick="goView('tareas-view')" style="display:none"><span class="ic">📌</span>Tareas</button>
     <div class="ns">Sistema</div>
     <button class="ni" id="ni-inbox" onclick="goView('inbox-view')"><span class="ic">🔔</span>Solicitudes <span id="inbox-badge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:auto">0</span></button>
     <button class="ni" onclick="goView('settings-view')"><span class="ic">⚙️</span>Configuración</button>
@@ -558,6 +560,39 @@ select.inp{cursor:pointer;}
 
 
     <!-- BANDEJA DE SOLICITUDES -->
+    <!-- TAREAS VIEW -->
+    <div class="view hidden" id="tareas-view">
+      <div style="max-width:720px;margin:0 auto;padding:0 0 40px">
+        <div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;margin-bottom:22px">
+          <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">&#10133; Nueva tarea</div>
+          <textarea id="nueva-tarea-texto" class="note-inp" rows="2" placeholder="Descripcion de la tarea..." style="font-family:'DM Sans',sans-serif;font-size:13px;resize:none;margin-bottom:10px"></textarea>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <label style="font-size:11px;color:var(--text3)">Fecha limite</label>
+              <input type="date" id="nueva-tarea-fecha" class="inp" style="height:36px;font-size:13px;max-width:160px">
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <label style="font-size:11px;color:var(--text3)">Color alarma</label>
+              <div style="display:flex;gap:5px;align-items:center" id="nueva-tarea-colores">
+                <div class="alarm-color-swatch selected" style="background:#ff5c5c" data-color="#ff5c5c" onclick="selectNuevaTareaColor(this)"></div>
+                <div class="alarm-color-swatch" style="background:#ff8c42" data-color="#ff8c42" onclick="selectNuevaTareaColor(this)"></div>
+                <div class="alarm-color-swatch" style="background:#f5c842" data-color="#f5c842" onclick="selectNuevaTareaColor(this)"></div>
+                <div class="alarm-color-swatch" style="background:#a07cff" data-color="#a07cff" onclick="selectNuevaTareaColor(this)"></div>
+                <div class="alarm-color-swatch" style="background:#4f7cff" data-color="#4f7cff" onclick="selectNuevaTareaColor(this)"></div>
+                <div class="alarm-color-swatch" style="background:#3ecf8e" data-color="#3ecf8e" onclick="selectNuevaTareaColor(this)"></div>
+                <div class="alarm-color-swatch" style="background:#ff69b4" data-color="#ff69b4" onclick="selectNuevaTareaColor(this)"></div>
+                <div class="alarm-color-swatch" style="background:#00bcd4" data-color="#00bcd4" onclick="selectNuevaTareaColor(this)"></div>
+                <div class="alarm-color-swatch" style="background:#9c27b0" data-color="#9c27b0" onclick="selectNuevaTareaColor(this)"></div>
+                <div class="alarm-color-swatch" style="background:#e91e63" data-color="#e91e63" onclick="selectNuevaTareaColor(this)"></div>
+              </div>
+            </div>
+            <button class="btn btn-primary" style="margin-top:auto" onclick="crearTareaGeneral()">Anadir tarea</button>
+          </div>
+        </div>
+        <div id="tareas-lista"></div>
+      </div>
+    </div>
+
     <div class="view hidden" id="inbox-view">
       <div class="settings-body">
         <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:21px;margin-bottom:3px">🔔 Solicitudes de cambio</div>
@@ -1442,6 +1477,7 @@ let S={curView:'contacts-view',prevView:'contacts-view',profileId:null,editCId:n
 
 function bootApp(){
   updateSidebarUser();
+  showTareasNav();
   renderSidebar();
   ensureCodes(); // assign codes to any records missing them
   cleanStudioContacts(); // remove artifact type='Estudio' contacts
@@ -1654,6 +1690,107 @@ function refreshTasksSection(entityId, entityType){
 }
 
 
+
+// ══════════════════════════════════════════════════════
+//  TAREAS VIEW (admin only)
+// ══════════════════════════════════════════════════════
+function showTareasNav(){
+  const show=ME&&ME.role==='admin';
+  const btn=document.getElementById('ni-tareas');
+  const ns=document.getElementById('ns-tareas');
+  if(btn) btn.style.display=show?'':'none';
+  if(ns)  ns.style.display=show?'':'none';
+}
+
+function selectNuevaTareaColor(el){
+  document.querySelectorAll('#nueva-tarea-colores .alarm-color-swatch').forEach(s=>s.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function getNuevaTareaColor(){
+  const sel=document.querySelector('#nueva-tarea-colores .alarm-color-swatch.selected');
+  return sel?sel.dataset.color:'#a07cff';
+}
+
+function crearTareaGeneral(){
+  const texto=(document.getElementById('nueva-tarea-texto')?.value||'').trim();
+  if(!texto){toast('Escribe una descripcion para la tarea','⚠️');return;}
+  const fecha=document.getElementById('nueva-tarea-fecha')?.value||today();
+  const color=getNuevaTareaColor();
+  if(!D.adminTasks) D.adminTasks=[];
+  D.adminTasks.push({
+    id:String(nid()),entityId:null,entityType:'general',
+    text:texto,dueDate:fecha,color,done:false,createdAt:today(),agent:ME.id
+  });
+  document.getElementById('nueva-tarea-texto').value='';
+  saveData();renderTareas();renderCKanban();renderPKanban();
+  toast('Tarea anadida');
+}
+
+function renderTareas(){
+  const el=document.getElementById('tareas-lista');
+  if(!el) return;
+  if(!D.adminTasks) D.adminTasks=[];
+  const allTasks=D.adminTasks.map(t=>{
+    let entityLabel='';
+    if(t.entityId&&t.entityType==='contact'){
+      const c=D.contacts.find(x=>String(x.id)===String(t.entityId));
+      if(c) entityLabel=`<span onclick="openProfile(${c.id})" style="color:var(--accent);cursor:pointer">👤 ${c.name}</span>`;
+    } else if(t.entityId&&t.entityType==='project'){
+      const p=D.projects.find(x=>String(x.id)===String(t.entityId));
+      if(p) entityLabel=`<span onclick="openProjDetail(${p.id})" style="color:var(--accent);cursor:pointer">📁 ${p.name}</span>`;
+    } else {
+      entityLabel='<span style="color:var(--text3)">Tarea general</span>';
+    }
+    return{...t,entityLabel};
+  });
+  const pending=allTasks.filter(t=>!t.done).sort((a,b)=>(a.dueDate||'9999')>(b.dueDate||'9999')?1:-1);
+  const done=allTasks.filter(t=>t.done).sort((a,b)=>(b.doneAt||'')>(a.doneAt||'')?1:-1);
+  const sorted=[...pending,...done];
+  if(!sorted.length){
+    el.innerHTML='<div class="empty"><div class="eico">📌</div><p>No hay tareas pendientes.<br>Crea una tarea arriba.</p></div>';
+    return;
+  }
+  const todayStr=today();
+  el.innerHTML=sorted.map(t=>{
+    const overdue=!t.done&&t.dueDate&&t.dueDate<todayStr;
+    const dueSoon=!t.done&&t.dueDate&&t.dueDate===todayStr;
+    const dateColor=overdue?'var(--red)':dueSoon?'var(--yellow)':'var(--text3)';
+    const dateLabel=overdue?`⚠️ Vencida: ${t.dueDate}`:dueSoon?`🔔 Hoy: ${t.dueDate}`:(t.dueDate?`📅 ${t.dueDate}`:'Sin fecha');
+    return`<div style="background:var(--surface2);border:1px solid var(--border);border-left:4px solid ${t.done?'var(--border)':t.color};border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start;opacity:${t.done?'.5':'1'}">
+      <div style="width:10px;height:10px;border-radius:50%;background:${t.done?'var(--border)':t.color};flex-shrink:0;margin-top:4px"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px;${t.done?'text-decoration:line-through':''}">${t.text}</div>
+        <div style="font-size:11px;display:flex;gap:12px;flex-wrap:wrap;margin-top:3px">
+          <span>${t.entityLabel}</span>
+          <span style="color:${dateColor}">${dateLabel}</span>
+          ${t.done?`<span style="color:var(--green)">✅ Completada ${t.doneAt||''}</span>`:''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        ${!t.done?`<button class="btn btn-primary btn-sm" style="background:var(--green);border-color:var(--green);font-size:11px" onclick="completarTareaVista('${t.id}')">✓ Hecha</button>`:''}
+        <button class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--red)" onclick="eliminarTareaVista('${t.id}')">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function completarTareaVista(taskId){
+  if(!D.adminTasks) return;
+  const t=D.adminTasks.find(x=>x.id===taskId);
+  if(t){t.done=true;t.doneAt=today();}
+  saveData();renderTareas();renderCKanban();renderPKanban();
+  toast('Tarea completada ✅');
+}
+
+function eliminarTareaVista(taskId){
+  if(!D.adminTasks) return;
+  if(!confirm('¿Eliminar esta tarea?')) return;
+  D.adminTasks=D.adminTasks.filter(x=>x.id!==taskId);
+  saveData();renderTareas();renderCKanban();renderPKanban();
+  toast('Tarea eliminada');
+}
+
 // ══════════════════════════════════════════════════════
 //  SIDEBAR & USER HEADER
 // ══════════════════════════════════════════════════════
@@ -1697,6 +1834,7 @@ const VIEW_CFG={
   'projects-view':{title:'Proyectos',main:'＋ Nuevo proyecto',mainFn:'openProjectModal()',sec:'＋ Contacto',secFn:'openContactModal()'},
   'profile-view':{title:'Perfil de contacto',main:null,sec:null},
   'kpi-view':{title:'KPIs del equipo',main:null,sec:null},
+  'tareas-view':{title:'Tareas pendientes',main:null,sec:null},
   'inbox-view':{title:'Solicitudes de cambio',main:null,sec:null},
   'settings-view':{title:'Configuración',main:null,sec:null},
 };
@@ -1704,7 +1842,7 @@ function goView(id){
   document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
   $(id)?.classList.remove('hidden');
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
-  const map={'contacts-view':0,'studios-view':1,'studio-profile-view':1,'projects-view':2,'kpi-view':3,'inbox-view':4,'settings-view':5};
+  const map={'contacts-view':0,'studios-view':1,'studio-profile-view':1,'projects-view':2,'kpi-view':3,'tareas-view':4,'inbox-view':5,'settings-view':6};
   document.querySelectorAll('.ni')[map[id]]?.classList.add('active');
   const cfg=VIEW_CFG[id]||{};
   $('page-title').textContent=cfg.title||'';
@@ -1717,6 +1855,7 @@ function goView(id){
   if(id==='studios-view')renderStudios();
   if(id==='projects-view'){renderPKanban();renderPTable();}
   if(id==='kpi-view')renderKPIs();
+  if(id==='tareas-view'){renderTareas();const df=document.getElementById('nueva-tarea-fecha');if(df&&!df.value){const d=new Date();d.setDate(d.getDate()+1);df.value=d.toISOString().slice(0,10);}}
   if(id==='inbox-view')renderInbox();
   if(id==='settings-view')renderSettings();
 }
