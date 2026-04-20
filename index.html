@@ -869,10 +869,14 @@ select.inp{cursor:pointer;}
         <div class="fg"><label class="lbl">Vendedor asignado</label><select class="inp" id="c-agent"></select></div>
         <div class="fg"><label class="lbl">Pipeline</label>
           <select class="inp" id="c-stage">
-            <option value="c-lead">Leads</option>
-            <option value="c-inicial">Contacto inicial</option>
-            <option value="c-showroom">Visita al showroom</option>
-            <option value="c-seguimiento">Proyectos en curso</option>
+            <option value="c-lead">Lead captado</option>
+            <option value="c-contactado">Contactado</option>
+            <option value="c-respuesta">Respuesta recibida</option>
+            <option value="c-agendado">Visita al showroom agendada</option>
+            <option value="c-showroom">Visitó el showroom</option>
+            <option value="c-activado">Activado</option>
+            <option value="c-nopriority">No prioritario</option>
+            <option value="c-descartado">Descartado</option>
           </select>
         </div>
       </div>
@@ -969,10 +973,14 @@ select.inp{cursor:pointer;}
         <div class="fg"><label class="lbl">Ciudad</label><input class="inp" id="ar-city" placeholder="Ciudad de México"></div>
         <div class="fg"><label class="lbl">Etapa pipeline</label>
           <select class="inp" id="ar-stage">
-            <option value="c-lead">Leads</option>
-            <option value="c-inicial">Contacto inicial</option>
-            <option value="c-showroom">Visita al showroom</option>
-            <option value="c-seguimiento">Proyectos en curso</option>
+            <option value="c-lead">Lead captado</option>
+            <option value="c-contactado">Contactado</option>
+            <option value="c-respuesta">Respuesta recibida</option>
+            <option value="c-agendado">Visita al showroom agendada</option>
+            <option value="c-showroom">Visitó el showroom</option>
+            <option value="c-activado">Activado</option>
+            <option value="c-nopriority">No prioritario</option>
+            <option value="c-descartado">Descartado</option>
           </select>
         </div>
       </div>
@@ -1175,10 +1183,14 @@ const COLORS=['#4f7cff','#a07cff','#3ecf8e','#f5c842','#ff8c42','#ff5ca8','#5ce4
 const TC=['rgba(79,124,255,.18)','rgba(160,124,255,.18)','rgba(62,207,142,.18)','rgba(245,200,66,.18)','rgba(255,140,66,.18)','rgba(255,92,92,.18)','rgba(0,212,170,.18)'];
 const TT=['#4f7cff','#a07cff','#3ecf8e','#c9a400','#ff8c42','#ff5c5c','#00d4aa'];
 const C_STAGES=[
-  {id:'c-lead',name:'Leads',color:'#ff8c42'},
-  {id:'c-inicial',name:'Contacto inicial',color:'#5ce4ff'},
-  {id:'c-showroom',name:'Visita al showroom',color:'#4f7cff'},
-  {id:'c-seguimiento',name:'Proyectos en curso',color:'#a07cff'},
+  {id:'c-lead',       name:'Lead captado',                color:'#ff8c42'},
+  {id:'c-contactado', name:'Contactado',                  color:'#5ce4ff'},
+  {id:'c-respuesta',  name:'Respuesta recibida',          color:'#4f7cff'},
+  {id:'c-agendado',   name:'Visita al showroom agendada', color:'#a07cff'},
+  {id:'c-showroom',   name:'Visitó el showroom',          color:'#3ecf8e'},
+  {id:'c-activado',   name:'Activado',                    color:'#3ecf8e', final:true},
+  {id:'c-nopriority', name:'No prioritario',              color:'#8b93ad', final:true},
+  {id:'c-descartado', name:'Descartado',                  color:'#ff5c5c', final:true},
 ];
 const P_STAGES=[
   {id:'p-contacto',name:'Contacto inicial',color:'#5ce4ff'},
@@ -1231,7 +1243,8 @@ const DEFAULT_DATA={
   contactTypes:['Arquitecto','Constructora','Interiorista','Desarrollador','Contratista','Particular','Distribuidor'],
   lossReasons:['Precio','Competencia','Sin presupuesto','Proyecto cancelado','Falta de respuesta','Timing','Otro'],
   stageAlarms:{
-    'c-inicial': {days:14, color:'#ff5c5c'},
+    'c-contactado': {days:7, color:'#ff5c5c'},
+    'c-agendado': {days:3, color:'#f5c842'},
     'p-propuesta': {days:3, color:'#ff5c5c'},
   },
   activities:[
@@ -1280,6 +1293,7 @@ function loadData(){
           data.stageAlarms[k]={days:data.stageAlarms[k],color:'#ff5c5c'};
       });
     }
+    migrateContactStages(data);
     return data;
   }catch(e){return JSON.parse(JSON.stringify(DEFAULT_DATA));}
 }
@@ -1583,7 +1597,7 @@ function canSeeStudioDetails(studioId){
 }
 // Returns studios that have no architect/contact linked — treated as virtual contacts in pipeline
 function studioVirtualContacts(){
-  if(!D.studios) return [];
+  if(!ME||!D||!D.studios) return [];
   const studiosWithArchs=new Set((D.contacts||[]).filter(c=>c.studioId).map(c=>c.studioId));
   return (D.studios||[])
     .filter(s=>!studiosWithArchs.has(s.id))
@@ -1606,16 +1620,19 @@ function studioVirtualContacts(){
 }
 
 function visibleContacts(){
+  if(!ME||!D) return [];
   if(ME.role==='admin')return D.contacts;
   // Seller sees: their own contacts + architects in their studios
   const myStudioIds=new Set((D.studios||[]).filter(s=>s.agent===ME.id).map(s=>s.id));
   return D.contacts.filter(c=>c.agent===ME.id||(c.studioId&&myStudioIds.has(c.studioId)));
 }
 function visibleProjects(){
+  if(!ME||!D) return [];
   if(ME.role==='admin')return D.projects;
   return D.projects.filter(p=>p.agent===ME.id);
 }
 function canEdit(agentId){
+  if(!ME) return false;
   return ME.role==='admin'||ME.id===agentId;
 }
 
@@ -1628,6 +1645,11 @@ let S={curView:'contacts-view',prevView:'contacts-view',profileId:null,editCId:n
        calYear:new Date().getFullYear(),calMonth:new Date().getMonth(),
        calDay:new Date().getDate(),calAgentFilter:'all'};
 
+function migrateContactStages(data){
+  const map={'c-inicial':'c-contactado','c-seguimiento':'c-activado'};
+  (data.contacts||[]).forEach(c=>{if(map[c.stage])c.stage=map[c.stage];});
+  (data.studios||[]).forEach(s=>{if(map[s.stage])s.stage=map[s.stage];if(map[s.pipelineStage])s.pipelineStage=map[s.pipelineStage];});
+}
 function bootApp(){
   updateSidebarUser();
   showTareasNav();
@@ -2307,28 +2329,52 @@ function swTab(mod,name,el){
 // ══════════════════════════════════════════════════════
 function renderCKanban(){
   const kq=norm(document.getElementById('kanban-search')?.value||'');
-  $('c-kanban').innerHTML=C_STAGES.map(st=>{
-    // Contacts in this stage
-    let items=visibleContacts().filter(c=>c.stage===st.id);
-    if(S.cFilter!=='all')items=items.filter(c=>c.agent===S.cFilter);
-    // Apply search filter
-    if(kq) items=items.filter(c=>{
-      const studio=(D.studios||[]).find(s=>s.id===c.studioId);
-      return norm(c.name).includes(kq)||norm(studio?.name||'').includes(kq)||norm(c.email||'').includes(kq)||norm(c.phone||'').includes(kq);
-    });
-    // Studios without architects also appear in pipeline (as virtual contacts)
-    const studioItems=studioVirtualContacts().filter(s=>s.stage===st.id);
-    const filteredStudios=S.cFilter==='all'?studioItems:studioItems.filter(s=>s.agent===S.cFilter);
-    const filteredStudios2=kq?filteredStudios.filter(s=>norm(s.name).includes(kq)):filteredStudios;
-    items=[...items,...filteredStudios2];
-    return`<div class="col" id="ccol-${st.id}" ondragover="dov(event,'${st.id}','c')" ondrop="drp(event,'${st.id}','c')" ondragleave="dlv()">
-      <div class="col-head"><div class="col-dot" style="background:${st.color}"></div><div class="col-title">${st.name}</div><div class="col-count">${items.length}</div></div>
-      <div class="col-cards">${items.map(c=>cCardH(c,st.color)).join('')}
-        <button class="add-btn" onclick="openContactModal('${st.id}')">＋ Añadir contacto</button>
-      </div>
+  const activeStages=C_STAGES.filter(st=>!st.final);
+  const finalStages=C_STAGES.filter(st=>st.final);
+
+  function buildCols(stages){
+    return stages.map(st=>{
+      let items=visibleContacts().filter(c=>c.stage===st.id);
+      if(S.cFilter!=='all')items=items.filter(c=>c.agent===S.cFilter);
+      if(kq) items=items.filter(c=>{
+        const studio=(D.studios||[]).find(s=>s.id===c.studioId);
+        return norm(c.name).includes(kq)||norm(studio?.name||'').includes(kq)||norm(c.email||'').includes(kq)||norm(c.phone||'').includes(kq);
+      });
+      const studioItems=studioVirtualContacts().filter(s=>s.stage===st.id);
+      const filteredStudios=S.cFilter==='all'?studioItems:studioItems.filter(s=>s.agent===S.cFilter);
+      const filteredStudios2=kq?filteredStudios.filter(s=>norm(s.name).includes(kq)):filteredStudios;
+      items=[...items,...filteredStudios2];
+      return`<div class="col" id="ccol-${st.id}" ondragover="dov(event,'${st.id}','c')" ondrop="drp(event,'${st.id}','c')" ondragleave="dlv()">
+        <div class="col-head"><div class="col-dot" style="background:${st.color}"></div><div class="col-title">${st.name}</div><div class="col-count">${items.length}</div></div>
+        <div class="col-cards">${items.map(c=>cCardH(c,st.color)).join('')}
+          <button class="add-btn" onclick="openContactModal('${st.id}')">＋ Añadir contacto</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  $('c-kanban').innerHTML=
+    buildCols(activeStages)+
+    `<div style="display:flex;flex-direction:column;gap:0;min-width:220px;max-width:260px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding:8px 4px 6px">Estados finales</div>
+      ${finalStages.map(st=>{
+        let items=visibleContacts().filter(c=>c.stage===st.id);
+        if(S.cFilter!=='all')items=items.filter(c=>c.agent===S.cFilter);
+        if(kq) items=items.filter(c=>{
+          const studio=(D.studios||[]).find(s=>s.id===c.studioId);
+          return norm(c.name).includes(kq)||norm(studio?.name||'').includes(kq);
+        });
+        const studioItems2=studioVirtualContacts().filter(s=>s.stage===st.id);
+        const fs2=S.cFilter==='all'?studioItems2:studioItems2.filter(s=>s.agent===S.cFilter);
+        items=[...items,...(kq?fs2.filter(s=>norm(s.name).includes(kq)):fs2)];
+        return`<div class="col" id="ccol-${st.id}" ondragover="dov(event,'${st.id}','c')" ondrop="drp(event,'${st.id}','c')" ondragleave="dlv()" style="min-width:200px;flex:1;margin-bottom:8px">
+          <div class="col-head"><div class="col-dot" style="background:${st.color}"></div><div class="col-title" style="font-size:12px">${st.name}</div><div class="col-count">${items.length}</div></div>
+          <div class="col-cards">${items.map(c=>cCardH(c,st.color)).join('')}</div>
+        </div>`;
+      }).join('')}
     </div>`;
-  }).join('');
 }
+
 function cCardH(c,col){
   // If this is a studio virtual contact, render with studio styling
   if(c._isStudio){
