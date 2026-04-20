@@ -1639,7 +1639,7 @@ function canEdit(agentId){
 // ══════════════════════════════════════════════════════
 //  BOOT
 // ══════════════════════════════════════════════════════
-let S={curView:'contacts-view',prevView:'contacts-view',profileId:null,editCId:null,editPId:null,
+let S={curView:'contacts-view',prevView:'contacts-view',profileId:null,studioAgentFilter:'all',editCId:null,editPId:null,
        cTags:[],pTags:[],cFilter:'all',pFilter:'all',pwTargetId:null,editUserId:null,selectedColor:COLORS[0],
        kpiPeriod:'month',editActId:null,calView:'month',currentStudioId:null,editStudioId:null,editArchId:null,archStudioId:null,studiosSelectMode:false,contactsSelectMode:false,selectedContacts:new Set(),lossProjectId:null,pContactPool:null,
        calYear:new Date().getFullYear(),calMonth:new Date().getMonth(),
@@ -4484,21 +4484,23 @@ function renderStudios(filter=''){
   if(!D.studios)D.studios=[];
   const q=norm(filter||'');
   const qRaw=(filter||'').replace(/\D/g,'');
-  const filtered=D.studios.filter(s=>!q||
+  const agentFilter=S.studioAgentFilter||'all';
+  let filtered=D.studios.filter(s=>!q||
     norm(s.name).includes(q)||
-    norm(s.email).includes(q)||
-    norm(s.email2).includes(q)||
+    norm(s.email||'').includes(q)||
+    norm(s.email2||'').includes(q)||
     (s.phone||'').replace(/\D/g,'').includes(qRaw)||
     (s.whatsapp||'').replace(/\D/g,'').includes(qRaw)||
-    norm(s.city).includes(q)||
-    norm(s.state).includes(q)||
-    norm(s.instagram).includes(q)||
-    norm(s.web).includes(q)
+    norm(s.city||'').includes(q)||
+    norm(s.state||'').includes(q)||
+    norm(s.instagram||'').includes(q)||
+    norm(s.web||'').includes(q)
   );
+  if(agentFilter!=='all') filtered=filtered.filter(s=>s.agent===agentFilter);
   if(ME.role==='admin'){
     $('studio-agent-filter').innerHTML=
-      `<div class="chip active" style="font-size:11px;padding:3px 9px" onclick="this.parentNode.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');renderStudios('')">Todos</div>`+
-      USERS.map(u=>`<div class="chip" style="font-size:11px;padding:3px 9px;display:flex;align-items:center;gap:4px" onclick="document.querySelectorAll('#studio-agent-filter .chip').forEach(c=>c.classList.remove('active'));this.classList.add('active');renderStudiosFiltered(${u.id})">
+      `<div class="chip${agentFilter==='all'?' active':''}" style="font-size:11px;padding:3px 9px" onclick="S.studioAgentFilter='all';renderStudios()">Todos</div>`+
+      USERS.map(u=>`<div class="chip${agentFilter===u.id?' active':''}" style="font-size:11px;padding:3px 9px;display:flex;align-items:center;gap:4px" onclick="S.studioAgentFilter=${u.id};renderStudios()">
         <span style="width:6px;height:6px;border-radius:50%;background:${u.color};display:inline-block"></span>${u.name.split(' ')[0]}
       </div>`).join('');
   }
