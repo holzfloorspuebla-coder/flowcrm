@@ -688,9 +688,9 @@ select.inp{cursor:pointer;}
     </div>
     <!-- Tabs -->
     <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:18px">
-      <button id="muc-tab-studio" onclick="switchUCTab('studio')" style="flex:1;padding:10px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--accent);color:var(--accent)">&#127963; Estudio</button>
-      <button id="muc-tab-contact" onclick="switchUCTab('contact')" style="flex:1;padding:10px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text3)">&#128101; Contacto</button>
-      <button id="muc-tab-project" onclick="switchUCTab('project')" style="flex:1;padding:10px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text3)">&#128193; Proyecto</button>
+      <button id="muc-tab-studio" onclick="switchUCTab('studio')" style="flex:1;padding:10px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid var(--accent);color:var(--accent)"><span id="muc-check-studio" style="display:none;color:var(--green)">&#10003; </span>&#127963; Estudio</button>
+      <button id="muc-tab-contact" onclick="switchUCTab('contact')" style="flex:1;padding:10px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text3)"><span id="muc-check-contact" style="display:none;color:var(--green)">&#10003; </span>&#128101; Contacto</button>
+      <button id="muc-tab-project" onclick="switchUCTab('project')" style="flex:1;padding:10px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:var(--text3)"><span id="muc-check-project" style="display:none;color:var(--green)">&#10003; </span>&#128193; Proyecto</button>
     </div>
 
     <!-- ESTUDIO TAB -->
@@ -800,9 +800,13 @@ select.inp{cursor:pointer;}
       <div class="fg"><label class="lbl">Notas</label><textarea class="inp" id="muc-p-notes" rows="2" style="resize:none"></textarea></div>
     </div>
 
-    <div class="modal-ft" style="margin-top:16px">
-      <button class="btn btn-ghost" onclick="closeM('modal-unified-create')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveUnifiedCreate()">Guardar</button>
+    <div class="modal-ft" style="margin-top:16px;justify-content:space-between">
+      <button class="btn btn-ghost" onclick="closeM('modal-unified-create')">Cerrar</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="muc-saved-msg" style="font-size:12px;color:var(--green);display:none">&#10003; Guardado</span>
+        <button class="btn btn-primary" onclick="saveUnifiedCreate(false)" id="muc-save-btn">Guardar y continuar</button>
+        <button class="btn btn-ghost" onclick="saveUnifiedCreate(true)" style="background:rgba(79,124,255,.15);color:var(--accent)">Guardar y cerrar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1992,7 +1996,12 @@ function renderMUCPContacts(){
   }).join('');
 }
 
-function saveUnifiedCreate(){
+function mucShowSaved(){
+  const msg=$('muc-saved-msg');
+  if(msg){msg.style.display='inline';setTimeout(()=>msg.style.display='none',2000);}
+}
+
+function saveUnifiedCreate(andClose){
   if(_mucTab==='studio'){
     const name=($('muc-s-name')?.value||'').trim();
     if(!name){toast('El nombre del estudio es requerido','⚠️');return;}
@@ -2010,20 +2019,32 @@ function saveUnifiedCreate(){
     if(!D.studios)D.studios=[];
     D.studios.push(newS);
     saveData();renderStudios();
+    // Mark studio tab as saved
+    const ck=$('muc-check-studio');if(ck)ck.style.display='inline';
     // If came from contact tab, switch back and select studio
     if(S._mucReturnToContact){
       S._mucReturnToContact=false;
       switchUCTab('contact');
       selectMUCStudio(newS.id,newS.name);
-    } else {
+      toast('Estudio "'+newS.name+'" creado ✓');
+    } else if(andClose){
       closeM('modal-unified-create');
+      toast('Estudio creado ✓');
+    } else {
+      // Clear fields and move to contact tab
+      ['muc-s-name','muc-s-city','muc-s-state','muc-s-email','muc-s-phone','muc-s-whatsapp','muc-s-web','muc-s-instagram','muc-s-linkedin','muc-s-pricelist','muc-s-notes'].forEach(id=>{if($(id))$(id).value='';});
+      if($('muc-s-dup-warn'))$('muc-s-dup-warn').style.display='none';
+      mucShowSaved();
+      switchUCTab('contact');
+      // Auto-select the new studio in contact tab
+      selectMUCStudio(newS.id,newS.name);
+      toast('Estudio guardado ✓ — ahora añade el contacto');
     }
-    toast('Estudio creado ✓');
   } else if(_mucTab==='contact'){
     const name=($('muc-c-name')?.value||'').trim();
     if(!name){toast('El nombre del contacto es requerido','⚠️');return;}
     const studioId=parseInt($('muc-c-studio-id')?.value)||null;
-    const obj={
+    const newC={id:nid(),code:nextCode('A'),
       name,mailingName:'',type:$('muc-c-type')?.value||'Arquitecto',
       email:$('muc-c-email')?.value.trim()||'',email2:'',
       phone:$('muc-c-phone')?.value.trim()||'',whatsapp:$('muc-c-whatsapp')?.value.trim()||'',
@@ -2031,13 +2052,26 @@ function saveUnifiedCreate(){
       instagram:$('muc-c-instagram')?.value.trim()||'',linkedin:$('muc-c-linkedin')?.value.trim()||'',
       priceList:$('muc-c-pricelist')?.value.trim()||'',
       studioId,agent:parseInt($('muc-c-agent')?.value)||ME.id,
-      stage:'c-lead',tags:[],notes:'',notesList:[]
+      stage:'c-lead',tags:[],notes:'',notesList:[],date:today()
     };
     if(!D.contacts)D.contacts=[];
-    D.contacts.push({id:nid(),code:nextCode('A'),...obj,date:today()});
+    D.contacts.push(newC);
     saveData();renderCTable();renderCKanban();
-    closeM('modal-unified-create');
-    toast('Contacto creado ✓');
+    const ck=$('muc-check-contact');if(ck)ck.style.display='inline';
+    if(andClose){
+      closeM('modal-unified-create');
+      toast('Contacto creado ✓');
+    } else {
+      // Clear fields and move to project tab
+      ['muc-c-name','muc-c-email','muc-c-phone','muc-c-whatsapp','muc-c-city','muc-c-state','muc-c-instagram','muc-c-linkedin','muc-c-pricelist'].forEach(id=>{if($(id))$(id).value='';});
+      clearMUCStudio();
+      // Pre-select the new contact in project tab
+      _mucPContactIds=[newC.id];
+      renderMUCPContacts();
+      mucShowSaved();
+      switchUCTab('project');
+      toast('Contacto guardado ✓ — ahora añade el proyecto');
+    }
   } else if(_mucTab==='project'){
     const name=($('muc-p-name')?.value||'').trim();
     if(!name){toast('El nombre del proyecto es requerido','⚠️');return;}
@@ -2053,7 +2087,15 @@ function saveUnifiedCreate(){
     if(!D.projects)D.projects=[];
     D.projects.push({id:nid(),...obj,date:today()});
     saveData();renderPTable();renderPKanban();
-    closeM('modal-unified-create');
+    const ck=$('muc-check-project');if(ck)ck.style.display='inline';
+    mucShowSaved();
+    // Clear project fields for another project
+    ['muc-p-name','muc-p-city','muc-p-notes'].forEach(id=>{if($(id))$(id).value='';});
+    if($('muc-p-value'))$('muc-p-value').value='';
+    clearMUCPContact();
+    if(andClose){
+      closeM('modal-unified-create');
+    }
     toast('Proyecto creado ✓');
   }
 }
