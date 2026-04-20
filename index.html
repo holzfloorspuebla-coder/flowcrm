@@ -1717,11 +1717,25 @@ function lastActionDate(entityId, entityType){
   const acts=(D.activities||[]).filter(a=>
     entityType==='contact'?a.contactId===entityId:a.projectId===entityId
   );
-  // For projects, also consider inline activity log entries
   if(entityType==='project'){
     const p=D.projects.find(x=>x.id===entityId);
     const pActs=(p?.actLog||[]).map(a=>a.date);
-    const allDates=[...acts.map(a=>a.date),...pActs];
+    const pNotes=(p?.notesList||[]).map(n=>n.date);
+    const allDates=[...acts.map(a=>a.date),...pActs,...pNotes];
+    if(!allDates.length) return null;
+    return allDates.sort().reverse()[0];
+  }
+  if(entityType==='contact'){
+    const c=D.contacts.find(x=>x.id===entityId);
+    const cNotes=(c?.notesList||[]).map(n=>n.date);
+    const allDates=[...acts.map(a=>a.date),...cNotes];
+    if(!allDates.length) return null;
+    return allDates.sort().reverse()[0];
+  }
+  if(entityType==='studio'){
+    const s=(D.studios||[]).find(x=>x.id===entityId);
+    const sNotes=(s?.notesList||[]).map(n=>n.date);
+    const allDates=[...acts.map(a=>a.date),...sNotes];
     if(!allDates.length) return null;
     return allDates.sort().reverse()[0];
   }
