@@ -5095,6 +5095,50 @@ function calcKpiForAgent(agentId,period){
   const totalProposals=allProjects.filter(p=>['p-propuesta','p-ganado','p-perdido'].includes(p.stage)).length;
   const visitToQuoteRatio=totalVisits>0?((totalProposals/totalVisits)*100).toFixed(0):0;
 
+
+  // ── NEW KPIs requested ──
+
+  // A. Leads nuevos / semana (contacts created in last 7 days for this agent)
+  const weekAgo=new Date();weekAgo.setDate(weekAgo.getDate()-7);
+  const weekAgoStr=weekAgo.toISOString().slice(0,10);
+  const leadsThisWeek=D.contacts.filter(c=>c.agent===agentId&&c.date>=weekAgoStr).length;
+
+  // B. % respuesta a primer contacto: contacted or beyond / total leads
+  const totalLeads=D.contacts.filter(c=>c.agent===agentId).length;
+  const respondedStages=['c-contactado','c-respuesta','c-agendado','c-showroom','c-activado'];
+  const responded=D.contacts.filter(c=>c.agent===agentId&&respondedStages.includes(c.stage)).length;
+  const pctRespuesta=totalLeads>0?Math.round((responded/totalLeads)*100):0;
+
+  // C. % conversión showroom: contacts in showroom+ / total
+  const showroomStages=['c-showroom','c-activado'];
+  const inShowroom=D.contacts.filter(c=>c.agent===agentId&&showroomStages.includes(c.stage)).length;
+  const pctShowroom=totalLeads>0?Math.round((inShowroom/totalLeads)*100):0;
+
+  // D. % showroom → proyecto: contacts in showroom that have a project
+  const showroomContacts=D.contacts.filter(c=>c.agent===agentId&&showroomStages.includes(c.stage)).map(c=>c.id);
+  const showroomWithProject=showroomContacts.filter(cid=>allProjects.some(p=>(p.contactIds||[]).includes(cid))).length;
+  const pctShowroomToProject=showroomContacts.length>0?Math.round((showroomWithProject/showroomContacts.length)*100):0;
+
+  // E. % proyecto → especificación: projects in p-especificacion+ / all projects
+  const specStages=['p-especificacion','p-visita','p-propuesta','p-ganado'];
+  const inSpec=allProjects.filter(p=>specStages.includes(p.stage)).length;
+  const totalProj=allProjects.length;
+  const pctProjToSpec=totalProj>0?Math.round((inSpec/totalProj)*100):0;
+
+  // F. % especificación → venta
+  const specToWonBase=allProjects.filter(p=>['p-propuesta','p-ganado','p-perdido'].includes(p.stage)).length;
+  const pctSpecToWon=specToWonBase>0?Math.round((won.length/specToWonBase)*100):0;
+
+  // G. m² especificados / mes — using project value as proxy (stored in m2 field or value)
+  // We use a dedicated m2 field if present, otherwise 0
+  const m2Month=allProjects.filter(p=>p.date&&inRange(p.date,from,to)).reduce((s,p)=>s+(p.m2||0),0);
+
+  // H. Ticket promedio por proyecto (todos los ganados, ya existe como avgTicket)
+  // Already computed above as avgTicket
+
+  // I. Ciclo de venta en días (ya existe como avgCloseDays)
+  // Already computed above
+
   return{
     contactsCount,contactsTarget:cTarget,
     projectsValue,projectsTarget:KPI_TARGETS.projectsMonthlyValue,
@@ -5104,6 +5148,11 @@ function calcKpiForAgent(agentId,period){
     pipelineValue,avgCloseDays,convQuoteWon,
     avgTicket,closedOrders,segmentSales,
     activeArchs,avgRepurchase,visitToQuoteRatio,
+    // New
+    leadsThisWeek,pctRespuesta,pctShowroom,
+    pctShowroomToProject,pctProjToSpec,pctSpecToWon,m2Month,
+    totalLeads,responded,inShowroom,showroomWithProject,
+    showroomContactsCount:showroomContacts.length,
   };
 }
 
@@ -5188,6 +5237,27 @@ function renderKPICard(user,period){
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         ${kpiMetric('Arquitectos activos',k.activeArchs,'Compra en últimos 90 días','var(--purple)')}
         ${kpiMetric('Frecuencia recompra',k.avgRepurchase+'x','Proyectos ganados por arquitecto','var(--green)')}
+      </div>
+    `)}
+
+    ${kpiSection('📈 Funnel de conversión',`
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
+        ${kpiMetric('Leads / semana',k.leadsThisWeek,'Últimos 7 días','var(--accent)')}
+        ${kpiMetric('% Respuesta',k.pctRespuesta+'%',k.responded+' de '+k.totalLeads+' contactados','var(--orange)')}
+        ${kpiMetric('% → Showroom',k.pctShowroom+'%',k.inShowroom+' visitaron','var(--purple)')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        ${kpiMetric('% Showroom → Proy.',k.pctShowroomToProject+'%',k.showroomWithProject+' de '+k.showroomContactsCount,'var(--green)')}
+        ${kpiMetric('% Proy. → Espec.',k.pctProjToSpec+'%','Proyectos en especificación+','var(--yellow)')}
+        ${kpiMetric('% Espec. → Venta',k.pctSpecToWon+'%','Propuestas cerradas ganadas','var(--green)')}
+      </div>
+    `)}
+
+    ${kpiSection('📐 Producción',`
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        ${kpiMetric('m² especificados',k.m2Month>0?k.m2Month.toLocaleString()+' m²':'Sin datos','Proyectos del periodo','var(--accent)')}
+        ${kpiMetric('Ticket promedio',fmtVal(k.avgTicket),'Por proyecto ganado','var(--green)')}
+        ${kpiMetric('Ciclo de venta',k.avgCloseDays!==null?k.avgCloseDays+' días':'Sin datos','Días hasta cierre','var(--text2)')}
       </div>
     `)}
   </div>`;
