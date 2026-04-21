@@ -575,6 +575,19 @@ select.inp{cursor:pointer;}
         <div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px 20px">
           <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">&#10133; Nueva tarea</div>
           <textarea id="nueva-tarea-texto" class="note-inp" rows="2" placeholder="Descripcion de la tarea..." style="font-family:'DM Sans',sans-serif;font-size:13px;resize:none;margin-bottom:10px"></textarea>
+          <div style="position:relative;margin-bottom:10px">
+            <input class="inp" id="nueva-tarea-entity-search" placeholder="&#128269; Vincular a arquitecto o estudio (opcional)..."
+              autocomplete="off" style="font-size:13px;padding-right:36px"
+              oninput="filterTareaEntity(this.value)" onfocus="filterTareaEntity(this.value)">
+            <div id="nueva-tarea-entity-dropdown" style="display:none;position:absolute;z-index:80;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;width:100%;box-shadow:0 6px 24px rgba(0,0,0,.15);top:100%;left:0"></div>
+            <input type="hidden" id="nueva-tarea-entity-id">
+            <input type="hidden" id="nueva-tarea-entity-type">
+            <div id="nueva-tarea-entity-selected" style="display:none;margin-top:6px;align-items:center;gap:7px;background:var(--surface2);border-radius:7px;padding:6px 10px;border:1px solid var(--border)">
+              <span id="nueva-tarea-entity-icon" style="font-size:14px"></span>
+              <span id="nueva-tarea-entity-name" style="font-size:13px;font-weight:600;flex:1;color:var(--text)"></span>
+              <button type="button" onclick="clearTareaEntity()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;padding:0">&#10005;</button>
+            </div>
+          </div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <div style="display:flex;flex-direction:column;gap:3px">
               <label style="font-size:11px;color:var(--text3)">Fecha limite</label>
@@ -2138,6 +2151,9 @@ function saveUnifiedCreate(andClose){
 
 // Close dropdown when clicking outside
 document.addEventListener('click',e=>{
+  if(!e.target.closest('#nueva-tarea-entity-search')&&!e.target.closest('#nueva-tarea-entity-dropdown')&&!e.target.closest('#nueva-tarea-entity-selected')){
+    const dd=document.getElementById('nueva-tarea-entity-dropdown');if(dd)dd.style.display='none';
+  }
   if(!e.target.closest('#muc-c-studio-search')&&!e.target.closest('#muc-c-studio-dropdown')){
     const dd=$('muc-c-studio-dropdown');if(dd)dd.style.display='none';
   }
@@ -2166,17 +2182,73 @@ function getNuevaTareaColor(){
   return sel?sel.dataset.color:'#a07cff';
 }
 
+function filterTareaEntity(q){
+  const dd=document.getElementById('nueva-tarea-entity-dropdown');
+  if(!dd) return;
+  const nq=norm(q);
+  const results=[];
+  // Search contacts
+  (D.contacts||[]).filter(c=>!nq||norm(c.name).includes(nq)||norm((D.studios||[]).find(s=>s.id===c.studioId)?.name||'').includes(nq))
+    .slice(0,6).forEach(c=>{
+      const st=(D.studios||[]).find(s=>s.id===c.studioId);
+      results.push({id:c.id,type:'contact',name:c.name,sub:st?st.name:'',icon:'&#128101;'});
+    });
+  // Search studios
+  (D.studios||[]).filter(s=>!nq||norm(s.name).includes(nq)||norm(s.city||'').includes(nq))
+    .slice(0,4).forEach(s=>{
+      results.push({id:s.id,type:'studio',name:s.name,sub:s.city||'',icon:'&#127963;'});
+    });
+  if(!results.length){
+    dd.innerHTML='<div style="padding:10px 12px;font-size:13px;color:var(--text3)">Sin resultados</div>';
+  } else {
+    dd.innerHTML=results.map(r=>{
+      const safeName=r.name.replace(/'/g,'&#39;');
+      return`<div onclick="selectTareaEntity(${r.id},'${r.type}','${safeName}','${r.icon}')"
+        style="padding:9px 12px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)"
+        onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+        <span>${r.icon}</span>
+        <div><div style="font-weight:600">${r.name}</div>${r.sub?`<div style="font-size:11px;color:var(--text3)">${r.sub}</div>`:''}</div>
+      </div>`;
+    }).join('');
+  }
+  dd.style.display='block';
+}
+
+function selectTareaEntity(id, type, name, icon){
+  document.getElementById('nueva-tarea-entity-id').value=id;
+  document.getElementById('nueva-tarea-entity-type').value=type;
+  document.getElementById('nueva-tarea-entity-name').textContent=name;
+  document.getElementById('nueva-tarea-entity-icon').innerHTML=icon;
+  document.getElementById('nueva-tarea-entity-selected').style.display='flex';
+  document.getElementById('nueva-tarea-entity-search').style.display='none';
+  document.getElementById('nueva-tarea-entity-dropdown').style.display='none';
+}
+
+function clearTareaEntity(){
+  document.getElementById('nueva-tarea-entity-id').value='';
+  document.getElementById('nueva-tarea-entity-type').value='';
+  document.getElementById('nueva-tarea-entity-selected').style.display='none';
+  const inp=document.getElementById('nueva-tarea-entity-search');
+  inp.style.display=''; inp.value='';
+  document.getElementById('nueva-tarea-entity-dropdown').style.display='none';
+}
+
 function crearTareaGeneral(){
   const texto=(document.getElementById('nueva-tarea-texto')?.value||'').trim();
   if(!texto){toast('Escribe una descripcion para la tarea','⚠️');return;}
   const fecha=document.getElementById('nueva-tarea-fecha')?.value||today();
   const color=getNuevaTareaColor();
+  const entityId=document.getElementById('nueva-tarea-entity-id')?.value||null;
+  const entityType=document.getElementById('nueva-tarea-entity-type')?.value||'general';
   if(!D.adminTasks) D.adminTasks=[];
   D.adminTasks.push({
-    id:String(nid()),entityId:null,entityType:'general',
+    id:String(nid()),
+    entityId:entityId?parseInt(entityId):null,
+    entityType:entityId?entityType:'general',
     text:texto,dueDate:fecha,color,done:false,createdAt:today(),agent:ME.id
   });
   document.getElementById('nueva-tarea-texto').value='';
+  clearTareaEntity();
   saveData();renderTareas();renderCKanban();renderPKanban();
   toast('Tarea anadida');
 }
