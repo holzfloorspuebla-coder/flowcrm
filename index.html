@@ -3513,6 +3513,15 @@ function selectStudio(id,name){
   $('c-studio-selected').style.display='flex';
   $('c-studio-search').style.display='none';
   hideStudioDropdown();
+  // Auto-fill studio fields from D.studios
+  const s=(D.studios||[]).find(x=>x.id===id);
+  if(s){
+    if($('c-studio-email')&&!$('c-studio-email').value) $('c-studio-email').value=s.email||'';
+    if($('c-studio-phone')&&!$('c-studio-phone').value) $('c-studio-phone').value=s.phone||'';
+    if($('c-studio-instagram')&&!$('c-studio-instagram').value) $('c-studio-instagram').value=s.instagram||'';
+    if($('c-studio-linkedin')&&!$('c-studio-linkedin').value) $('c-studio-linkedin').value=s.linkedin||'';
+    if($('c-web')&&!$('c-web').value) $('c-web').value=s.web||'';
+  }
 }
 
 function clearStudioSelection(){
@@ -3556,10 +3565,12 @@ function openContactModal(stageId,editId){
     $('c-origin').value=c.origin||'';
     $('c-pricelist').value=c.priceList||'';
     $('c-web').value=c.web||'';
-    $('c-studio-email').value=c.studioEmail||'';
-    $('c-studio-phone').value=c.studioPhone||'';
-    $('c-studio-instagram').value=c.studioInstagram||'';
-    $('c-studio-linkedin').value=c.studioLinkedin||'';
+    // Load studio fields from the studio record (source of truth)
+    const linkedStudio=(D.studios||[]).find(s=>s.id===(c.studioId||null));
+    $('c-studio-email').value=linkedStudio?.email||c.studioEmail||'';
+    $('c-studio-phone').value=linkedStudio?.phone||c.studioPhone||'';
+    $('c-studio-instagram').value=linkedStudio?.instagram||c.studioInstagram||'';
+    $('c-studio-linkedin').value=linkedStudio?.linkedin||c.studioLinkedin||'';
     $('c-segment').value=c.segment||'';
     $('c-stage').value=c.stage||'';
     $('c-agent').value=c.agent;
@@ -3588,6 +3599,19 @@ function saveContact(){
   if(studioId){
     const studio=D.studios.find(s=>s.id===studioId);
     if(studio&&studio.agent!==ME.id&&ME.role!=='admin'){toast('Solo el vendedor responsable puede añadir arquitectos a este estudio','⚠️');return;}
+    // Update studio record with any edited fields
+    if(studio){
+      const sEmail=$('c-studio-email').value.trim();
+      const sPhone=$('c-studio-phone').value.trim();
+      const sInsta=$('c-studio-instagram').value.trim();
+      const sLinked=$('c-studio-linkedin').value.trim();
+      const sWeb=$('c-web').value.trim();
+      if(sEmail) studio.email=sEmail;
+      if(sPhone) studio.phone=sPhone;
+      if(sInsta) studio.instagram=sInsta;
+      if(sLinked) studio.linkedin=sLinked;
+      if(sWeb) studio.web=sWeb;
+    }
   }
   const obj={
     name,
