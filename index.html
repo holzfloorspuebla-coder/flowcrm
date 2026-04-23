@@ -2520,7 +2520,7 @@ function renderCKanban(){
 
   function buildCols(stages){
     return stages.map(st=>{
-      let items=visibleContacts().filter(c=>c.stage===st.id);
+      let items=visibleContacts().filter(c=>c.stage===st.id&&c.inPipeline!==false);
       if(S.cFilter!=='all')items=items.filter(c=>c.agent===S.cFilter);
       if(kq) items=items.filter(c=>{
         const studio=(D.studios||[]).find(s=>s.id===c.studioId);
@@ -2544,7 +2544,7 @@ function renderCKanban(){
     `<div style="display:flex;flex-direction:column;gap:0;min-width:220px;max-width:260px">
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding:8px 4px 6px">Estados finales</div>
       ${finalStages.map(st=>{
-        let items=visibleContacts().filter(c=>c.stage===st.id);
+        let items=visibleContacts().filter(c=>c.stage===st.id&&c.inPipeline!==false);
         if(S.cFilter!=='all')items=items.filter(c=>c.agent===S.cFilter);
         if(kq) items=items.filter(c=>{
           const studio=(D.studios||[]).find(s=>s.id===c.studioId);
@@ -2695,7 +2695,7 @@ function renderCTable(){
     const inPipeline=!!c.stage;
     return`<tr class="${sel?'selected':''}" onclick="${selMode?`toggleContactSel(${c.id})`:''}" style="${selMode?'cursor:pointer':''}">
       ${selMode?`<td><input type="checkbox" class="sel-cb" ${sel?'checked':''} onclick="event.stopPropagation();toggleContactSel(${c.id})"></td>`:''}
-      <td style="font-size:10px;color:var(--text3);font-family:monospace;white-space:nowrap">${c.code||'—'}</td>
+      <td style="font-size:10px;color:var(--text3);font-family:monospace;white-space:nowrap">${c.code||'—'}${c.inPipeline===false?'<span style="margin-left:4px;font-size:9px;background:var(--surface3);color:var(--text3);padding:1px 5px;border-radius:6px">pausado</span>':''}</td>
       <td><div style="display:flex;align-items:center;gap:8px">
         ${avEl(c.name[0],ag?.color||COLORS[0],26)}
         <div><div style="font-weight:600;cursor:pointer" onclick="${selMode?'':'openProfile('+c.id+')'}">${c.name}</div>
@@ -2796,7 +2796,7 @@ function renderPKanban(){
   syncPostventa();
   $('p-kanban').innerHTML=P_STAGES.map(st=>{
     const isPostventa = st.id===POSTVENTA_ID;
-    let items=visibleProjects().filter(p=>p.stage===st.id);
+    let items=visibleProjects().filter(p=>p.stage===st.id&&p.inPipeline!==false);
     if(S.pFilter!=='all')items=items.filter(p=>p.agent===S.pFilter);
     // Hide ganado/perdido projects older than 3 months from kanban
     const hiddenCount=items.filter(p=>isClosedProjectHidden(p)).length;
@@ -2938,6 +2938,7 @@ function openProfile(id){
     ${owned?`<button class="btn btn-red btn-sm" onclick="deleteContact(${id})">🗑️</button>`:''}
     <button class="btn btn-ghost btn-sm" style="background:rgba(62,207,142,.12);color:var(--green);border-color:rgba(62,207,142,.3)" onclick="registerShowroomVisit(${id})">🏢 Registrar visita</button>
     <button class="btn btn-primary btn-sm" onclick="openProjectModal(null,${id})">＋ Proyecto</button>
+    ${owned?`<button class="btn btn-ghost btn-sm" style="${c.inPipeline===false?'color:var(--text3)':'color:var(--accent)'}" onclick="toggleContactPipeline(${id})">${c.inPipeline===false?'▶ Activar pipeline':'⏸ Pausar pipeline'}</button>`:''}
   `;
 
   $('pf-fields').innerHTML=`
@@ -3048,6 +3049,20 @@ function deleteStudioNote(sid,idx){
   renderStudioNotes(sid,owned);
 }
 
+function toggleContactPipeline(id){
+  const c=D.contacts.find(x=>x.id===id);
+  if(!c||!canEdit(c.agent)){toast('Sin permiso','⚠️');return;}
+  c.inPipeline=c.inPipeline===false?true:false;
+  saveData();renderCKanban();renderCTable();openProfile(id);
+  toast(c.inPipeline?'Contacto activado en pipeline ▶':'Contacto pausado del pipeline ⏸');
+}
+function toggleProjectPipeline(id){
+  const p=D.projects.find(x=>x.id===id);
+  if(!p||!canEdit(p.agent)){toast('Sin permiso','⚠️');return;}
+  p.inPipeline=p.inPipeline===false?true:false;
+  saveData();renderPKanban();renderPTable();closeM('modal-proj-detail');openProjDetail(id);
+  toast(p.inPipeline?'Proyecto activado en pipeline ▶':'Proyecto pausado del pipeline ⏸');
+}
 function changeContactStage(id,stage){
   const c=D.contacts.find(x=>x.id===id);
   if(!c||!canEdit(c.agent)){toast('Sin permiso','⚠️');return;}
@@ -3165,6 +3180,7 @@ function openProjDetail(id){
   `;
   $('pd-ft').innerHTML=`
     ${owned?`<button class="btn btn-red btn-sm" onclick="deleteProject(${id})">🗑️ Eliminar</button>`:''}
+    ${owned?`<button class="btn btn-ghost btn-sm" style="${p.inPipeline===false?'color:var(--text3)':'color:var(--accent)'}" onclick="toggleProjectPipeline(${id})">${p.inPipeline===false?'▶ Activar en pipeline':'⏸ Pausar en pipeline'}</button>`:''}
     <button class="btn btn-ghost" onclick="closeM('modal-proj-detail')">Cerrar</button>
     ${owned?`<button class="btn btn-primary" onclick="closeM('modal-proj-detail');openProjectModal(null,null,${id})">✏️ Editar</button>`:''}
   `;
