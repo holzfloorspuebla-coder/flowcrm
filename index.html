@@ -424,6 +424,7 @@ select.inp{cursor:pointer;}
             <span style="font-size:13px;color:var(--text2)" id="c-table-count"></span>
             <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <button class="btn btn-ghost btn-sm" id="contacts-select-btn" onclick="toggleContactsSelectMode()">☑️ Seleccionar</button>
+              <button class="btn btn-ghost btn-sm" id="btn-duplicados" onclick="openDuplicateFinder()" style="display:none;color:var(--orange)">🔍 Duplicados</button>
               <button class="btn btn-ghost btn-sm" onclick="$('csv-contact-input').click()">📥 Importar CSV</button>
               <input type="file" id="csv-contact-input" accept=".csv" style="display:none" onchange="handleContactCsvImport(this)">
               <div class="chip active" id="c-filter-all2" onclick="filterC(this,'all')">Todos</div>
@@ -450,11 +451,13 @@ select.inp{cursor:pointer;}
               <th onclick="sortTable('studio')" style="cursor:pointer;user-select:none">Estudio <span id="sort-studio"></span></th>
               <th onclick="sortTable('city')" style="cursor:pointer;user-select:none">Ciudad <span id="sort-city"></span></th>
               <th onclick="sortTable('state')" style="cursor:pointer;user-select:none">Estado <span id="sort-state"></span></th>
-              <th>Teléfono</th><th>Email</th>
+              <th onclick="sortTable('phone')" style="cursor:pointer;user-select:none">Teléfono <span id="sort-phone"></span></th>
+              <th onclick="sortTable('email')" style="cursor:pointer;user-select:none">Email <span id="sort-email"></span></th>
               <th onclick="sortTable('stage')" style="cursor:pointer;user-select:none">Pipeline <span id="sort-stage"></span></th>
               <th>Segmento</th>
               <th onclick="sortTable('agent')" style="cursor:pointer;user-select:none">Agente <span id="sort-agent"></span></th>
               <th onclick="sortTable('projects')" style="cursor:pointer;user-select:none">Proyectos <span id="sort-projects"></span></th>
+              <th onclick="sortTable('updated')" style="cursor:pointer;user-select:none">Últ. actividad <span id="sort-updated"></span></th>
               <th></th>
             </tr></thead><tbody id="c-tbody"></tbody></table>
           </div>
@@ -623,6 +626,21 @@ select.inp{cursor:pointer;}
             <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--green);margin-bottom:10px">&#9989; Completadas</div>
             <div id="tareas-done"></div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DUPLICATE FINDER MODAL -->
+    <div class="overlay hidden" id="modal-duplicates">
+      <div class="modal wide" style="max-height:85vh;overflow-y:auto">
+        <div class="modal-hd"><h2>🔍 Buscador de duplicados</h2><button class="modal-close" onclick="closeM('modal-duplicates')">✕</button></div>
+        <div style="padding:0 0 12px">
+          <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+            <button class="btn btn-primary btn-sm" onclick="findDuplicates('phone')">Por teléfono</button>
+            <button class="btn btn-primary btn-sm" onclick="findDuplicates('email')">Por email</button>
+            <button class="btn btn-ghost btn-sm" onclick="findDuplicates('both')">Ambos</button>
+          </div>
+          <div id="dup-results"></div>
         </div>
       </div>
     </div>
@@ -1613,7 +1631,7 @@ function studioVirtualContacts(){
   if(!ME||!D||!D.studios) return [];
   const studiosWithArchs=new Set((D.contacts||[]).filter(c=>c.studioId).map(c=>c.studioId));
   return (D.studios||[])
-    .filter(s=>!studiosWithArchs.has(s.id))
+    .filter(s=>!studiosWithArchs.has(s.id)&&s.inPipeline!==false)
     .map(s=>({
       _isStudio:true,
       id:'s_'+s.id, // virtual id to avoid collision
@@ -1820,7 +1838,7 @@ function taskBadgeHtml(entityId){
 //  ADMIN TASKS (manual task alarms)
 // ══════════════════════════════════════════════════════
 function renderTasksSection(entityId, entityType){
-  if(ME.role!=='admin') return '';
+  if(!ME) return '';
   if(!D.adminTasks) D.adminTasks=[];
   const tasks=D.adminTasks.filter(t=>t.entityId===entityId);
   const pending=tasks.filter(t=>!t.done);
@@ -2179,7 +2197,7 @@ document.addEventListener('click',e=>{
 //  TAREAS VIEW (admin only)
 // ══════════════════════════════════════════════════════
 function showTareasNav(){
-  const show=ME&&ME.role==='admin';
+  const show=ME&&true;  // all users
   const btn=document.getElementById('ni-tareas');
   const ns=document.getElementById('ns-tareas');
   if(btn) btn.style.display=show?'':'none';
@@ -2342,10 +2360,72 @@ function eliminarTareaVista(taskId){
   toast('Tarea eliminada');
 }
 
+
+// ══════════════════════════════════════════════════════
+//  BUSCADOR DE DUPLICADOS (admin only)
+// ══════════════════════════════════════════════════════
+function openDuplicateFinder(){
+  if(!ME||ME.role!=='admin'){toast('Solo admin','⚠️');return;}
+  $('modal-duplicates').classList.remove('hidden');
+  $('dup-results').innerHTML='<div style="color:var(--text3);font-size:13px">Selecciona un criterio para buscar duplicados</div>';
+}
+
+function findDuplicates(by){
+  const contacts=D.contacts||[];
+  const groups={};
+
+  contacts.forEach(c=>{
+    const keys=[];
+    if(by==='phone'||by==='both'){
+      const p=(c.phone||'').replace(/\D/g,'');
+      if(p.length>=7) keys.push('p:'+p);
+    }
+    if(by==='email'||by==='both'){
+      const e=(c.email||'').toLowerCase().trim();
+      if(e) keys.push('e:'+e);
+    }
+    keys.forEach(k=>{
+      if(!groups[k]) groups[k]=[];
+      groups[k].push(c);
+    });
+  });
+
+  const dups=Object.entries(groups).filter(([k,arr])=>arr.length>1);
+  const el=$('dup-results');
+  if(!dups.length){
+    el.innerHTML=`<div style="color:var(--green);font-size:14px;padding:16px 0">&#10003; No se encontraron duplicados</div>`;
+    return;
+  }
+
+  el.innerHTML=`<div style="font-size:12px;color:var(--text3);margin-bottom:12px">${dups.length} posible${dups.length!==1?'s':''} duplicado${dups.length!==1?'s':''} encontrado${dups.length!==1?'s':''}</div>`+
+  dups.map(([key,arr])=>{
+    const tipo=key.startsWith('p:')?'Teléfono':'Email';
+    const valor=key.slice(2);
+    return`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--orange);margin-bottom:8px">${tipo}: ${valor}</div>
+      ${arr.map(c=>{
+        const ag=USERS.find(u=>u.id===c.agent);
+        const st=C_STAGES.find(s=>s.id===c.stage);
+        const studio=(D.studios||[]).find(s=>s.id===c.studioId);
+        return`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--border)">
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:13px;cursor:pointer;color:var(--accent)" onclick="closeM('modal-duplicates');openProfile(${c.id})">${c.name}</div>
+            <div style="font-size:11px;color:var(--text3)">${studio?'🏛️ '+studio.name+' · ':''} ${ag?.name||'—'} ${st?' · '+st.name:''}</div>
+          </div>
+          <div style="font-size:11px;color:var(--text3)">${c.date||''}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+
 // ══════════════════════════════════════════════════════
 //  SIDEBAR & USER HEADER
 // ══════════════════════════════════════════════════════
 function updateSidebarUser(){
+  // Show/hide duplicate finder button
+  const dupBtn=document.getElementById('btn-duplicados');
+  if(dupBtn) dupBtn.style.display=(ME&&ME.role==='admin')?'':'none';
   const av=$('sb-user-av');
   av.style.cssText=`width:30px;height:30px;font-size:13px;background:${ME.color}22;color:${ME.color}`;
   av.textContent=ME.name[0];
@@ -2552,7 +2632,7 @@ function renderCTable(){
   if(!S._tSort) S._tSort={col:null,asc:true};
   const {col,asc}=S._tSort;
   // Update sort indicators
-  ['code','name','type','studio','city','state','stage','agent','projects'].forEach(c=>{
+  ['code','name','type','studio','city','state','stage','agent','projects','phone','email','updated'].forEach(c=>{
     const el=document.getElementById('sort-'+c);
     if(el) el.textContent=col===c?(asc?'↑':'↓'):'';
   });
@@ -2577,6 +2657,15 @@ function renderCTable(){
         va=visibleProjects().filter(p=>p.contactIds?.includes(a.id)).length;
         vb=visibleProjects().filter(p=>p.contactIds?.includes(b.id)).length;
         return asc?va-vb:vb-va;
+      }
+      else if(col==='phone'){va=a.phone||a.studioPhone||'';vb=b.phone||b.studioPhone||'';}
+      else if(col==='email'){va=norm(a.email||a.studioEmail||'');vb=norm(b.email||b.studioEmail||'');}
+      else if(col==='updated'){
+        va=lastActionDate(a.id,'contact')||a.stageDate||a.date||'';
+        vb=lastActionDate(b.id,'contact')||b.stageDate||b.date||'';
+        if(va<vb) return asc?-1:1;
+        if(va>vb) return asc?1:-1;
+        return 0;
       }
       if(va<vb) return asc?-1:1;
       if(va>vb) return asc?1:-1;
@@ -2617,6 +2706,7 @@ function renderCTable(){
       <td>${seg?`<span style="background:${seg.color}22;color:${seg.color};padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">${seg.icon} ${seg.label}</span>`:'—'}</td>
       <td>${agH(c.agent)}</td>
       <td style="color:var(--accent);font-weight:700;font-family:'Syne',sans-serif">${np}</td>
+      <td style="font-size:11px;color:var(--text3);white-space:nowrap">${lastActionDate(c.id,'contact')||c.stageDate||c.date||'—'}</td>
       <td style="white-space:nowrap">${selMode?'':` <button class="btn btn-ghost btn-sm" onclick="openProfile(${c.id})">Ver →</button>`}</td>
     </tr>`;
   }).join('');
@@ -2957,6 +3047,14 @@ function changeContactStage(id,stage){
   if(!c||!canEdit(c.agent)){toast('Sin permiso','⚠️');return;}
   c.stage=stage;c.stageDate=today();saveData();renderCKanban();toast('Etapa actualizada');
 }
+function toggleStudioPipeline(id, inPipeline){
+  const s=(D.studios||[]).find(x=>x.id===id);
+  if(!s){toast('Estudio no encontrado','⚠️');return;}
+  s.inPipeline=inPipeline;
+  saveData();renderCKanban();openStudioProfile(id);
+  toast(inPipeline?'Estudio añadido al pipeline':'Estudio oculto del pipeline');
+}
+
 function changeStudioStage(id,stage){
   const s=(D.studios||[]).find(x=>x.id===id);
   if(!s){toast('Estudio no encontrado','⚠️');return;}
@@ -3047,7 +3145,7 @@ function openProjDetail(id){
         <span>📋 Registro de actividades</span>
         ${getAlarm(p.id,p.stage,p.stageDate||p.date,'project')?.active?`<span style="font-size:10px;background:var(--alarm-color,#ff5c5c)22;color:var(--alarm-color,#ff5c5c);padding:2px 8px;border-radius:10px;font-weight:700">⚠️ Alarma activa — añade actividad para resetear</span>`:''}
       </div>
-      <div id="proj-tasks-section-${id}">${ME.role==='admin'?renderTasksSection(String(id),'project'):''}</div>
+      <div id="proj-tasks-section-${id}">${renderTasksSection(String(id),'project')||''}</div>
     <div class="proj-act-log" id="proj-act-log-${id}">${renderProjActLog(p)}</div>
       ${owned?`<div style="display:flex;gap:8px;margin-top:4px">
         <textarea class="note-inp" id="proj-act-inp-${id}" rows="2" placeholder="Describe la actividad realizada (llamada, visita, envío de propuesta...)..." style="flex:1;font-family:'DM Sans',sans-serif;font-size:13px;resize:none"></textarea>
@@ -4703,11 +4801,15 @@ function openStudioProfile(id){
       ${ME.role==='admin'?`<button class="btn btn-red btn-sm" onclick="deleteStudio(${id})">🗑️</button>`:''}
       ${owned?`<button class="btn btn-primary btn-sm" onclick="openArchitectModal(${id})">👤 ＋ Arquitecto</button>`:''}
     </div>
-    ${owned?`<div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span style="font-size:12px;color:var(--text3)">Etapa en pipeline:</span>
-      <select class="inp" style="max-width:240px;height:34px;font-size:13px" onchange="changeStudioStage(${id},this.value)">
+    ${owned?`<div style="margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:13px;color:var(--text2)">
+        <input type="checkbox" ${s.inPipeline!==false?'checked':''} onchange="toggleStudioPipeline(${id},this.checked)" style="width:16px;height:16px;cursor:pointer">
+        En pipeline
+      </label>
+      ${s.inPipeline!==false?`<span style="font-size:12px;color:var(--text3)">Etapa:</span>
+      <select class="inp" style="max-width:220px;height:32px;font-size:13px" onchange="changeStudioStage(${id},this.value)">
         ${C_STAGES.map(st=>`<option value="${st.id}" ${(s.stage||'c-lead')===st.id?'selected':''}>${st.name}</option>`).join('')}
-      </select>
+      </select>`:'<span style="font-size:12px;color:var(--text3)">Estudio oculto del pipeline</span>'}
     </div>`:''}`;
   $('spf-body').innerHTML=`
     <div class="ig" style="margin-bottom:18px">
