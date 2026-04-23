@@ -1352,8 +1352,10 @@ function showSyncDot(status){
 }
 
 // ── Guardar: siempre local primero, con timestamp, luego sube a Sheets ──
+let _lastLocalEdit=0;
 function saveData(){
-  D._savedAt = Date.now(); // timestamp de esta versión
+  _lastLocalEdit=Date.now();
+  D._savedAt = _lastLocalEdit; // timestamp de esta versión
   try{localStorage.setItem('fcrm_data',JSON.stringify(D));}catch(e){}
   try{localStorage.setItem('fcrm_users',JSON.stringify(USERS));}catch(e){}
   showSaveIndicator();
@@ -1392,13 +1394,15 @@ function scheduleSyncToDrive(){
         mode:'no-cors',
       });
       showSyncDot('ok');
+      // Reset local edit timer after successful push so polling can resume
+      _lastLocalEdit=D._savedAt||Date.now();
     }catch(e){
       showSyncDot('error');
       console.warn('Drive sync error:',e);
     }finally{
       _isSyncing=false;
     }
-  },4000);
+  },2000);
 }
 
 // ── Cargar desde Google Sheets ──
@@ -1503,6 +1507,8 @@ function startPolling(){
   _pollTimer=setInterval(async()=>{
     if(_syncTimer||_isSyncing) return;
     if(document.querySelector('.overlay:not(.hidden)')) return;
+    // Block polling for 15s after any local save to avoid race condition
+    if(Date.now()-_lastLocalEdit < 15000) return;
     await loadFromDrive(true);
   },POLL_INTERVAL);
 }
