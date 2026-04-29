@@ -1413,7 +1413,19 @@ async function loadFromDrive(silent=false){
   try{
     const res=await fetch(DRIVE_SYNC_URL+'?action=load&t='+Date.now(),{cache:'no-store'});
     if(!res.ok) throw new Error('HTTP '+res.status);
-    const json=await res.json();
+
+    // Protección anti-truncado: leer como texto primero y validar antes de parsear
+    const rawText=await res.text();
+    let json;
+    try{
+      json=JSON.parse(rawText);
+    }catch(parseErr){
+      // JSON truncado/corrupto → descartar silenciosamente, NO tocar datos locales
+      console.warn('Sync error (JSON truncado, datos locales preservados):',parseErr.message);
+      updateLastSyncLabel('error');
+      if(!silent) showSyncDot('error');
+      return false;
+    }
     if(!json.ok) throw new Error(json.error||'Error');
 
     let changed=false;
@@ -1437,6 +1449,16 @@ async function loadFromDrive(silent=false){
       const localSavedAt = D._savedAt||0;
       const sheetsSavedAt = json.data._savedAt||0;
       if(sheetsSavedAt > localSavedAt){
+        // GUARDIA DE INTEGRIDAD: rechazar si los datos de Sheets tienen menos contactos
+        // que los locales (señal de respuesta truncada o corrupción)
+        const localContactCount = (D.contacts||[]).length;
+        const incomingContactCount = (json.data.contacts||[]).length;
+        if(localContactCount > 0 && incomingContactCount === 0){
+          console.warn('Sync: Sheets devolvió 0 contactos pero local tiene '+localContactCount+'. Posible truncado. Datos locales preservados.');
+          updateLastSyncLabel('error');
+          if(!silent) showSyncDot('error');
+          return false;
+        }
         // Sheets tiene datos más nuevos (otro usuario guardó algo)
         const incoming=json.data;
         if(!incoming.studios)incoming.studios=[];
@@ -1533,12 +1555,31 @@ async function initApp(){
 
   try{
     const res=await fetch(DRIVE_SYNC_URL+'?action=load&t='+Date.now(),{cache:'no-store'});
-    const json=res.ok?await res.json():{ok:false};
+
+    // Protección anti-truncado: parsear con try/catch propio
+    let json={ok:false};
+    if(res.ok){
+      try{
+        const rawText=await res.text();
+        json=JSON.parse(rawText);
+      }catch(parseErr){
+        console.warn('initApp: JSON truncado/corrupto de Sheets. Usando datos locales.',parseErr.message);
+        json={ok:false};
+      }
+    }
 
     if(json.ok){
       const sheetsData=json.data;
-      const sheetsHasContacts=sheetsData?.contacts?.length>0;
-      const localHasContacts=D.contacts?.length>0;
+      // GUARDIA DE INTEGRIDAD: si Sheets devuelve menos contactos que local, descartar
+      const localContactCount=(D.contacts||[]).length;
+      const sheetsContactCount=(sheetsData?.contacts||[]).length;
+      const sheetsHasContacts=sheetsContactCount>0;
+      const localHasContacts=localContactCount>0;
+      // Detectar truncado: Sheets dice tener datos (ok:true) pero 0 contactos y local tiene → sospechoso
+      if(localHasContacts && !sheetsHasContacts){
+        console.warn('initApp: Sheets devolvió 0 contactos pero local tiene '+localContactCount+'. Posible truncado. Ignorando Sheets.');
+        // Caer al bloque de subida
+      }
 
       // Proteger usuarios locales siempre
       if(json.users&&json.users.length){
@@ -1564,13 +1605,22 @@ async function initApp(){
         const sheetsTs=sheetsData._savedAt||0;
         const localTs=D._savedAt||0;
         if(sheetsTs > localTs){
-          $('login-loading-msg').textContent='Actualizando datos...';
-          const incoming=sheetsData;
-          if(!incoming.studios)incoming.studios=[];
-          if(!incoming.stageAlarms)incoming.stageAlarms={};
-          if(!incoming.segments)incoming.segments=JSON.parse(JSON.stringify(DEFAULT_SEGMENTS));
-          D=incoming;
-          localStorage.setItem('fcrm_data',JSON.stringify(D));
+          // GUARDIA EXTRA: solo aplicar si Sheets trae igual o más contactos que local
+          if(sheetsContactCount >= localContactCount){
+            $('login-loading-msg').textContent='Actualizando datos...';
+            const incoming=sheetsData;
+            if(!incoming.studios)incoming.studios=[];
+            if(!incoming.stageAlarms)incoming.stageAlarms={};
+            if(!incoming.segments)incoming.segments=JSON.parse(JSON.stringify(DEFAULT_SEGMENTS));
+            D=incoming;
+            localStorage.setItem('fcrm_data',JSON.stringify(D));
+          } else {
+            console.warn('initApp: Sheets más reciente pero tiene menos contactos ('+sheetsContactCount+' vs '+localContactCount+'). Preservando local y re-subiendo.');
+            $('login-loading-msg').textContent='Sincronizando...';
+            if(!D._savedAt){ D._savedAt=Date.now(); localStorage.setItem('fcrm_data',JSON.stringify(D)); }
+            const payload={...D,users:USERS};
+            fetch(DRIVE_SYNC_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),mode:'no-cors'});
+          }
         } else {
           // Local más reciente → subir a Sheets para sincronizar
           $('login-loading-msg').textContent='Sincronizando...';
@@ -1580,7 +1630,7 @@ async function initApp(){
         }
 
       } else if(!sheetsHasContacts && localHasContacts){
-        // Sheets vacío, local tiene datos → subir a Sheets
+        // Sheets vacío (o truncado), local tiene datos → subir a Sheets
         $('login-loading-msg').textContent='Subiendo datos a Google Sheets...';
         if(!D._savedAt){ D._savedAt=Date.now(); localStorage.setItem('fcrm_data',JSON.stringify(D)); }
         const payload={...D,users:USERS};
