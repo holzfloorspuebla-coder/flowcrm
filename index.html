@@ -1405,22 +1405,45 @@ function scheduleSyncToDrive(){
   },2000);
 }
 
+// ── Fetch con soporte de paginación (evita truncado del proxy de Google) ──
+async function fetchFromDrive(url){
+  const res=await fetch(url+'?action=load&t='+Date.now(),{cache:'no-store'});
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const rawText=await res.text();
+  let json;
+  try{ json=JSON.parse(rawText); }
+  catch(e){ throw new Error('JSON truncado: '+e.message); }
+  if(!json.ok) throw new Error(json.error||'Error');
+
+  // Si la respuesta es paginada, ensamblar todas las páginas
+  if(json.paged && json.totalPages>1){
+    let assembled=json.chunk;
+    for(let p=1;p<json.totalPages;p++){
+      const pr=await fetch(url+'?action=load&page='+p+'&t='+Date.now(),{cache:'no-store'});
+      if(!pr.ok) throw new Error('HTTP '+pr.status+' (página '+p+')');
+      const pt=await pr.text();
+      let pj;
+      try{ pj=JSON.parse(pt); }
+      catch(e){ throw new Error('JSON truncado en página '+p+': '+e.message); }
+      if(!pj.ok) throw new Error(pj.error||'Error en página '+p);
+      assembled+=pj.chunk;
+    }
+    try{ json=JSON.parse(assembled); }
+    catch(e){ throw new Error('JSON inválido tras ensamblar páginas: '+e.message); }
+  }
+  return json;
+}
+
 // ── Cargar desde Google Sheets ──
 // REGLA FUNDAMENTAL: solo se aplican datos de Sheets si su _savedAt > local _savedAt
 // Esto garantiza que los cambios locales nunca sean sobreescritos por datos más viejos
 async function loadFromDrive(silent=false){
   if(!DRIVE_SYNC_URL) return false;
   try{
-    const res=await fetch(DRIVE_SYNC_URL+'?action=load&t='+Date.now(),{cache:'no-store'});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-
-    // Protección anti-truncado: leer como texto primero y validar antes de parsear
-    const rawText=await res.text();
     let json;
     try{
-      json=JSON.parse(rawText);
+      json=await fetchFromDrive(DRIVE_SYNC_URL);
     }catch(parseErr){
-      // JSON truncado/corrupto → descartar silenciosamente, NO tocar datos locales
       console.warn('Sync error (JSON truncado, datos locales preservados):',parseErr.message);
       updateLastSyncLabel('error');
       if(!silent) showSyncDot('error');
@@ -1554,18 +1577,13 @@ async function initApp(){
   $('login-loading-msg').textContent='Conectando con Google Sheets...';
 
   try{
-    const res=await fetch(DRIVE_SYNC_URL+'?action=load&t='+Date.now(),{cache:'no-store'});
-
-    // Protección anti-truncado: parsear con try/catch propio
+    // Usar fetchFromDrive que soporta paginación y protege contra truncado
     let json={ok:false};
-    if(res.ok){
-      try{
-        const rawText=await res.text();
-        json=JSON.parse(rawText);
-      }catch(parseErr){
-        console.warn('initApp: JSON truncado/corrupto de Sheets. Usando datos locales.',parseErr.message);
-        json={ok:false};
-      }
+    try{
+      json=await fetchFromDrive(DRIVE_SYNC_URL);
+    }catch(parseErr){
+      console.warn('initApp: error al cargar Sheets. Usando datos locales.',parseErr.message);
+      json={ok:false};
     }
 
     if(json.ok){
