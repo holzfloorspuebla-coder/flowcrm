@@ -1405,7 +1405,30 @@ function scheduleSyncToDrive(){
   },2000);
 }
 
-// ── Fetch con soporte de paginación (evita truncado del proxy de Google) ──
+// ── Descomprimir base64+gzip (nativo en Chrome vía DecompressionStream) ──
+async function decompressB64Gzip(b64){
+  const binary=atob(b64);
+  const bytes=new Uint8Array(binary.length);
+  for(let i=0;i<binary.length;i++) bytes[i]=binary.charCodeAt(i);
+  const ds=new DecompressionStream('gzip');
+  const writer=ds.writable.getWriter();
+  writer.write(bytes);
+  writer.close();
+  const out=[];
+  const reader=ds.readable.getReader();
+  while(true){
+    const {done,value}=await reader.read();
+    if(done) break;
+    out.push(value);
+  }
+  const total=out.reduce((s,a)=>s+a.length,0);
+  const result=new Uint8Array(total);
+  let offset=0;
+  for(const chunk of out){result.set(chunk,offset);offset+=chunk.length;}
+  return new TextDecoder().decode(result);
+}
+
+// ── Fetch con soporte de compresión gzip (evita truncado del proxy de Google) ──
 async function fetchFromDrive(url){
   const res=await fetch(url+'?action=load&t='+Date.now(),{cache:'no-store'});
   if(!res.ok) throw new Error('HTTP '+res.status);
@@ -1415,21 +1438,13 @@ async function fetchFromDrive(url){
   catch(e){ throw new Error('JSON truncado: '+e.message); }
   if(!json.ok) throw new Error(json.error||'Error');
 
-  // Si la respuesta es paginada, ensamblar todas las páginas
-  if(json.paged && json.totalPages>1){
-    let assembled=json.chunk;
-    for(let p=1;p<json.totalPages;p++){
-      const pr=await fetch(url+'?action=load&page='+p+'&t='+Date.now(),{cache:'no-store'});
-      if(!pr.ok) throw new Error('HTTP '+pr.status+' (página '+p+')');
-      const pt=await pr.text();
-      let pj;
-      try{ pj=JSON.parse(pt); }
-      catch(e){ throw new Error('JSON truncado en página '+p+': '+e.message); }
-      if(!pj.ok) throw new Error(pj.error||'Error en página '+p);
-      assembled+=pj.chunk;
-    }
-    try{ json=JSON.parse(assembled); }
-    catch(e){ throw new Error('JSON inválido tras ensamblar páginas: '+e.message); }
+  // Si la respuesta viene comprimida, descomprimir
+  if(json.compressed && json.payload){
+    let decompressed;
+    try{ decompressed=await decompressB64Gzip(json.payload); }
+    catch(e){ throw new Error('Error descomprimiendo: '+e.message); }
+    try{ json=JSON.parse(decompressed); }
+    catch(e){ throw new Error('JSON inválido tras descomprimir: '+e.message); }
   }
   return json;
 }
@@ -3612,7 +3627,7 @@ function deleteProject(id){
 // ══════════════════════════════════════════════════════
 function onContactTypeChange(type){
   const row=$('c-studio-row');
-  if(row)row.style.display=type==='Arquitecto'?'block':'none';
+  if(row)row.style.display='block'; // Siempre visible — cualquier tipo puede vincularse a un estudio
 }
 function populateStudioSelect(selectedId){
   // Reset search UI
