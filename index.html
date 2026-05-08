@@ -407,6 +407,7 @@ select.inp{cursor:pointer;}
       <div class="tabs">
         <div class="tab active" onclick="swTab('c','pipeline',this)">Pipeline</div>
         <div class="tab" onclick="swTab('c','table',this)">Tabla</div>
+        <div class="tab" onclick="swTab('c','db',this)">🗂 Base de datos</div>
       </div>
       <div class="tab-content">
         <div class="tab-panel active" id="ctab-pipeline">
@@ -462,6 +463,64 @@ select.inp{cursor:pointer;}
             </tr></thead><tbody id="c-tbody"></tbody></table>
           </div>
         </div>
+
+        <!-- BASE DE DATOS TAB -->
+        <div class="tab-panel" id="ctab-db" style="display:none;flex-direction:column;overflow:hidden;flex:1">
+          <div class="toolbar" style="gap:8px;flex-wrap:wrap;padding:10px 22px">
+            <span style="font-size:13px;color:var(--text2)" id="db-count"></span>
+            <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <button class="btn btn-ghost btn-sm" id="db-select-btn" onclick="toggleDbSelectMode()">&#9745; Seleccionar</button>
+              <button class="btn btn-ghost btn-sm" onclick="$('csv-db-input').click()">&#128229; Importar CSV</button>
+              <input type="file" id="csv-db-input" accept=".csv" style="display:none" onchange="handleDbCsvImport(this)">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 22px 10px;border-bottom:1px solid var(--border)">
+            <input class="inp" id="db-search" placeholder="Buscar nombre, estudio, email, ciudad..." oninput="renderDbTable()" style="flex:1;min-width:180px;max-width:360px;font-size:13px;padding:6px 10px">
+            <select class="inp" id="db-f-agent" onchange="renderDbTable()" style="font-size:12px;padding:6px 10px;min-width:130px">
+              <option value="">Todos los vendedores</option>
+            </select>
+            <select class="inp" id="db-f-type" onchange="renderDbTable()" style="font-size:12px;padding:6px 10px;min-width:130px">
+              <option value="">Todas las funciones</option>
+              <option>Specifier</option><option>Dealer</option><option>Developer</option>
+              <option>General contractor</option><option>End user</option>
+              <option>Fabricante</option><option>Operator</option>
+              <option>Installer</option><option>Project manager</option>
+            </select>
+            <select class="inp" id="db-f-state" onchange="renderDbTable()" style="font-size:12px;padding:6px 10px;min-width:130px">
+              <option value="">Todos los estados</option>
+            </select>
+            <select class="inp" id="db-f-pricelist" onchange="renderDbTable()" style="font-size:12px;padding:6px 10px;min-width:130px">
+              <option value="">Todos los price list</option>
+              <option>End user</option><option>Specifier</option><option>Contract</option>
+              <option>Industry</option><option>Hospitality</option><option>Retailer</option>
+              <option>Specialized Chain</option><option>Fabricante</option>
+              <option>General contractor</option><option>Workplace</option>
+            </select>
+            <button class="btn btn-ghost btn-sm" onclick="resetDbFilters()">x Limpiar</button>
+          </div>
+          <div class="bulk-bar" id="db-bulk-bar">
+            <input type="checkbox" class="sel-cb" id="db-select-all" onchange="toggleSelectAllDb(this.checked)">
+            <span class="bulk-bar-count" id="db-sel-count">0 seleccionados</span>
+            <button class="btn btn-primary btn-sm" onclick="addSelectedToPipeline()">Anadir al pipeline</button>
+            <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="toggleDbSelectMode(false)">x Cancelar</button>
+          </div>
+          <div class="table-wrap">
+            <table><thead><tr>
+              <th id="db-th-check" style="display:none"><input type="checkbox" class="sel-cb" id="db-select-all2" onchange="toggleSelectAllDb(this.checked)"></th>
+              <th onclick="sortDbTable('name')" style="cursor:pointer;user-select:none">Contacto <span id="db-sort-name"></span></th>
+              <th onclick="sortDbTable('studio')" style="cursor:pointer;user-select:none">Estudio <span id="db-sort-studio"></span></th>
+              <th onclick="sortDbTable('type')" style="cursor:pointer;user-select:none">Funcion <span id="db-sort-type"></span></th>
+              <th onclick="sortDbTable('city')" style="cursor:pointer;user-select:none">Ciudad <span id="db-sort-city"></span></th>
+              <th onclick="sortDbTable('state')" style="cursor:pointer;user-select:none">Estado <span id="db-sort-state"></span></th>
+              <th>Telefono</th>
+              <th>Email</th>
+              <th onclick="sortDbTable('priceList')" style="cursor:pointer;user-select:none">Price List <span id="db-sort-priceList"></span></th>
+              <th onclick="sortDbTable('agent')" style="cursor:pointer;user-select:none">Vendedor <span id="db-sort-agent"></span></th>
+              <th></th>
+            </tr></thead><tbody id="db-tbody"></tbody></table>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -2588,9 +2647,12 @@ function mainAction(){
 function swTab(mod,name,el){
   const pfx=mod==='c'?'contacts':'projects';
   document.querySelectorAll(`#${pfx}-view .tab`).forEach(t=>t.classList.remove('active'));
-  document.querySelectorAll(`#${pfx}-view .tab-panel`).forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');$(`${mod}tab-${name}`)?.classList.add('active');
+  document.querySelectorAll(`#${pfx}-view .tab-panel`).forEach(t=>{t.classList.remove('active');t.style.display='none';});
+  el.classList.add('active');
+  const panel=$(`${mod}tab-${name}`);
+  if(panel){panel.classList.add('active');panel.style.display='flex';}
   if(name==='table'){if(mod==='c')renderCTable();else renderPTable();}
+  if(name==='db'&&mod==='c'){initDbFilters();renderDbTable();}
 }
 
 // ══════════════════════════════════════════════════════
@@ -2700,7 +2762,7 @@ function sortTable(col){
 }
 
 function renderCTable(){
-  let items=visibleContacts();
+  let items=visibleContacts().filter(c=>c.inPipeline!==false&&c.stage);
   if(S.cFilter!=='all')items=items.filter(c=>c.agent===S.cFilter);
 
   // Apply text filter
@@ -3021,7 +3083,7 @@ function openProfile(id){
     ${owned?`<button class="btn btn-red btn-sm" onclick="deleteContact(${id})">🗑️</button>`:''}
     <button class="btn btn-ghost btn-sm" style="background:rgba(62,207,142,.12);color:var(--green);border-color:rgba(62,207,142,.3)" onclick="registerShowroomVisit(${id})">🏢 Registrar visita</button>
     <button class="btn btn-primary btn-sm" onclick="openProjectModal(null,${id})">＋ Proyecto</button>
-    ${owned?`<button class="btn btn-ghost btn-sm" style="${c.inPipeline===false?'color:var(--text3)':'color:var(--accent)'}" onclick="toggleContactPipeline(${id})">${c.inPipeline===false?'▶ Activar pipeline':'⏸ Pausar pipeline'}</button>`:''}
+    ${owned?`<button class="btn btn-ghost btn-sm" style="${c.inPipeline===false?'color:var(--accent)':'color:var(--text3)'}" onclick="toggleContactPipeline(${id})">${c.inPipeline===false?'🎯 Añadir al pipeline':'⏸ Quitar del pipeline'}</button>`:''}
   `;
 
   $('pf-fields').innerHTML=`
@@ -3136,8 +3198,11 @@ function toggleContactPipeline(id){
   const c=D.contacts.find(x=>x.id===id);
   if(!c||!canEdit(c.agent)){toast('Sin permiso','⚠️');return;}
   c.inPipeline=c.inPipeline===false?true:false;
-  saveData();renderCKanban();renderCTable();openProfile(id);
-  toast(c.inPipeline?'Contacto activado en pipeline ▶':'Contacto pausado del pipeline ⏸');
+  if(!c.inPipeline){ c.stage=null; }
+  saveData();renderCKanban();renderCTable();
+  if(typeof renderDbTable==='function') renderDbTable();
+  openProfile(id);
+  toast(c.inPipeline!==false?'Contacto añadido al pipeline ▶':'Contacto quitado del pipeline ⏸');
 }
 function toggleProjectPipeline(id){
   const p=D.projects.find(x=>x.id===id);
@@ -4634,7 +4699,8 @@ function handleContactCsvImport(input){
           priceList:get(['price_list','pricelist','lista_precios']),
           segment:segId,
           agent:agentId,
-          stage:'c-lead',
+          stage:null,
+          inPipeline:false,
           tags:[],notes:'',date:today(),notesList:[],
         };
         D.contacts.push(contact);
@@ -6071,6 +6137,283 @@ function deleteSelectedContacts(){
 // ══════════════════════════════════════════════════════
 // ── Arrancar: cargar datos de Google Sheets y mostrar login ──
 initApp();
+
+// ══════════════════════════════════════════════════════
+//  BASE DE DATOS — Tab logic
+// ══════════════════════════════════════════════════════
+let S_db = { selectMode: false, selected: new Set(), sort: { col: null, asc: true } };
+
+function dbContacts() {
+  // Contacts NOT in pipeline: inPipeline===false OR no stage
+  return visibleContacts().filter(c => c.inPipeline === false || !c.stage);
+}
+
+function initDbFilters() {
+  // Populate agent filter
+  const agSel = $('db-f-agent');
+  if (agSel && agSel.options.length <= 1) {
+    USERS.forEach(u => {
+      const o = document.createElement('option');
+      o.value = u.id; o.textContent = u.name;
+      agSel.appendChild(o);
+    });
+  }
+  // Populate state filter
+  const stSel = $('db-f-state');
+  if (stSel && stSel.options.length <= 1) {
+    const states = [...new Set(dbContacts().map(c => c.state).filter(Boolean))].sort();
+    states.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s; o.textContent = s;
+      stSel.appendChild(o);
+    });
+  }
+}
+
+function resetDbFilters() {
+  const ids = ['db-search','db-f-agent','db-f-type','db-f-state','db-f-pricelist'];
+  ids.forEach(id => { const el=$(id); if(el) el.value=''; });
+  renderDbTable();
+}
+
+function renderDbTable() {
+  let items = dbContacts();
+  const q = norm($('db-search')?.value || '');
+  const fAgent = $('db-f-agent')?.value;
+  const fType = $('db-f-type')?.value;
+  const fState = $('db-f-state')?.value;
+  const fPricelist = $('db-f-pricelist')?.value;
+
+  if (q) items = items.filter(c => {
+    const studio = (D.studios||[]).find(s=>s.id===c.studioId);
+    return [c.name,c.mailingName,c.email,c.phone,studio?.name,c.city,c.state]
+      .some(f => norm(f).includes(q));
+  });
+  if (fAgent) items = items.filter(c => String(c.agent) === String(fAgent));
+  if (fType) items = items.filter(c => (c.type||'').toLowerCase().includes(fType.toLowerCase()));
+  if (fState) items = items.filter(c => c.state === fState);
+  if (fPricelist) items = items.filter(c => c.priceList === fPricelist);
+
+  // Sort
+  const { col, asc } = S_db.sort;
+  ['name','studio','type','city','state','priceList','agent'].forEach(c => {
+    const el = $('db-sort-' + c);
+    if (el) el.textContent = col === c ? (asc ? '↑' : '↓') : '';
+  });
+  if (col) {
+    items = [...items].sort((a, b) => {
+      let va = '', vb = '';
+      if (col === 'studio') {
+        va = norm((D.studios||[]).find(s=>s.id===a.studioId)?.name||'');
+        vb = norm((D.studios||[]).find(s=>s.id===b.studioId)?.name||'');
+      } else if (col === 'agent') {
+        va = norm(USERS.find(u=>u.id===a.agent)?.name||'');
+        vb = norm(USERS.find(u=>u.id===b.agent)?.name||'');
+      } else {
+        va = norm(a[col]||''); vb = norm(b[col]||'');
+      }
+      if (va < vb) return asc ? -1 : 1;
+      if (va > vb) return asc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  $('db-count').textContent = `${items.length} contacto${items.length!==1?'s':''} en base de datos`;
+  const selMode = S_db.selectMode;
+  $('db-th-check').style.display = selMode ? '' : 'none';
+
+  $('db-tbody').innerHTML = items.map(c => {
+    const studio = (D.studios||[]).find(s=>s.id===c.studioId);
+    const ag = USERS.find(a=>a.id===c.agent);
+    const sel = S_db.selected.has(c.id);
+    return `<tr class="${sel?'selected':''}" onclick="${selMode?`toggleDbSel(${c.id})`:''}">
+      ${selMode?`<td><input type="checkbox" class="sel-cb" ${sel?'checked':''} onclick="event.stopPropagation();toggleDbSel(${c.id})"></td>`:''}
+      <td><div style="display:flex;align-items:center;gap:8px">
+        ${avEl(c.name?c.name[0]:'?', ag?.color||COLORS[0], 26)}
+        <div>
+          <div style="font-weight:600;cursor:pointer" onclick="${selMode?'':'openProfile('+c.id+')'}">${c.name||'—'}</div>
+          <div style="font-size:11px;color:var(--text2)">${c.mailingName||c.email||''}</div>
+        </div>
+      </div></td>
+      <td style="color:var(--text2)">${studio?`<span style="cursor:pointer;color:var(--accent)" onclick="openStudioProfile(${studio.id})">&#127963; ${studio.name}</span>`:'—'}</td>
+      <td><span style="background:var(--surface3);color:var(--text2);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">${c.type||'—'}</span></td>
+      <td style="color:var(--text2)">${c.city||'—'}</td>
+      <td style="color:var(--text2)">${c.state||'—'}</td>
+      <td style="color:var(--text2)">${c.phone||c.studioPhone||'—'}</td>
+      <td style="color:var(--text2);font-size:12px">${c.email||c.studioEmail||'—'}</td>
+      <td style="font-size:11px;color:var(--text3)">${c.priceList||'—'}</td>
+      <td>${agH(c.agent)}</td>
+      <td style="white-space:nowrap">${selMode?'':
+        `<button class="btn btn-primary btn-sm" onclick="addSingleToPipeline(${c.id})">+ Pipeline</button>
+         <button class="btn btn-ghost btn-sm" onclick="openProfile(${c.id})">Ver</button>`
+      }</td>
+    </tr>`;
+  }).join('');
+
+  updateDbSelCount();
+}
+
+function sortDbTable(col) {
+  if (S_db.sort.col === col) S_db.sort.asc = !S_db.sort.asc;
+  else { S_db.sort.col = col; S_db.sort.asc = true; }
+  renderDbTable();
+}
+
+function toggleDbSelectMode(force) {
+  S_db.selectMode = force !== undefined ? force : !S_db.selectMode;
+  if (!S_db.selectMode) {
+    S_db.selected.clear();
+    $('db-bulk-bar').classList.remove('show');
+  }
+  $('db-select-btn').textContent = S_db.selectMode ? 'Cancelar' : '☑️ Seleccionar';
+  renderDbTable();
+}
+
+function toggleDbSel(id) {
+  if (S_db.selected.has(id)) S_db.selected.delete(id);
+  else S_db.selected.add(id);
+  updateDbSelCount();
+  // Update row class
+  const rows = $('db-tbody').querySelectorAll('tr');
+  rows.forEach(tr => {
+    const cb = tr.querySelector('input[type=checkbox]');
+    if (!cb) return;
+    // Re-render is cleaner for correctness
+  });
+  renderDbTable();
+}
+
+function toggleSelectAllDb(checked) {
+  // Get currently filtered items
+  let items = dbContacts();
+  const q = norm($('db-search')?.value || '');
+  const fAgent = $('db-f-agent')?.value;
+  const fType = $('db-f-type')?.value;
+  const fState = $('db-f-state')?.value;
+  const fPricelist = $('db-f-pricelist')?.value;
+  if (q) items = items.filter(c => {
+    const studio=(D.studios||[]).find(s=>s.id===c.studioId);
+    return [c.name,c.mailingName,c.email,c.phone,studio?.name,c.city,c.state].some(f=>norm(f).includes(q));
+  });
+  if (fAgent) items = items.filter(c => String(c.agent) === String(fAgent));
+  if (fType) items = items.filter(c => (c.type||'').toLowerCase().includes(fType.toLowerCase()));
+  if (fState) items = items.filter(c => c.state === fState);
+  if (fPricelist) items = items.filter(c => c.priceList === fPricelist);
+
+  items.forEach(c => checked ? S_db.selected.add(c.id) : S_db.selected.delete(c.id));
+  updateDbSelCount();
+  renderDbTable();
+}
+
+function updateDbSelCount() {
+  const n = S_db.selected.size;
+  $('db-sel-count').textContent = `${n} seleccionado${n!==1?'s':''}`;
+  $('db-bulk-bar').classList.toggle('show', n > 0);
+  const allCb = $('db-select-all'); if(allCb) allCb.checked = false;
+  const allCb2 = $('db-select-all2'); if(allCb2) allCb2.checked = false;
+}
+
+function addSingleToPipeline(id) {
+  const c = D.contacts.find(x => x.id === id);
+  if (!c || !canEdit(c.agent)) { toast('Sin permiso', '⚠️'); return; }
+  c.stage = 'c-lead';
+  c.inPipeline = true;
+  c.stageDate = today();
+  saveData(); renderDbTable(); renderCKanban(); renderCTable();
+  toast('✓ Contacto añadido al pipeline como Lead');
+}
+
+function addSelectedToPipeline() {
+  if (!S_db.selected.size) { toast('Selecciona al menos un contacto', '⚠️'); return; }
+  let count = 0;
+  S_db.selected.forEach(id => {
+    const c = D.contacts.find(x => x.id === id);
+    if (c && canEdit(c.agent)) {
+      c.stage = 'c-lead';
+      c.inPipeline = true;
+      c.stageDate = today();
+      count++;
+    }
+  });
+  S_db.selected.clear();
+  saveData(); renderDbTable(); renderCKanban(); renderCTable();
+  toggleDbSelectMode(false);
+  toast(`✓ ${count} contacto${count!==1?'s':''} añadido${count!==1?'s':''} al pipeline`);
+}
+
+function handleDbCsvImport(input) {
+  // Reuse same logic as handleContactCsvImport but with inPipeline:false
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const text = e.target.result;
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) { toast('El CSV está vacío', '⚠️'); return; }
+      const sep = lines[0].includes(';') ? ';' : ',';
+      const headers = lines[0].split(sep).map(h => h.trim().toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '_'));
+      const idx = k => headers.indexOf(k);
+      const col = (keys) => { for (const k of keys) { const i = idx(k); if (i >= 0) return i; } return -1; };
+      let created = 0, skipped = 0;
+      for (let r = 1; r < lines.length; r++) {
+        const cols = lines[r].split(sep).map(c => c.trim().replace(/^"|"$/g, ''));
+        const get = keys => { const i = col(keys); return i >= 0 ? (cols[i] || '').trim() : ''; };
+        const name = get(['nombre_arquitecto','nombre','name','arquitecto']);
+        if (!name) { skipped++; continue; }
+        const studioName = get(['nombre_del_estudio','estudio','studio']);
+        let studioId = null;
+        if (studioName) {
+          const existing = (D.studios||[]).find(s=>s.name.toLowerCase()===studioName.toLowerCase());
+          if (existing) { studioId = existing.id; }
+          else {
+            const newStudio = { id:nid(), name:studioName,
+              email:get(['e_mail_estudio','email_estudio']),
+              phone:get(['telefono_estudio','tel_estudio']),
+              city:get(['ciudad']), state:get(['estado']),
+              web:get(['web']), instagram:get(['instagram_estudio']),
+              linkedin:get(['linkedin_estudio']),
+              agent:ME.id, notes:'', date:today() };
+            if (!D.studios) D.studios = [];
+            D.studios.push(newStudio);
+            studioId = newStudio.id;
+          }
+        }
+        const agentName = get(['vendedor_asignado','vendedor','agente','agent']);
+        let agentId = ME.id;
+        if (agentName) { const u=USERS.find(u=>u.name.toLowerCase().includes(agentName.toLowerCase())); if(u) agentId=u.id; }
+        const segName = get(['segmento','segment']);
+        let segId = '';
+        if (segName) { const segs=D.segments||DEFAULT_SEGMENTS; const sg=segs.find(s=>s.label.toLowerCase().includes(segName.toLowerCase())||s.id.toLowerCase()===segName.toLowerCase()); if(sg) segId=sg.id; }
+        D.contacts.push({
+          id:nid(), name,
+          mailingName:get(['nombre_para_mailing','mailing','nombre_whats']),
+          type:get(['funcion','tipo','type','function'])||'Arquitecto',
+          phone:get(['telefono_1','telefono_arquitecto','telefono','celular']),
+          email:get(['email_1','e_mail_arquitecto','email_arquitecto','email']),
+          instagram:get(['instagram_arquitecto','instagram']),
+          linkedin:get(['linkedin_arquitecto','linkedin']),
+          city:get(['ciudad','city']), state:get(['estado','state']),
+          origin:get(['origen','origin']),
+          priceList:get(['price_list','pricelist','lista_precios']),
+          segment:segId, studioId, agent:agentId,
+          stage:null, inPipeline:false,
+          tags:[], notes:'', date:today(), notesList:[]
+        });
+        created++;
+      }
+      saveData(); renderDbTable();
+      toast(`✓ ${created} contacto${created!==1?'s':''} importado${created!==1?'s':''}${skipped?' ('+skipped+' omitidos)':''} a la base de datos`);
+      input.value = '';
+    } catch(err) {
+      console.error(err);
+      toast('Error procesando el CSV: '+err.message, '⚠️');
+    }
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
 </script>
 
 <!-- ══ MODAL DUPLICADOS IMPORTACIÓN ══ -->
