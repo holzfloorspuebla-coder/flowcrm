@@ -169,9 +169,9 @@ tr.selected td{background:rgba(79,124,255,.06);}
 
 /* ── TABLE ── */
 .toolbar{display:flex;align-items:center;gap:8px;padding:12px 22px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap;}
-.table-wrap{flex:1;overflow-y:auto;padding:0 22px 22px;}
-table{width:100%;border-collapse:collapse;margin-top:12px;}
-th{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+.table-wrap{flex:1;overflow-y:auto;overflow-x:auto;padding:0 22px 22px;}
+table{width:100%;border-collapse:collapse;margin-top:0;}
+th{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;position:sticky;top:0;background:var(--surface);z-index:2;}
 td{padding:9px 10px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle;}
 tr:hover td{background:var(--surface2);}
 .sb{padding:2px 9px;border-radius:10px;font-size:11px;font-weight:600;}
@@ -212,6 +212,11 @@ tr:hover td{background:var(--surface2);}
 .modal-body{padding:18px 20px;}
 .modal-ft{padding:13px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:var(--surface);}
 .fg{margin-bottom:12px;}
+.merge-val{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-size:12px;color:var(--text2);transition:all .15s;min-height:34px;word-break:break-word;}
+.merge-val:hover:not(.merge-val-same){border-color:var(--accent);color:var(--text);}
+.merge-val-active{background:rgba(79,124,255,.12);border-color:var(--accent);color:var(--text);font-weight:600;}
+.merge-val-same{cursor:default!important;opacity:.6;}
+
 .lbl{font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px;display:block;text-transform:uppercase;letter-spacing:.4px;}
 .inp{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 11px;font-family:'DM Sans',sans-serif;font-size:13px;color:var(--text);outline:none;}
 .inp:focus{border-color:var(--accent);}
@@ -498,7 +503,7 @@ select.inp{cursor:pointer;}
             <button class="btn btn-ghost btn-sm" onclick="closeDbColFilter()">Cerrar</button>
           </div>
           <!-- Table -->
-          <div class="table-wrap">
+          <div class="table-wrap" style="padding-top:0">
             <table><thead><tr id="db-thead-row">
               <th id="db-th-check" style="display:none;width:36px"><input type="checkbox" class="sel-cb" id="db-select-all2" onchange="toggleSelectAllDb(this.checked)"></th>
               <th><div style="display:flex;align-items:center;gap:4px"><span onclick="sortDbTable('name')" style="cursor:pointer">Contacto</span><span id="db-sort-name" style="font-size:10px"></span><button class="db-flt-btn" onclick="openDbColFilter('name','Contacto')">▾</button></div></th>
@@ -697,6 +702,27 @@ select.inp{cursor:pointer;}
             <span id="dup-summary" style="font-size:12px;color:var(--text3);margin-left:auto"></span>
           </div>
           <div id="dup-results" style="max-height:60vh;overflow-y:auto;padding-right:4px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL FUSIONAR DUPLICADOS -->
+    <div class="overlay hidden" id="modal-merge">
+      <div class="modal" style="width:860px;max-width:97vw;max-height:92vh;display:flex;flex-direction:column">
+        <div class="modal-hd" style="flex-shrink:0">
+          <h2>🔀 Fusionar contactos</h2>
+          <button class="modal-close" onclick="closeM('modal-merge')">✕</button>
+        </div>
+        <div style="padding:14px 20px 6px;font-size:12px;color:var(--text3);flex-shrink:0">
+          Haz clic en el valor que quieres conservar. Al guardar quedará <strong style="color:var(--text)">un solo contacto</strong> con los datos que elijas.
+        </div>
+        <div style="flex:1;overflow-y:auto;padding:0 20px 16px">
+          <div id="merge-field-list"></div>
+        </div>
+        <div class="modal-ft" style="flex-shrink:0;gap:8px">
+          <div style="font-size:12px;color:var(--text3);flex:1" id="merge-note"></div>
+          <button class="btn btn-ghost btn-sm" onclick="closeM('modal-merge')">Cancelar</button>
+          <button class="btn btn-primary btn-sm" onclick="confirmMerge()">💾 Guardar fusión</button>
         </div>
       </div>
     </div>
@@ -2559,10 +2585,13 @@ function findDuplicates(by){
   el.innerHTML=dups.map(([key,arr])=>{
     const tipo=key.startsWith('p:')?'Teléfono':key.startsWith('e:')?'Email':'Nombre';
     const valor=key.slice(2);
-    return`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px" id="dup-group-${key.replace(/[^a-z0-9]/gi,'_')}">
-      <div style="font-size:11px;font-weight:700;color:var(--orange);margin-bottom:8px;display:flex;align-items:center;gap:8px">
+    const groupKey2=key.replace(/[^a-z0-9]/gi,'_');
+    const ids=arr.map(c=>c.id).join(',');
+    return`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px" id="dup-group-${groupKey2}">
+      <div style="font-size:11px;font-weight:700;color:var(--orange);margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span>${tipo}: ${valor}</span>
-        <span style="margin-left:auto;font-size:10px;color:var(--text3)">${arr.length} contactos</span>
+        <span style="color:var(--text3);font-weight:400">${arr.length} contactos</span>
+        ${arr.length===2?`<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openMerge(${arr[0].id},${arr[1].id})">🔀 Fusionar</button>`:''}
       </div>
       ${arr.map((c,i)=>{
         const ag=USERS.find(u=>u.id===c.agent);
@@ -2577,7 +2606,10 @@ function findDuplicates(by){
             </div>
             <div style="font-size:10px;color:var(--text3)">${ag?.name||'—'} ${inPipe?'· <span style=\'color:var(--green)\'>En pipeline</span>':'· Base de datos'} ${c.date?'· '+c.date:''}</div>
           </div>
-          ${ME&&ME.role==='admin'?`<button class="btn btn-ghost btn-sm" style="color:var(--red);flex-shrink:0" onclick="deleteDupContact(${c.id},'${key.replace(/[^a-z0-9]/gi,'_')}')">🗑 Eliminar</button>`:''}
+          <div style="display:flex;gap:4px;flex-shrink:0">
+            ${arr.length===2?`<button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="openMerge(${arr[0].id},${arr[1].id})">🔀</button>`:''}
+            ${ME&&ME.role==='admin'?`<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteDupContact(${c.id},'${groupKey2}')">🗑</button>`:''}
+          </div>
         </div>`;
       }).join('')}
     </div>`;
