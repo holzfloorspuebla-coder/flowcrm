@@ -83,6 +83,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);hei
 .studio-badge{background:linear-gradient(135deg,rgba(79,124,255,.2),rgba(124,92,255,.2));color:var(--accent);font-size:10px;font-weight:700;padding:2px 7px;border-radius:7px;text-transform:uppercase;letter-spacing:.4px;}
 .studio-locked{background:rgba(91,100,120,.15);color:var(--text3);font-size:10px;font-weight:700;padding:2px 7px;border-radius:7px;letter-spacing:.3px;}
 .bulk-bar{display:none;align-items:center;gap:10px;padding:9px 22px;background:rgba(255,92,92,.08);border-bottom:1px solid rgba(255,92,92,.2);flex-shrink:0;}
+.db-flt-btn{background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:1px 3px;border-radius:3px;line-height:1;transition:all .15s;}
+.db-flt-btn:hover,.db-flt-btn.active{background:var(--accent);color:#fff;}
+.db-col-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:12px;background:var(--surface3);border:1px solid var(--border);font-size:11px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.db-col-pill:hover{border-color:var(--accent);color:var(--accent);}
+.db-col-pill.active{background:var(--accent);color:#fff;border-color:var(--accent);}
 .bulk-bar.show{display:flex;}
 .bulk-bar-count{font-size:13px;font-weight:600;color:var(--red);}
 .sel-cb{width:16px;height:16px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;}
@@ -466,55 +471,44 @@ select.inp{cursor:pointer;}
 
         <!-- BASE DE DATOS TAB -->
         <div class="tab-panel" id="ctab-db" style="display:none;flex-direction:column;overflow:hidden;flex:1">
-          <!-- Toolbar row -->
-          <div class="toolbar" style="gap:8px;padding:8px 22px;flex-wrap:nowrap;overflow-x:auto">
-            <input class="inp" id="db-search" placeholder="🔍 Buscar nombre, estudio, email, ciudad..." oninput="renderDbTable()" style="font-size:13px;padding:6px 10px;min-width:200px;max-width:280px;flex-shrink:0">
-            <select class="inp" id="db-f-agent" onchange="renderDbTable()" style="font-size:12px;padding:6px 8px;min-width:120px;flex-shrink:0">
-              <option value="">Vendedor</option>
-            </select>
-            <select class="inp" id="db-f-type" onchange="renderDbTable()" style="font-size:12px;padding:6px 8px;min-width:130px;flex-shrink:0">
-              <option value="">Función</option>
-              <option>Specifier</option><option>Dealer</option><option>Developer</option>
-              <option>General contractor</option><option>End user</option>
-              <option>Fabricante</option><option>Operator</option>
-              <option>Installer</option><option>Project manager</option>
-            </select>
-            <select class="inp" id="db-f-state" onchange="renderDbTable()" style="font-size:12px;padding:6px 8px;min-width:120px;flex-shrink:0">
-              <option value="">Estado</option>
-            </select>
-            <select class="inp" id="db-f-pricelist" onchange="renderDbTable()" style="font-size:12px;padding:6px 8px;min-width:120px;flex-shrink:0">
-              <option value="">Price List</option>
-              <option>End user</option><option>Specifier</option><option>Contract</option>
-              <option>Industry</option><option>Hospitality</option><option>Retailer</option>
-              <option>Specialized Chain</option><option>Fabricante</option>
-              <option>General contractor</option><option>Workplace</option>
-            </select>
-            <button class="btn btn-ghost btn-sm" onclick="resetDbFilters()" style="flex-shrink:0">✕ Limpiar</button>
-            <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-shrink:0">
-              <span style="font-size:12px;color:var(--text2)" id="db-count"></span>
+          <!-- Top toolbar: search + actions -->
+          <div class="toolbar" style="gap:8px;padding:8px 22px">
+            <input class="inp" id="db-search" placeholder="🔍 Buscar nombre, estudio, email, ciudad..." oninput="renderDbTable()" style="font-size:13px;padding:6px 10px;flex:1;max-width:340px">
+            <span style="font-size:12px;color:var(--text2);margin-left:4px" id="db-count"></span>
+            <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
               <button class="btn btn-ghost btn-sm" id="db-select-btn" onclick="toggleDbSelectMode()">☑️ Seleccionar</button>
               <button class="btn btn-ghost btn-sm" onclick="$('xlsx-db-input').click()">📊 Importar Excel</button>
               <input type="file" id="xlsx-db-input" accept=".xlsx,.xls" style="display:none" onchange="handleDbXlsxImport(this)">
             </div>
           </div>
+          <!-- Bulk action bar -->
           <div class="bulk-bar" id="db-bulk-bar">
             <input type="checkbox" class="sel-cb" id="db-select-all" onchange="toggleSelectAllDb(this.checked)">
             <span class="bulk-bar-count" id="db-sel-count">0 seleccionados</span>
-            <button class="btn btn-primary btn-sm" onclick="addSelectedToPipeline()">Anadir al pipeline</button>
-            <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="toggleDbSelectMode(false)">x Cancelar</button>
+            <button class="btn btn-primary btn-sm" onclick="addSelectedToPipeline()">🎯 Añadir al pipeline</button>
+            <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="toggleDbSelectMode(false)">✕ Cancelar</button>
           </div>
+          <!-- Column-header filter dropdown (hidden by default) -->
+          <div id="db-col-filter-bar" style="display:none;align-items:center;gap:6px;padding:6px 22px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:12px">
+            <span id="db-col-filter-label" style="color:var(--text2);font-weight:600;min-width:80px"></span>
+            <input class="inp" id="db-col-filter-search" placeholder="Buscar..." oninput="renderDbColFilterList()" style="font-size:12px;padding:4px 8px;width:160px">
+            <div id="db-col-filter-list" style="display:flex;gap:4px;flex-wrap:wrap;max-width:600px"></div>
+            <button class="btn btn-ghost btn-sm" onclick="clearDbColFilter()" style="margin-left:auto">✕ Limpiar</button>
+            <button class="btn btn-ghost btn-sm" onclick="closeDbColFilter()">Cerrar</button>
+          </div>
+          <!-- Table -->
           <div class="table-wrap">
-            <table><thead><tr>
-              <th id="db-th-check" style="display:none"><input type="checkbox" class="sel-cb" id="db-select-all2" onchange="toggleSelectAllDb(this.checked)"></th>
-              <th onclick="sortDbTable('name')" style="cursor:pointer;user-select:none">Contacto <span id="db-sort-name"></span></th>
-              <th onclick="sortDbTable('studio')" style="cursor:pointer;user-select:none">Estudio <span id="db-sort-studio"></span></th>
-              <th onclick="sortDbTable('type')" style="cursor:pointer;user-select:none">Funcion <span id="db-sort-type"></span></th>
-              <th onclick="sortDbTable('city')" style="cursor:pointer;user-select:none">Ciudad <span id="db-sort-city"></span></th>
-              <th onclick="sortDbTable('state')" style="cursor:pointer;user-select:none">Estado <span id="db-sort-state"></span></th>
-              <th>Telefono</th>
+            <table><thead><tr id="db-thead-row">
+              <th id="db-th-check" style="display:none;width:36px"><input type="checkbox" class="sel-cb" id="db-select-all2" onchange="toggleSelectAllDb(this.checked)"></th>
+              <th><div style="display:flex;align-items:center;gap:4px"><span onclick="sortDbTable('name')" style="cursor:pointer">Contacto</span><span id="db-sort-name" style="font-size:10px"></span><button class="db-flt-btn" onclick="openDbColFilter('name','Contacto')">▾</button></div></th>
+              <th><div style="display:flex;align-items:center;gap:4px"><span onclick="sortDbTable('studio')" style="cursor:pointer">Estudio</span><span id="db-sort-studio" style="font-size:10px"></span><button class="db-flt-btn" onclick="openDbColFilter('studio','Estudio')">▾</button></div></th>
+              <th><div style="display:flex;align-items:center;gap:4px"><span onclick="sortDbTable('type')" style="cursor:pointer">Función</span><span id="db-sort-type" style="font-size:10px"></span><button class="db-flt-btn" onclick="openDbColFilter('type','Función')">▾</button></div></th>
+              <th><div style="display:flex;align-items:center;gap:4px"><span onclick="sortDbTable('city')" style="cursor:pointer">Ciudad</span><span id="db-sort-city" style="font-size:10px"></span><button class="db-flt-btn" onclick="openDbColFilter('city','Ciudad')">▾</button></div></th>
+              <th><div style="display:flex;align-items:center;gap:4px"><span onclick="sortDbTable('state')" style="cursor:pointer">Estado</span><span id="db-sort-state" style="font-size:10px"></span><button class="db-flt-btn" onclick="openDbColFilter('state','Estado')">▾</button></div></th>
+              <th>Teléfono</th>
               <th>Email</th>
-              <th onclick="sortDbTable('priceList')" style="cursor:pointer;user-select:none">Price List <span id="db-sort-priceList"></span></th>
-              <th onclick="sortDbTable('agent')" style="cursor:pointer;user-select:none">Vendedor <span id="db-sort-agent"></span></th>
+              <th><div style="display:flex;align-items:center;gap:4px"><span onclick="sortDbTable('priceList')" style="cursor:pointer">Price List</span><span id="db-sort-priceList" style="font-size:10px"></span><button class="db-flt-btn" onclick="openDbColFilter('priceList','Price List')">▾</button></div></th>
+              <th><div style="display:flex;align-items:center;gap:4px"><span onclick="sortDbTable('agent')" style="cursor:pointer">Vendedor</span><span id="db-sort-agent" style="font-size:10px"></span><button class="db-flt-btn" onclick="openDbColFilter('agent','Vendedor')">▾</button></div></th>
               <th></th>
             </tr></thead><tbody id="db-tbody"></tbody></table>
           </div>
@@ -6140,84 +6134,135 @@ initApp();
 // ══════════════════════════════════════════════════════
 //  BASE DE DATOS — Tab logic
 // ══════════════════════════════════════════════════════
-let S_db = { selectMode: false, selected: new Set(), sort: { col: null, asc: true } };
+let S_db = {
+  selectMode: false,
+  selected: new Set(),
+  sort: { col: null, asc: true },
+  colFilters: {},          // { fieldKey: Set of active values }
+  activeFilterCol: null,
+};
 
 function dbContacts() {
-  // Contacts NOT in pipeline: inPipeline===false OR no stage
   return visibleContacts().filter(c => c.inPipeline === false || !c.stage);
 }
 
+function getColValue(c, col) {
+  if (col === 'studio') {
+    return (D.studios||[]).find(s=>s.id===c.studioId)?.name || '';
+  }
+  if (col === 'agent') {
+    return USERS.find(u=>u.id===c.agent)?.name || '';
+  }
+  return c[col] || '';
+}
+
 function initDbFilters() {
-  // Populate agent filter
-  const agSel = $('db-f-agent');
-  if (agSel && agSel.options.length <= 1) {
-    USERS.forEach(u => {
-      const o = document.createElement('option');
-      o.value = u.id; o.textContent = u.name;
-      agSel.appendChild(o);
-    });
-  }
-  // Populate state filter
-  const stSel = $('db-f-state');
-  if (stSel && stSel.options.length <= 1) {
-    const states = [...new Set(dbContacts().map(c => c.state).filter(Boolean))].sort();
-    states.forEach(s => {
-      const o = document.createElement('option');
-      o.value = s; o.textContent = s;
-      stSel.appendChild(o);
-    });
-  }
+  // nothing needed — dynamic now
 }
 
 function resetDbFilters() {
-  const ids = ['db-search','db-f-agent','db-f-type','db-f-state','db-f-pricelist'];
-  ids.forEach(id => { const el=$(id); if(el) el.value=''; });
+  $('db-search').value = '';
+  S_db.colFilters = {};
+  closeDbColFilter();
+  document.querySelectorAll('.db-flt-btn').forEach(b => b.classList.remove('active'));
   renderDbTable();
+}
+
+// ── Column filter panel ──
+function openDbColFilter(col, label) {
+  S_db.activeFilterCol = col;
+  $('db-col-filter-label').textContent = label;
+  $('db-col-filter-search').value = '';
+  $('db-col-filter-bar').style.display = 'flex';
+  renderDbColFilterList();
+  $('db-col-filter-search').focus();
+}
+
+function closeDbColFilter() {
+  $('db-col-filter-bar').style.display = 'none';
+  S_db.activeFilterCol = null;
+}
+
+function clearDbColFilter() {
+  const col = S_db.activeFilterCol;
+  if (!col) return;
+  delete S_db.colFilters[col];
+  // Update button state
+  const th = document.querySelector(`[onclick="openDbColFilter('${col}','${$('db-col-filter-label').textContent}')"]`);
+  if (th) th.classList.remove('active');
+  renderDbColFilterList();
+  renderDbTable();
+}
+
+function renderDbColFilterList() {
+  const col = S_db.activeFilterCol;
+  if (!col) return;
+  const q = norm($('db-col-filter-search').value);
+  const activeSet = S_db.colFilters[col] || new Set();
+
+  // Get all unique values for this column from unfiltered contacts
+  let allVals = [...new Set(dbContacts().map(c => getColValue(c, col)).filter(Boolean))].sort();
+  if (q) allVals = allVals.filter(v => norm(v).includes(q));
+
+  $('db-col-filter-list').innerHTML = allVals.map(v => {
+    const isActive = activeSet.has(v);
+    return `<span class="db-col-pill ${isActive?'active':''}" onclick="toggleDbColFilter('${col}','${v.replace(/'/g,"\\'")}')">
+      ${isActive ? '✓ ' : ''}${v}
+    </span>`;
+  }).join('');
+}
+
+function toggleDbColFilter(col, val) {
+  if (!S_db.colFilters[col]) S_db.colFilters[col] = new Set();
+  const set = S_db.colFilters[col];
+  if (set.has(val)) set.delete(val); else set.add(val);
+  if (set.size === 0) delete S_db.colFilters[col];
+
+  // Mark button active if filter is set
+  document.querySelectorAll('.db-flt-btn').forEach(b => {
+    const m = b.getAttribute('onclick')?.match(/openDbColFilter\('([^']+)'/);
+    if (m) b.classList.toggle('active', !!(S_db.colFilters[m[1]]?.size));
+  });
+
+  renderDbColFilterList();
+  renderDbTable();
+}
+
+function applyColFilters(items) {
+  for (const [col, valSet] of Object.entries(S_db.colFilters)) {
+    if (!valSet || !valSet.size) continue;
+    items = items.filter(c => valSet.has(getColValue(c, col)));
+  }
+  return items;
 }
 
 function renderDbTable() {
   let items = dbContacts();
   const q = norm($('db-search')?.value || '');
-  const fAgent = $('db-f-agent')?.value;
-  const fType = $('db-f-type')?.value;
-  const fState = $('db-f-state')?.value;
-  const fPricelist = $('db-f-pricelist')?.value;
-
   if (q) items = items.filter(c => {
     const studio = (D.studios||[]).find(s=>s.id===c.studioId);
     return [c.name,c.mailingName,c.email,c.phone,studio?.name,c.city,c.state]
-      .some(f => norm(f).includes(q));
+      .some(f => norm(f||'').includes(q));
   });
-  if (fAgent) items = items.filter(c => String(c.agent) === String(fAgent));
-  if (fType) items = items.filter(c => (c.type||'').toLowerCase().includes(fType.toLowerCase()));
-  if (fState) items = items.filter(c => c.state === fState);
-  if (fPricelist) items = items.filter(c => c.priceList === fPricelist);
+
+  // Apply column filters
+  items = applyColFilters(items);
 
   // Sort
   const { col, asc } = S_db.sort;
   ['name','studio','type','city','state','priceList','agent'].forEach(c => {
     const el = $('db-sort-' + c);
-    if (el) el.textContent = col === c ? (asc ? '↑' : '↓') : '';
+    if (el) el.textContent = col === c ? (asc ? ' ↑' : ' ↓') : '';
   });
   if (col) {
     items = [...items].sort((a, b) => {
-      let va = '', vb = '';
-      if (col === 'studio') {
-        va = norm((D.studios||[]).find(s=>s.id===a.studioId)?.name||'');
-        vb = norm((D.studios||[]).find(s=>s.id===b.studioId)?.name||'');
-      } else if (col === 'agent') {
-        va = norm(USERS.find(u=>u.id===a.agent)?.name||'');
-        vb = norm(USERS.find(u=>u.id===b.agent)?.name||'');
-      } else {
-        va = norm(a[col]||''); vb = norm(b[col]||'');
-      }
-      if (va < vb) return asc ? -1 : 1;
-      if (va > vb) return asc ? 1 : -1;
-      return 0;
+      const va = norm(getColValue(a, col));
+      const vb = norm(getColValue(b, col));
+      return va < vb ? (asc?-1:1) : va > vb ? (asc?1:-1) : 0;
     });
   }
 
-  $('db-count').textContent = `${items.length} contacto${items.length!==1?'s':''} en base de datos`;
+  $('db-count').textContent = `${items.length.toLocaleString('es')} contacto${items.length!==1?'s':''}`;
   const selMode = S_db.selectMode;
   $('db-th-check').style.display = selMode ? '' : 'none';
 
@@ -6225,7 +6270,7 @@ function renderDbTable() {
     const studio = (D.studios||[]).find(s=>s.id===c.studioId);
     const ag = USERS.find(a=>a.id===c.agent);
     const sel = S_db.selected.has(c.id);
-    return `<tr class="${sel?'selected':''}" onclick="${selMode?`toggleDbSel(${c.id})`:''}">
+    return `<tr class="${sel?'selected':''}" ${selMode?`onclick="toggleDbSel(${c.id})" style="cursor:pointer"`:''}> 
       ${selMode?`<td><input type="checkbox" class="sel-cb" ${sel?'checked':''} onclick="event.stopPropagation();toggleDbSel(${c.id})"></td>`:''}
       <td><div style="display:flex;align-items:center;gap:8px">
         ${avEl(c.name?c.name[0]:'?', ag?.color||COLORS[0], 26)}
@@ -6234,12 +6279,12 @@ function renderDbTable() {
           <div style="font-size:11px;color:var(--text2)">${c.mailingName||c.email||''}</div>
         </div>
       </div></td>
-      <td style="color:var(--text2)">${studio?`<span style="cursor:pointer;color:var(--accent)" onclick="openStudioProfile(${studio.id})">&#127963; ${studio.name}</span>`:'—'}</td>
+      <td style="color:var(--text2)">${studio?`<span style="cursor:pointer;color:var(--accent)" onclick="openStudioProfile(${studio.id})">🏢 ${studio.name}</span>`:'—'}</td>
       <td><span style="background:var(--surface3);color:var(--text2);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600">${c.type||'—'}</span></td>
       <td style="color:var(--text2)">${c.city||'—'}</td>
       <td style="color:var(--text2)">${c.state||'—'}</td>
-      <td style="color:var(--text2)">${c.phone||c.studioPhone||'—'}</td>
-      <td style="color:var(--text2);font-size:12px">${c.email||c.studioEmail||'—'}</td>
+      <td style="color:var(--text2)">${c.phone||'—'}</td>
+      <td style="color:var(--text2);font-size:12px">${c.email||'—'}</td>
       <td style="font-size:11px;color:var(--text3)">${c.priceList||'—'}</td>
       <td>${agH(c.agent)}</td>
       <td style="white-space:nowrap">${selMode?'':
@@ -6272,33 +6317,16 @@ function toggleDbSel(id) {
   if (S_db.selected.has(id)) S_db.selected.delete(id);
   else S_db.selected.add(id);
   updateDbSelCount();
-  // Update row class
-  const rows = $('db-tbody').querySelectorAll('tr');
-  rows.forEach(tr => {
-    const cb = tr.querySelector('input[type=checkbox]');
-    if (!cb) return;
-    // Re-render is cleaner for correctness
-  });
   renderDbTable();
 }
 
 function toggleSelectAllDb(checked) {
-  // Get currently filtered items
-  let items = dbContacts();
+  let items = applyColFilters(dbContacts());
   const q = norm($('db-search')?.value || '');
-  const fAgent = $('db-f-agent')?.value;
-  const fType = $('db-f-type')?.value;
-  const fState = $('db-f-state')?.value;
-  const fPricelist = $('db-f-pricelist')?.value;
   if (q) items = items.filter(c => {
     const studio=(D.studios||[]).find(s=>s.id===c.studioId);
-    return [c.name,c.mailingName,c.email,c.phone,studio?.name,c.city,c.state].some(f=>norm(f).includes(q));
+    return [c.name,c.mailingName,c.email,c.phone,studio?.name,c.city,c.state].some(f=>norm(f||'').includes(q));
   });
-  if (fAgent) items = items.filter(c => String(c.agent) === String(fAgent));
-  if (fType) items = items.filter(c => (c.type||'').toLowerCase().includes(fType.toLowerCase()));
-  if (fState) items = items.filter(c => c.state === fState);
-  if (fPricelist) items = items.filter(c => c.priceList === fPricelist);
-
   items.forEach(c => checked ? S_db.selected.add(c.id) : S_db.selected.delete(c.id));
   updateDbSelCount();
   renderDbTable();
@@ -6308,8 +6336,6 @@ function updateDbSelCount() {
   const n = S_db.selected.size;
   $('db-sel-count').textContent = `${n} seleccionado${n!==1?'s':''}`;
   $('db-bulk-bar').classList.toggle('show', n > 0);
-  const allCb = $('db-select-all'); if(allCb) allCb.checked = false;
-  const allCb2 = $('db-select-all2'); if(allCb2) allCb2.checked = false;
 }
 
 function addSingleToPipeline(id) {
@@ -6328,9 +6354,7 @@ function addSelectedToPipeline() {
   S_db.selected.forEach(id => {
     const c = D.contacts.find(x => x.id === id);
     if (c && canEdit(c.agent)) {
-      c.stage = 'c-lead';
-      c.inPipeline = true;
-      c.stageDate = today();
+      c.stage = 'c-lead'; c.inPipeline = true; c.stageDate = today();
       count++;
     }
   });
@@ -6339,7 +6363,6 @@ function addSelectedToPipeline() {
   toggleDbSelectMode(false);
   toast(`✓ ${count} contacto${count!==1?'s':''} añadido${count!==1?'s':''} al pipeline`);
 }
-
 function handleDbCsvImport(input) {
   // Reuse same logic as handleContactCsvImport but with inPipeline:false
   const file = input.files[0];
