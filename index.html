@@ -2591,7 +2591,7 @@ function findDuplicates(by){
       <div style="font-size:11px;font-weight:700;color:var(--orange);margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span>${tipo}: ${valor}</span>
         <span style="color:var(--text3);font-weight:400">${arr.length} contactos</span>
-        ${arr.length===2?`<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openMerge(${arr[0].id},${arr[1].id})">🔀 Fusionar</button>`:''}
+        ${arr.length===2?(()=>{ const mk='mg_'+groupKey2; window[mk]=[arr[0].id,arr[1].id]; return `<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openMergeKey('${mk}')">🔀 Fusionar</button>`; })():''}
       </div>
       ${arr.map((c,i)=>{
         const ag=USERS.find(u=>u.id===c.agent);
@@ -2607,7 +2607,6 @@ function findDuplicates(by){
             <div style="font-size:10px;color:var(--text3)">${ag?.name||'—'} ${inPipe?'· <span style=\'color:var(--green)\'>En pipeline</span>':'· Base de datos'} ${c.date?'· '+c.date:''}</div>
           </div>
           <div style="display:flex;gap:4px;flex-shrink:0">
-            ${arr.length===2?`<button class="btn btn-ghost btn-sm" style="font-size:11px" onclick="openMerge(${arr[0].id},${arr[1].id})">🔀</button>`:''}
             ${ME&&ME.role==='admin'?`<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteDupContact(${c.id},'${groupKey2}')">🗑</button>`:''}
           </div>
         </div>`;
@@ -6656,6 +6655,144 @@ function handleDbXlsxImport(input) {
     document.head.appendChild(script);
   }
 }
+// ══════════════════════════════════════════════════════
+//  FUSIONAR DUPLICADOS
+// ══════════════════════════════════════════════════════
+let MERGE_STATE = { idA: null, idB: null, chosen: {} };
+
+const MERGE_FIELDS = [
+  { key: 'name',        label: 'Nombre' },
+  { key: 'mailingName', label: 'Nombre mailing/WhatsApp' },
+  { key: 'type',        label: 'Función' },
+  { key: 'phone',       label: 'Teléfono' },
+  { key: 'email',       label: 'Email' },
+  { key: 'instagram',   label: 'Instagram' },
+  { key: 'linkedin',    label: 'LinkedIn' },
+  { key: 'city',        label: 'Ciudad' },
+  { key: 'state',       label: 'Estado' },
+  { key: 'priceList',   label: 'Price List' },
+  { key: 'origin',      label: 'Origen' },
+  { key: 'agent',       label: 'Vendedor' },
+  { key: 'stage',       label: 'Etapa pipeline' },
+  { key: 'studioId',    label: 'Estudio' },
+  { key: 'notes',       label: 'Notas' },
+];
+
+function openMergeKey(mapKey) {
+  const ids = window[mapKey];
+  if (!ids) { toast('Error al abrir fusión', '⚠️'); return; }
+  openMerge(ids[0], ids[1]);
+}
+
+function openMerge(idA, idB) {
+  const cA = D.contacts.find(c => c.id === idA);
+  const cB = D.contacts.find(c => c.id === idB);
+  if (!cA || !cB) { toast('Contacto no encontrado: ' + idA + ' / ' + idB, '⚠️'); return; }
+
+  MERGE_STATE = { idA, idB, chosen: {} };
+
+  MERGE_FIELDS.forEach(f => {
+    const va = cA[f.key];
+    const vb = cB[f.key];
+    const emptyA = !va || (Array.isArray(va) && !va.length) || va === '';
+    const emptyB = !vb || (Array.isArray(vb) && !vb.length) || vb === '';
+    MERGE_STATE.chosen[f.key] = (!emptyA || emptyB) ? 'A' : 'B';
+  });
+
+  const aInPipe = cA.inPipeline !== false && cA.stage;
+  const bInPipe = cB.inPipeline !== false && cB.stage;
+  let note = '';
+  if (aInPipe && !bInPipe)      note = '✅ "' + cA.name + '" está en pipeline — se conserva su historial.';
+  else if (bInPipe && !aInPipe) note = '✅ "' + cB.name + '" está en pipeline — se conserva su historial.';
+  else if (aInPipe && bInPipe)  note = '⚠️ Ambos en pipeline. Se combinarán sus notas.';
+  else                           note = 'Ninguno en pipeline. El resultado irá a Base de datos.';
+  $('merge-note').textContent = note;
+
+  renderMergeFields(cA, cB);
+  $('modal-merge').classList.remove('hidden');
+}
+
+function fmtMergeVal(c, key) {
+  if (key === 'studioId') { const s=(D.studios||[]).find(s=>s.id===c[key]); return s?'🏢 '+s.name:'—'; }
+  if (key === 'agent') { const u=USERS.find(u=>u.id===c[key]); return u?u.name:'—'; }
+  if (key === 'stage') { const st=(C_STAGES||[]).find(s=>s.id===c[key]); return st?st.name:(c[key]||'—'); }
+  if (Array.isArray(c[key])) return c[key].join(', ')||'—';
+  return c[key]||'—';
+}
+
+function renderMergeFields(cA, cB) {
+  const aInPipe = cA.inPipeline!==false&&cA.stage;
+  const bInPipe = cB.inPipeline!==false&&cB.stage;
+  const header = '<div style="display:grid;grid-template-columns:130px 1fr 1fr;gap:8px;padding:6px 0 10px;border-bottom:2px solid var(--border);margin-bottom:4px">' +
+    '<div></div>' +
+    '<div style="font-size:12px;font-weight:700;color:var(--accent)">' + (cA.name||'Contacto A') +
+      '<div style="font-size:10px;color:var(--text3);font-weight:400">' + (aInPipe?'En pipeline':'Base de datos') + ' · ' + (cA.date||'') + '</div></div>' +
+    '<div style="font-size:12px;font-weight:700;color:var(--accent)">' + (cB.name||'Contacto B') +
+      '<div style="font-size:10px;color:var(--text3);font-weight:400">' + (bInPipe?'En pipeline':'Base de datos') + ' · ' + (cB.date||'') + '</div></div>' +
+    '</div>';
+
+  const rows = MERGE_FIELDS.map(f => {
+    const va = fmtMergeVal(cA, f.key);
+    const vb = fmtMergeVal(cB, f.key);
+    const same = va === vb;
+    const chosen = MERGE_STATE.chosen[f.key];
+    return '<div style="display:grid;grid-template-columns:130px 1fr 1fr;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">' +
+      '<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)">' + f.label + '</div>' +
+      '<div class="merge-val' + (chosen==='A'?' merge-val-active':'') + (same?' merge-val-same':'') + '" onclick="' + (same?'':("chooseMerge('"+f.key+"','A')")) + '">' + va + '</div>' +
+      '<div class="merge-val' + (chosen==='B'?' merge-val-active':'') + (same?' merge-val-same':'') + '" onclick="' + (same?'':("chooseMerge('"+f.key+"','B')")) + '">' + vb + '</div>' +
+      '</div>';
+  });
+
+  $('merge-field-list').innerHTML = header + rows.join('');
+}
+
+function chooseMerge(key, side) {
+  MERGE_STATE.chosen[key] = side;
+  const cA = D.contacts.find(c => c.id === MERGE_STATE.idA);
+  const cB = D.contacts.find(c => c.id === MERGE_STATE.idB);
+  renderMergeFields(cA, cB);
+}
+
+function confirmMerge() {
+  const cA = D.contacts.find(c => c.id === MERGE_STATE.idA);
+  const cB = D.contacts.find(c => c.id === MERGE_STATE.idB);
+  if (!cA || !cB) { toast('Error: contacto no encontrado', '⚠️'); return; }
+
+  const aInPipe = cA.inPipeline !== false && cA.stage;
+  const bInPipe = cB.inPipeline !== false && cB.stage;
+  const base = aInPipe ? cA : (bInPipe ? cB : cA);
+  const other = base === cA ? cB : cA;
+  const merged = { ...base };
+
+  MERGE_FIELDS.forEach(f => {
+    merged[f.key] = (MERGE_STATE.chosen[f.key] === 'A' ? cA : cB)[f.key];
+  });
+
+  if (aInPipe || bInPipe) {
+    merged.inPipeline = true;
+    const notesA = Array.isArray(cA.notesList) ? cA.notesList : [];
+    const notesB = Array.isArray(cB.notesList) ? cB.notesList : [];
+    merged.notesList = [...notesA, ...notesB].sort((a,b)=>(a.date||'')>(b.date||'')?1:-1);
+  } else {
+    merged.inPipeline = false;
+    merged.stage = null;
+  }
+
+  merged.id = base.id;
+  const idxBase = D.contacts.findIndex(c => c.id === base.id);
+  const idxOther = D.contacts.findIndex(c => c.id === other.id);
+  D.contacts[idxBase] = merged;
+  if (idxOther !== -1) D.contacts.splice(idxOther, 1);
+
+  saveData();
+  renderDbTable();
+  renderCKanban();
+  if (typeof renderCTable === 'function') renderCTable();
+  closeM('modal-merge');
+  findDuplicates('name');
+  toast('✅ Contactos fusionados correctamente');
+}
+
 
 </script>
 
