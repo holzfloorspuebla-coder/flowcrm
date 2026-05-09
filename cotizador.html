@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Holz — Cotizador</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0e10;--surface:#161719;--surface2:#1d1f22;--surface3:#25282d;--border:#2a2d34;--border2:#363b44;--accent:#e63329;--accentDim:rgba(230,51,41,.12);--green:#4ade80;--greenDim:rgba(74,222,128,.12);--blue:#60a5fa;--orange:#fb923c;--text:#f0f1f3;--text2:#8b9099;--text3:#4a5060;--r:8px;--rlg:14px;--shadow:0 8px 32px rgba(0,0,0,.5);--font:'DM Sans',sans-serif;--mono:'JetBrains Mono',monospace;}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);}
+/* LOGIN */
+.login-wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:999;}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--rlg);padding:40px;width:340px;text-align:center;}
+.login-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;color:var(--accent);margin-bottom:4px;}
+.login-sub{font-size:13px;color:var(--text3);margin-bottom:28px;}
+.login-inp{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);padding:10px 14px;font-family:var(--font);font-size:14px;color:var(--text);outline:none;margin-bottom:10px;transition:border-color .15s;}
+.login-inp:focus{border-color:var(--accent);}
+.login-btn{width:100%;background:var(--accent);border:none;border-radius:var(--r);padding:11px;font-family:var(--font);font-size:14px;font-weight:700;color:#fff;cursor:pointer;}
+.login-btn:hover{opacity:.88;}
+.login-err{font-size:12px;color:var(--accent);margin-top:8px;min-height:16px;}
+/* LAYOUT */
+.shell{display:flex;height:100vh;overflow:hidden;}
+.sidebar{width:280px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.sidebar-hd{padding:14px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;color:var(--accent);}
+.logo span{color:var(--text3);font-size:11px;font-weight:400;margin-left:5px;}
+.sidebar-list{flex:1;overflow-y:auto;padding:8px;}
+.quote-item{padding:10px 12px;border-radius:var(--r);cursor:pointer;transition:all .15s;border:1px solid transparent;margin-bottom:3px;}
+.quote-item:hover{background:var(--surface2);}
+.quote-item.active{background:var(--accentDim);border-color:rgba(230,51,41,.25);}
+.quote-num{font-size:11px;font-weight:700;color:var(--accent);font-family:var(--mono);}
+.quote-client{font-size:13px;font-weight:600;color:var(--text);}
+.quote-date{font-size:10px;color:var(--text3);}
+.sidebar-ft{padding:10px 8px;border-top:1px solid var(--border);flex-shrink:0;}
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{display:flex;align-items:center;gap:10px;padding:0 20px;height:52px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;}
+.tabs-row{display:flex;gap:0;padding:0 20px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;}
+.tab-btn{padding:10px 18px;font-size:13px;font-weight:600;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;}
+.tab-btn:hover{color:var(--text2);}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent);}
+.content{flex:1;overflow-y:auto;padding:20px;}
+.content::-webkit-scrollbar{width:5px;}
+.content::-webkit-scrollbar-track{background:var(--bg);}
+.content::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+/* FORM */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;}
+.form-grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:20px;}
+.fg{display:flex;flex-direction:column;gap:4px;}
+.lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);}
+.inp{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:13px;padding:8px 11px;outline:none;transition:border-color .15s;width:100%;}
+.inp:focus{border-color:var(--accent);}
+/* SECTION CARD */
+.sec{background:var(--surface);border:1px solid var(--border);border-radius:var(--rlg);margin-bottom:16px;overflow:hidden;}
+.sec-hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);}
+.sec-title{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;}
+.sec-body{padding:16px 18px;}
+/* TABLE */
+.qt-table{width:100%;border-collapse:collapse;font-size:13px;}
+.qt-table th{background:var(--surface2);padding:8px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);text-align:left;border-bottom:1px solid var(--border);}
+.qt-table td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+.qt-table tr:hover td{background:rgba(255,255,255,.02);}
+.qt-table td.num{text-align:right;font-family:var(--mono);font-size:12px;}
+.qt-table td.editable-num{text-align:right;}
+.mini-inp{background:var(--surface2);border:1px solid var(--border2);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:12px;padding:4px 7px;outline:none;width:80px;text-align:right;}
+.mini-inp:focus{border-color:var(--accent);}
+.desc-inp{background:transparent;border:none;border-bottom:1px solid var(--border2);color:var(--text2);font-family:var(--font);font-size:12px;padding:3px 0;outline:none;width:100%;}
+.desc-inp:focus{border-color:var(--accent);color:var(--text);}
+/* TOTALS */
+.totals-grid{display:grid;grid-template-columns:1fr auto auto;gap:6px 16px;align-items:center;max-width:420px;margin-left:auto;}
+.tot-lbl{font-size:12px;color:var(--text3);text-align:right;}
+.tot-val{font-size:13px;font-family:var(--mono);text-align:right;}
+.tot-row-highlight{color:var(--text);font-weight:700;}
+.tot-big{font-size:16px;color:var(--accent);font-weight:800;}
+/* MARGIN BADGE */
+.margin-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;font-size:11px;font-weight:700;}
+.margin-good{background:var(--greenDim);color:var(--green);}
+.margin-ok{background:rgba(251,146,60,.12);color:var(--orange);}
+.margin-bad{background:rgba(230,51,41,.12);color:var(--accent);}
+/* RENTABILIDAD */
+.rent-table{width:100%;border-collapse:collapse;font-size:12px;}
+.rent-table th{background:var(--surface3);padding:7px 9px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);text-align:left;border-bottom:1px solid var(--border);}
+.rent-table td{padding:7px 9px;border-bottom:1px solid var(--border);vertical-align:middle;font-family:var(--mono);}
+.rent-table td.lft{font-family:var(--font);color:var(--text2);}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--r);border:none;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{opacity:.85;}
+.btn-ghost{background:var(--surface2);color:var(--text2);border:1px solid var(--border2);}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+.btn-icon{background:none;border:none;cursor:pointer;color:var(--text3);font-size:14px;padding:3px 5px;border-radius:4px;transition:all .15s;}
+.btn-icon:hover{color:var(--accent);background:var(--accentDim);}
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px);}
+.overlay.hidden{display:none;}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:var(--rlg);width:680px;max-width:96vw;max-height:88vh;overflow-y:auto;box-shadow:var(--shadow);}
+.modal-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--surface);z-index:1;}
+.modal-hd h2{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;}
+.modal-close{background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:4px;border-radius:5px;}
+.modal-close:hover{color:var(--text);background:var(--surface2);}
+.modal-body{padding:16px 20px;}
+.modal-ft{padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;position:sticky;bottom:0;background:var(--surface);}
+/* CATALOG */
+.cat-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;}
+.cat-chip{padding:4px 10px;border-radius:20px;border:1px solid var(--border2);background:var(--surface2);font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;color:var(--text3);}
+.cat-chip:hover,.cat-chip.active{background:var(--accentDim);border-color:rgba(230,51,41,.4);color:var(--accent);}
+.prod-list{max-height:380px;overflow-y:auto;}
+.prod-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--r);cursor:pointer;transition:all .15s;border:1px solid transparent;}
+.prod-item:hover{background:var(--surface2);border-color:var(--border);}
+.prod-name{font-size:13px;font-weight:600;color:var(--text);}
+.prod-sub{font-size:11px;color:var(--text3);}
+.prod-pvp{font-size:12px;font-family:var(--mono);color:var(--accent);margin-left:auto;flex-shrink:0;}
+/* TEXT PROPOSAL */
+.proposal-text{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:14px;font-size:13px;line-height:1.7;color:var(--text2);min-height:120px;}
+/* TOAST */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:10px 18px;font-size:13px;box-shadow:var(--shadow);z-index:9999;transition:transform .3s cubic-bezier(.34,1.56,.64,1);display:flex;align-items:center;gap:8px;white-space:nowrap;}
+#toast.show{transform:translateX(-50%) translateY(0);}
+#toast.success{border-color:var(--green);}
+#toast.error{border-color:var(--accent);}
+/* DISC ROWS */
+.disc-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);}
+.disc-row:last-child{border-bottom:none;}
+.disc-lbl{font-size:12px;color:var(--text2);}
+.disc-val{font-size:13px;font-family:var(--mono);color:var(--accent);}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">hølz</div>
+    <div class="login-sub">Cotizador · FlowCRM</div>
+    <input class="login-inp" id="login-pass" type="password" placeholder="Contraseña">
+    <button class="login-btn" onclick="doLogin()">Entrar</button>
+    <div class="login-err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- MODAL: ADD PRODUCT FROM CATALOG -->
+<div class="overlay hidden" id="modal-catalog">
+  <div class="modal">
+    <div class="modal-hd"><h2>📦 Añadir producto del catálogo</h2><button class="modal-close" onclick="closeModal('modal-catalog')">✕</button></div>
+    <div class="modal-body">
+      <input class="inp" id="cat-search" placeholder="🔍 Buscar producto..." oninput="renderCatalog()" style="margin-bottom:12px">
+      <div class="cat-filters" id="cat-filters"></div>
+      <div class="prod-list" id="prod-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: MANUAL PRODUCT -->
+<div class="overlay hidden" id="modal-manual">
+  <div class="modal" style="width:520px">
+    <div class="modal-hd"><h2>✏️ Producto / servicio manual</h2><button class="modal-close" onclick="closeModal('modal-manual')">✕</button></div>
+    <div class="modal-body">
+      <div style="display:grid;gap:10px">
+        <div class="fg"><label class="lbl">Descripción</label><textarea class="inp" id="man-desc" rows="3" placeholder="Suministro de..."></textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="fg"><label class="lbl">Volumen</label><input class="inp" id="man-vol" type="number" placeholder="24.62"></div>
+          <div class="fg"><label class="lbl">Unidad</label>
+            <select class="inp" id="man-unit">
+              <option>m2</option><option>m.l.</option><option>Pieza</option><option>caja</option><option>Cartucho</option><option>ud</option>
+            </select>
+          </div>
+          <div class="fg"><label class="lbl">PVP (sin IVA)</label><input class="inp" id="man-pvp" type="number" placeholder="850.00"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="fg"><label class="lbl">Costo unitario (solo Luis)</label><input class="inp" id="man-cost" type="number" placeholder="400.00"></div>
+          <div class="fg"><label class="lbl">Tabla</label>
+            <select class="inp" id="man-table"><option value="supply">Suministro</option><option value="labor">Mano de obra</option></select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" onclick="closeModal('modal-manual')">Cancelar</button>
+      <button class="btn btn-primary" onclick="addManualProduct()">Añadir</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CATALOG PRODUCT DETAIL -->
+<div class="overlay hidden" id="modal-prod-detail">
+  <div class="modal" style="width:480px">
+    <div class="modal-hd"><h2 id="pd-title">Producto</h2><button class="modal-close" onclick="closeModal('modal-prod-detail')">✕</button></div>
+    <div class="modal-body">
+      <p id="pd-desc" style="font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6"></p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">
+        <div class="fg"><label class="lbl">Volumen (m2)</label><input class="inp" id="pd-vol" type="number" placeholder="24.62" oninput="calcPDBoxes()"></div>
+        <div class="fg"><label class="lbl">Cajas necesarias</label><input class="inp" id="pd-boxes" type="number" readonly style="opacity:.6"></div>
+        <div class="fg"><label class="lbl">m2 reales</label><input class="inp" id="pd-m2real" type="number" readonly style="opacity:.6"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        <div class="fg"><label class="lbl">PVP por caja (MXN)</label><input class="inp" id="pd-pvp" type="number" oninput="calcPDBoxes()"></div>
+        <div class="fg"><label class="lbl">Costo por caja (solo Luis)</label><input class="inp" id="pd-cost" type="number"></div>
+      </div>
+      <div class="fg"><label class="lbl">Tabla</label>
+        <select class="inp" id="pd-table"><option value="supply">Suministro</option><option value="labor">Mano de obra</option></select>
+      </div>
+      <div id="pd-rent" style="margin-top:12px;padding:10px;background:var(--surface2);border-radius:var(--r);font-size:12px"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" onclick="closeModal('modal-prod-detail')">Cancelar</button>
+      <button class="btn btn-primary" onclick="addCatalogProduct()">Añadir a cotización</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN SHELL -->
+<div class="shell hidden" id="shell">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-hd">
+      <div class="logo">hølz <span>Cotizador</span></div>
+    </div>
+    <div style="padding:8px">
+      <input class="inp" id="q-search" placeholder="🔍 Buscar cotización..." oninput="filterQuotes()" style="font-size:12px">
+    </div>
+    <div class="sidebar-list" id="quote-list"></div>
+    <div class="sidebar-ft">
+      <button class="btn btn-primary" style="width:100%" onclick="newQuote()">+ Nueva cotización</button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+    <div class="topbar">
+      <span id="topbar-num" style="font-family:var(--mono);font-size:13px;color:var(--accent)"></span>
+      <span id="topbar-client" style="font-size:14px;font-weight:600"></span>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button class="btn btn-ghost" onclick="generateText()" id="btn-gen-text">✨ Generar texto</button>
+        <button class="btn btn-ghost" onclick="copyTable()">📋 Copiar tabla</button>
+        <button class="btn btn-primary" onclick="saveQuote()">💾 Guardar</button>
+      </div>
+    </div>
+
+    <div class="tabs-row">
+      <div class="tab-btn active" onclick="switchTab('quote',this)">📋 Cotización</div>
+      <div class="tab-btn" onclick="switchTab('text',this)">📝 Propuesta</div>
+      <div class="tab-btn" onclick="switchTab('rent',this)" id="tab-rent">📊 Rentabilidad</div>
+    </div>
+
+    <!-- TAB: COTIZACIÓN -->
+    <div class="content" id="tab-quote">
+      <div id="no-quote" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:12px;color:var(--text3)">
+        <span style="font-size:48px;opacity:.3">📋</span>
+        <p>Selecciona o crea una cotización</p>
+        <button class="btn btn-primary" onclick="newQuote()">+ Nueva cotización</button>
+      </div>
+      <div id="quote-editor" style="display:none">
+        <!-- META -->
+        <div class="sec" style="margin-bottom:16px">
+          <div class="sec-hd"><div class="sec-title">Datos del proyecto</div></div>
+          <div class="sec-body">
+            <div class="form-grid">
+              <div class="fg"><label class="lbl">Número</label><input class="inp" id="q-num" placeholder="P046/C001/2026" oninput="updateTopbar()"></div>
+              <div class="fg"><label class="lbl">Fecha</label><input class="inp" id="q-date" type="date" oninput="updateTopbar()"></div>
+              <div class="fg"><label class="lbl">Proyecto / descripción</label><input class="inp" id="q-project" placeholder="Revestimientos oficinas"></div>
+              <div class="fg"><label class="lbl">Cliente</label><input class="inp" id="q-client" placeholder="Alberto García" oninput="updateTopbar()"></div>
+            </div>
+            <div class="form-grid-3">
+              <div class="fg"><label class="lbl">Price List cliente</label>
+                <select class="inp" id="q-pricelist" onchange="updateDiscounts()">
+                  <option value="">Seleccionar</option>
+                  <option>End user</option><option>Specifier</option><option>Contract</option>
+                  <option>Industry</option><option>Hospitality</option><option>Retailer</option>
+                  <option>General contractor</option><option>Workplace</option>
+                </select>
+              </div>
+              <div class="fg"><label class="lbl">Desc. volumen % <span style="font-size:9px;color:var(--text3)">(visible cliente)</span></label><input class="inp" id="q-disc-vol" type="number" min="0" max="100" placeholder="0" oninput="recalcAll()"></div>
+              <div class="fg"><label class="lbl">Desc. pronto pago % <span style="font-size:9px;color:var(--text3)">(visible cliente)</span></label><input class="inp" id="q-disc-pp" type="number" min="0" max="100" placeholder="0" oninput="recalcAll()"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUPPLY TABLE -->
+        <div class="sec" style="margin-bottom:16px">
+          <div class="sec-hd">
+            <div class="sec-title">Suministro</div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-ghost" onclick="openCatalog('supply')">📦 Catálogo</button>
+              <button class="btn btn-ghost" onclick="openManual('supply')">✏️ Manual</button>
+            </div>
+          </div>
+          <div class="sec-body" style="padding:0">
+            <table class="qt-table">
+              <thead><tr>
+                <th style="width:42%">Partida</th>
+                <th>Volumen</th><th>Ud.</th><th>PVP</th><th>Subtotal</th><th style="width:32px"></th>
+              </tr></thead>
+              <tbody id="supply-tbody"></tbody>
+            </table>
+          </div>
+          <div style="padding:14px 18px;border-top:1px solid var(--border)">
+            <div class="totals-grid">
+              <div class="tot-lbl">Subtotal suministro</div><div></div><div class="tot-val" id="supply-sub">$0.00</div>
+              <div class="tot-lbl" style="color:var(--orange)">Descuento por volumen</div><div style="font-size:11px;color:var(--orange);text-align:right" id="disc-vol-pct">0%</div><div class="tot-val" style="color:var(--orange)" id="disc-vol-amt">−$0.00</div>
+              <div class="tot-lbl" style="color:var(--orange)">Descuento pronto pago</div><div style="font-size:11px;color:var(--orange);text-align:right" id="disc-pp-pct">0%</div><div class="tot-val" style="color:var(--orange)" id="disc-pp-amt">−$0.00</div>
+              <div class="tot-lbl" style="font-weight:700;color:var(--text)">Subtotal neto</div><div></div><div class="tot-val" id="supply-net" style="font-weight:700;color:var(--text)">$0.00</div>
+              <div class="tot-lbl">IVA (16%)</div><div></div><div class="tot-val" id="supply-iva">$0.00</div>
+              <div class="tot-lbl tot-big">TOTAL A PAGAR</div><div></div><div class="tot-val tot-big" id="supply-total">$0.00</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- LABOR TABLE -->
+        <div class="sec" style="margin-bottom:16px">
+          <div class="sec-hd">
+            <div class="sec-title">Mano de obra</div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-ghost" onclick="openCatalog('labor')">📦 Catálogo</button>
+              <button class="btn btn-ghost" onclick="openManual('labor')">✏️ Manual</button>
+            </div>
+          </div>
+          <div class="sec-body" style="padding:0">
+            <table class="qt-table">
+              <thead><tr>
+                <th style="width:50%">Partida</th><th>Volumen</th><th>Ud.</th><th>PVP</th><th>Subtotal</th><th style="width:32px"></th>
+              </tr></thead>
+              <tbody id="labor-tbody"></tbody>
+            </table>
+          </div>
+          <div style="padding:14px 18px;border-top:1px solid var(--border)">
+            <div class="totals-grid">
+              <div class="tot-lbl">Subtotal</div><div></div><div class="tot-val" id="labor-sub">$0.00</div>
+              <div class="tot-lbl">IVA (16%)</div><div></div><div class="tot-val" id="labor-iva">$0.00</div>
+              <div class="tot-lbl tot-big">TOTAL A PAGAR</div><div></div><div class="tot-val tot-big" id="labor-total">$0.00</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- GRAND TOTAL -->
+        <div class="sec">
+          <div class="sec-body">
+            <div class="totals-grid" style="max-width:420px;margin-left:auto">
+              <div class="tot-lbl">Total suministro</div><div></div><div class="tot-val" id="gt-supply">$0.00</div>
+              <div class="tot-lbl">Total mano de obra</div><div></div><div class="tot-val" id="gt-labor">$0.00</div>
+              <div class="tot-lbl" style="font-size:16px;font-weight:800;color:var(--text)">TOTAL PROYECTO</div><div></div><div class="tot-val" style="font-size:18px;font-weight:800;color:var(--accent)" id="gt-total">$0.00</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: PROPUESTA -->
+    <div class="content hidden" id="tab-text">
+      <div class="sec">
+        <div class="sec-hd">
+          <div class="sec-title">✨ Texto de propuesta</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost" onclick="generateText()">Regenerar</button>
+            <button class="btn btn-ghost" onclick="copyText()">📋 Copiar</button>
+          </div>
+        </div>
+        <div class="sec-body">
+          <div id="gen-loading" style="display:none;color:var(--text3);font-size:13px;padding:20px 0">✨ Generando texto con IA...</div>
+          <div class="proposal-text" id="proposal-text" contenteditable="true" style="outline:none"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: RENTABILIDAD -->
+    <div class="content hidden" id="tab-rent-content">
+      <div class="sec" style="margin-bottom:16px">
+        <div class="sec-hd"><div class="sec-title">📊 Rentabilidad por partida</div></div>
+        <div class="sec-body" style="padding:0;overflow-x:auto">
+          <table class="rent-table">
+            <thead><tr>
+              <th style="min-width:200px">Partida</th>
+              <th>Volumen</th><th>Ud.</th>
+              <th>PVP unit.</th><th>Costo unit.</th>
+              <th>PVP total</th><th>Costo total</th>
+              <th>Margen $</th><th>Margen %</th>
+            </tr></thead>
+            <tbody id="rent-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="sec">
+          <div class="sec-hd"><div class="sec-title">Resumen proyecto</div></div>
+          <div class="sec-body">
+            <div class="disc-row"><span class="disc-lbl">Ingresos totales (sin IVA)</span><span class="disc-val" id="r-income">$0</span></div>
+            <div class="disc-row"><span class="disc-lbl">Costo total</span><span class="disc-val" id="r-cost">$0</span></div>
+            <div class="disc-row"><span class="disc-lbl">Margen bruto</span><span class="disc-val" id="r-margin">$0</span></div>
+            <div class="disc-row" style="border:none;padding-top:10px">
+              <span class="disc-lbl" style="font-weight:700;color:var(--text)">Margen %</span>
+              <span id="r-margin-badge"></span>
+            </div>
+          </div>
+        </div>
+        <div class="sec">
+          <div class="sec-hd"><div class="sec-title">Descuentos de costo aplicados</div></div>
+          <div class="sec-body">
+            <div class="disc-row"><span class="disc-lbl">Descuento 1 (proveedor)</span><input class="mini-inp" id="cost-d1" type="number" value="0" min="0" max="100" style="width:70px" oninput="recalcAll()">%</div>
+            <div class="disc-row"><span class="disc-lbl">Descuento 2</span><input class="mini-inp" id="cost-d2" type="number" value="0" min="0" max="100" style="width:70px" oninput="recalcAll()">%</div>
+            <div class="disc-row"><span class="disc-lbl">Descuento 3</span><input class="mini-inp" id="cost-d3" type="number" value="0" min="0" max="100" style="width:70px" oninput="recalcAll()">%</div>
+            <div class="disc-row" style="border:none"><span class="disc-lbl">Flete / otros costos</span><span>$</span><input class="mini-inp" id="cost-flete" type="number" value="0" style="width:90px" oninput="recalcAll()"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const LOGIN_PASS_ADMIN = 'holzadmin2026'; // Only Luis — sees costs & rentabilidad
+const LOGIN_PASS_USER  = 'holz2026';      // Abril, Karina — no costs
+let IS_ADMIN = false;
+let CATALOG = [];
+let QUOTES = [];
+let CURRENT_Q = null;
+let CATALOG_TARGET_TABLE = 'supply';
+let CATALOG_FILTER = '';
+
+// ── LOGIN ──
+function doLogin(){
+  const v = document.getElementById('login-pass').value;
+  if(v === LOGIN_PASS_ADMIN){ IS_ADMIN=true; unlock(); }
+  else if(v === LOGIN_PASS_USER){ IS_ADMIN=false; unlock(); }
+  else {
+    document.getElementById('login-err').textContent='Contraseña incorrecta';
+    setTimeout(()=>document.getElementById('login-err').textContent='',2000);
+  }
+}
+function unlock(){
+  document.getElementById('login-wrap').style.display='none';
+  document.getElementById('shell').classList.remove('hidden');
+  // Hide rentabilidad tab for non-admin
+  if(!IS_ADMIN) document.getElementById('tab-rent').style.display='none';
+  loadCatalog();
+  loadQuotes();
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+});
+
+// ── CATALOG ──
+async function loadCatalog(){
+  try{
+    const r=await fetch('catalog_data.json');
+    CATALOG=await r.json();
+  }catch(e){ CATALOG=[]; toast('Catálogo no encontrado — solo productos manuales','⚠️'); }
+}
+
+function openCatalog(table){
+  CATALOG_TARGET_TABLE=table;
+  document.getElementById('cat-search').value='';
+  CATALOG_FILTER='';
+  renderCatalogFilters();
+  renderCatalog();
+  document.getElementById('modal-catalog').classList.remove('hidden');
+}
+
+function renderCatalogFilters(){
+  const cats=[...new Set(CATALOG.map(p=>p.category))];
+  const el=document.getElementById('cat-filters');
+  el.innerHTML='<span class="cat-chip active" onclick="setCatFilter(\'\',this)">Todos</span>'+
+    cats.map(c=>`<span class="cat-chip" onclick="setCatFilter('${c}',this)">${c}</span>`).join('');
+}
+
+function setCatFilter(cat,el){
+  CATALOG_FILTER=cat;
+  document.querySelectorAll('.cat-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  renderCatalog();
+}
+
+function renderCatalog(){
+  const q=(document.getElementById('cat-search').value||'').toLowerCase();
+  let items=CATALOG;
+  if(CATALOG_FILTER) items=items.filter(p=>p.category===CATALOG_FILTER);
+  if(q) items=items.filter(p=>[p.brand,p.collection,p.model,p.category].join(' ').toLowerCase().includes(q));
+  const pvpKey=p=>p.pvpCajaMXN||p.pvpM2MXN||0;
+  document.getElementById('prod-list').innerHTML=items.map(p=>`
+    <div class="prod-item" onclick="openProductDetail('${p.id}')">
+      <div>
+        <div class="prod-name">${esc(p.brand)} — ${esc(p.model)}</div>
+        <div class="prod-sub">${esc(p.category)} · ${esc(p.collection||'')} ${p.m2perBox?'· '+p.m2perBox+' m²/caja':''} ${p.dimensions?'· '+p.dimensions:''}</div>
+      </div>
+      <div class="prod-pvp">${pvpKey(p)?mxn(pvpKey(p)):''}</div>
+    </div>`).join('');
+}
+
+let PD_PRODUCT = null;
+function openProductDetail(id){
+  PD_PRODUCT=CATALOG.find(p=>p.id===id);
+  if(!PD_PRODUCT) return;
+  const p=PD_PRODUCT;
+  document.getElementById('pd-title').textContent=`${p.brand} — ${p.model}`;
+  document.getElementById('pd-desc').textContent=p.description||'';
+  document.getElementById('pd-vol').value='';
+  document.getElementById('pd-boxes').value='';
+  document.getElementById('pd-m2real').value='';
+  document.getElementById('pd-pvp').value=p.pvpCajaMXN||p.pvpM2MXN||'';
+  document.getElementById('pd-cost').value=p.costoMXN||'';
+  if(!IS_ADMIN){
+    document.getElementById('pd-cost').closest('.fg').style.display='none';
+  }
+  document.getElementById('pd-rent').innerHTML='';
+  document.getElementById('modal-catalog').classList.add('hidden');
+  document.getElementById('modal-prod-detail').classList.remove('hidden');
+}
+
+function calcPDBoxes(){
+  const p=PD_PRODUCT;
+  if(!p||!p.m2perBox) return;
+  const vol=parseFloat(document.getElementById('pd-vol').value)||0;
+  const boxes=Math.ceil(vol/p.m2perBox);
+  const m2real=boxes*p.m2perBox;
+  const pvp=parseFloat(document.getElementById('pd-pvp').value)||0;
+  document.getElementById('pd-boxes').value=boxes||'';
+  document.getElementById('pd-m2real').value=m2real?m2real.toFixed(3):'';
+  if(IS_ADMIN && pvp){
+    const cost=parseFloat(document.getElementById('pd-cost').value)||0;
+    const subtPVP=boxes*pvp;
+    const subtCost=boxes*cost;
+    const margin=subtPVP-subtCost;
+    const marginPct=subtPVP?margin/subtPVP:0;
+    document.getElementById('pd-rent').innerHTML=`
+      <div style="display:flex;gap:16px;flex-wrap:wrap">
+        <div><div class="lbl" style="margin-bottom:2px">PVP total</div><div style="font-family:var(--mono);color:var(--text)">${mxn(subtPVP)}</div></div>
+        <div><div class="lbl" style="margin-bottom:2px">Costo total</div><div style="font-family:var(--mono);color:var(--orange)">${mxn(subtCost)}</div></div>
+        <div><div class="lbl" style="margin-bottom:2px">Margen</div>${marginBadge(marginPct)}</div>
+      </div>`;
+  }
+}
+
+function addCatalogProduct(){
+  const p=PD_PRODUCT;
+  if(!p){toast('Sin producto seleccionado','⚠️');return;}
+  const volRaw=parseFloat(document.getElementById('pd-vol').value)||0;
+  const pvp=parseFloat(document.getElementById('pd-pvp').value)||0;
+  const cost=parseFloat(document.getElementById('pd-cost').value)||0;
+  const table=document.getElementById('pd-table').value;
+  // If has m2perBox, use boxes * m2perBox as volume
+  let vol=volRaw, unit=p.unit||'m2';
+  if(p.m2perBox && volRaw>0){
+    const boxes=Math.ceil(volRaw/p.m2perBox);
+    vol=round(boxes*p.m2perBox,3);
+  }
+  if(!vol||!pvp){toast('Ingresa volumen y PVP','⚠️');return;}
+  CURRENT_Q[table].push({id:uid(),desc:p.description||p.model,vol,unit,pvp,cost:cost||0,fromCatalog:true});
+  closeModal('modal-prod-detail');
+  renderQuoteTables();
+  recalcAll();
+  toast('Producto añadido','✅','success');
+}
+
+function openManual(table){
+  CATALOG_TARGET_TABLE=table;
+  document.getElementById('man-desc').value='';
+  document.getElementById('man-vol').value='';
+  document.getElementById('man-pvp').value='';
+  document.getElementById('man-cost').value='';
+  document.getElementById('man-table').value=table;
+  if(!IS_ADMIN) document.getElementById('man-cost').closest('.fg').style.display='none';
+  document.getElementById('modal-manual').classList.remove('hidden');
+}
+
+function addManualProduct(){
+  const desc=document.getElementById('man-desc').value.trim();
+  const vol=parseFloat(document.getElementById('man-vol').value)||0;
+  const unit=document.getElementById('man-unit').value;
+  const pvp=parseFloat(document.getElementById('man-pvp').value)||0;
+  const cost=parseFloat(document.getElementById('man-cost').value)||0;
+  const table=document.getElementById('man-table').value;
+  if(!desc||!vol||!pvp){toast('Completa descripción, volumen y PVP','⚠️');return;}
+  CURRENT_Q[table].push({id:uid(),desc,vol,unit,pvp,cost,fromCatalog:false});
+  closeModal('modal-manual');
+  renderQuoteTables();
+  recalcAll();
+  toast('Producto añadido','✅','success');
+}
+
+// ── QUOTES ──
+function loadQuotes(){
+  try{ QUOTES=JSON.parse(localStorage.getItem('holz_quotes')||'[]'); }
+  catch(e){ QUOTES=[]; }
+  renderQuoteList();
+  if(QUOTES.length) selectQuote(QUOTES[0].id);
+}
+
+function saveQuotes(){ localStorage.setItem('holz_quotes',JSON.stringify(QUOTES)); }
+
+function newQuote(){
+  const num=genQuoteNum();
+  const q={
+    id:uid(),num,date:today(),project:'',client:'',pricelist:'',
+    discVol:0,discPP:0,supply:[],labor:[],
+    costD1:0,costD2:0,costD3:0,costFlete:0,text:''
+  };
+  QUOTES.unshift(q);
+  saveQuotes();
+  renderQuoteList();
+  selectQuote(q.id);
+}
+
+function selectQuote(id){
+  CURRENT_Q=QUOTES.find(q=>q.id===id);
+  if(!CURRENT_Q) return;
+  document.querySelectorAll('.quote-item').forEach(el=>el.classList.toggle('active',el.dataset.id===id));
+  document.getElementById('no-quote').style.display='none';
+  document.getElementById('quote-editor').style.display='';
+  loadQuoteToForm();
+  renderQuoteTables();
+  recalcAll();
+  updateTopbar();
+}
+
+function loadQuoteToForm(){
+  const q=CURRENT_Q;
+  setValue('q-num',q.num);
+  setValue('q-date',q.date);
+  setValue('q-project',q.project);
+  setValue('q-client',q.client);
+  setValue('q-pricelist',q.pricelist);
+  setValue('q-disc-vol',q.discVol||0);
+  setValue('q-disc-pp',q.discPP||0);
+  setValue('cost-d1',q.costD1||0);
+  setValue('cost-d2',q.costD2||0);
+  setValue('cost-d3',q.costD3||0);
+  setValue('cost-flete',q.costFlete||0);
+  if(q.text) document.getElementById('proposal-text').innerHTML=q.text;
+}
+
+function saveQuote(){
+  if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
+  const q=CURRENT_Q;
+  q.num=val('q-num'); q.date=val('q-date');
+  q.project=val('q-project'); q.client=val('q-client');
+  q.pricelist=val('q-pricelist');
+  q.discVol=parseFloat(val('q-disc-vol'))||0;
+  q.discPP=parseFloat(val('q-disc-pp'))||0;
+  q.costD1=parseFloat(val('cost-d1'))||0;
+  q.costD2=parseFloat(val('cost-d2'))||0;
+  q.costD3=parseFloat(val('cost-d3'))||0;
+  q.costFlete=parseFloat(val('cost-flete'))||0;
+  q.text=document.getElementById('proposal-text').innerHTML;
+  const idx=QUOTES.findIndex(x=>x.id===q.id);
+  if(idx>-1) QUOTES[idx]=q;
+  saveQuotes();
+  renderQuoteList();
+  updateTopbar();
+  toast('Cotización guardada','✅','success');
+}
+
+function deleteQuote(id,e){
+  e.stopPropagation();
+  if(!confirm('¿Eliminar esta cotización?')) return;
+  QUOTES=QUOTES.filter(q=>q.id!==id);
+  saveQuotes();
+  CURRENT_Q=null;
+  document.getElementById('no-quote').style.display='';
+  document.getElementById('quote-editor').style.display='none';
+  renderQuoteList();
+}
+
+function renderQuoteList(){
+  const q=(document.getElementById('q-search').value||'').toLowerCase();
+  const list=q?QUOTES.filter(x=>(x.client||x.num||'').toLowerCase().includes(q)):QUOTES;
+  document.getElementById('quote-list').innerHTML=list.map(q=>`
+    <div class="quote-item" data-id="${q.id}" onclick="selectQuote('${q.id}')">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="quote-num">${esc(q.num||'Sin número')}</div>
+        <button class="btn-icon" onclick="deleteQuote('${q.id}',event)" title="Eliminar">🗑</button>
+      </div>
+      <div class="quote-client">${esc(q.client||'Sin cliente')}</div>
+      <div class="quote-date">${esc(q.date||'')}</div>
+    </div>`).join('');
+}
+
+function filterQuotes(){ renderQuoteList(); }
+
+// ── RENDER QUOTE TABLES ──
+function renderQuoteTables(){
+  if(!CURRENT_Q) return;
+  renderTable('supply-tbody', CURRENT_Q.supply, 'supply');
+  renderTable('labor-tbody', CURRENT_Q.labor, 'labor');
+}
+
+function renderTable(tbodyId, items, table){
+  const tbody=document.getElementById(tbodyId);
+  if(!items.length){ tbody.innerHTML=`<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:20px;font-size:12px">Sin partidas — usa "Catálogo" o "Manual"</td></tr>`; return; }
+  tbody.innerHTML=items.map((item,i)=>`
+    <tr>
+      <td><textarea class="desc-inp" rows="2" onchange="updateItemDesc('${table}',${i},this.value)">${esc(item.desc)}</textarea></td>
+      <td class="editable-num"><input class="mini-inp" type="number" value="${item.vol}" style="width:70px" onchange="updateItemVol('${table}',${i},this.value)"></td>
+      <td style="font-size:11px;color:var(--text3)">${esc(item.unit)}</td>
+      <td class="editable-num"><input class="mini-inp" type="number" value="${item.pvp}" style="width:85px" onchange="updateItemPVP('${table}',${i},this.value)"></td>
+      <td class="num">${mxn(item.vol*item.pvp)}</td>
+      <td><button class="btn-icon" onclick="removeItem('${table}',${i})">✕</button></td>
+    </tr>`).join('');
+}
+
+function updateItemDesc(table,i,v){ CURRENT_Q[table][i].desc=v; }
+function updateItemVol(table,i,v){ CURRENT_Q[table][i].vol=parseFloat(v)||0; recalcAll(); }
+function updateItemPVP(table,i,v){ CURRENT_Q[table][i].pvp=parseFloat(v)||0; recalcAll(); }
+function removeItem(table,i){ CURRENT_Q[table].splice(i,1); renderQuoteTables(); recalcAll(); toast('Partida eliminada'); }
+
+// ── RECALC ──
+function recalcAll(){
+  if(!CURRENT_Q) return;
+  const discVol=(parseFloat(val('q-disc-vol'))||0)/100;
+  const discPP=(parseFloat(val('q-disc-pp'))||0)/100;
+  const d1=(parseFloat(val('cost-d1'))||0)/100;
+  const d2=(parseFloat(val('cost-d2'))||0)/100;
+  const d3=(parseFloat(val('cost-d3'))||0)/100;
+  const flete=parseFloat(val('cost-flete'))||0;
+
+  // Supply
+  const supRaw=CURRENT_Q.supply.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const dVolAmt=supRaw*discVol;
+  const afterVol=supRaw-dVolAmt;
+  const dPPAmt=afterVol*discPP;
+  const supNet=afterVol-dPPAmt;
+  const supIVA=supNet*0.16;
+  const supTotal=supNet+supIVA;
+
+  setText('supply-sub',mxn(supRaw));
+  setText('disc-vol-pct',(discVol*100).toFixed(1)+'%');
+  setText('disc-vol-amt','−'+mxn(dVolAmt));
+  setText('disc-pp-pct',(discPP*100).toFixed(1)+'%');
+  setText('disc-pp-amt','−'+mxn(dPPAmt));
+  setText('supply-net',mxn(supNet));
+  setText('supply-iva',mxn(supIVA));
+  setText('supply-total',mxn(supTotal));
+
+  // Labor
+  const labRaw=CURRENT_Q.labor.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const labIVA=labRaw*0.16;
+  const labTotal=labRaw+labIVA;
+  setText('labor-sub',mxn(labRaw));
+  setText('labor-iva',mxn(labIVA));
+  setText('labor-total',mxn(labTotal));
+
+  // Grand total
+  setText('gt-supply',mxn(supTotal));
+  setText('gt-labor',mxn(labTotal));
+  setText('gt-total',mxn(supTotal+labTotal));
+
+  // Rentabilidad (admin only)
+  if(IS_ADMIN) recalcRent(supNet, labRaw, d1, d2, d3, flete);
+}
+
+function recalcRent(supNet, labRaw, d1, d2, d3, flete){
+  const totalIncome=supNet+labRaw;
+  // Cost from items
+  const allItems=[...CURRENT_Q.supply,...CURRENT_Q.labor];
+  let totalCost=flete;
+  const tbody=document.getElementById('rent-tbody');
+  tbody.innerHTML=allItems.map(item=>{
+    let cost=item.cost||0;
+    // Apply cascade discounts to cost if cost is a list price
+    if(cost>0){
+      cost=cost*(1-d1)*(1-d2)*(1-d3);
+    }
+    const pvpTotal=item.vol*item.pvp;
+    const costTotal=item.vol*cost;
+    totalCost+=costTotal;
+    const margin=pvpTotal-costTotal;
+    const marginPct=pvpTotal?margin/pvpTotal:0;
+    return`<tr>
+      <td class="lft" style="max-width:220px;word-break:break-word">${esc(item.desc.substring(0,80))}${item.desc.length>80?'…':''}</td>
+      <td>${item.vol}</td><td style="color:var(--text3)">${item.unit}</td>
+      <td>${mxn(item.pvp)}</td><td>${mxn(cost)}</td>
+      <td>${mxn(pvpTotal)}</td><td>${mxn(costTotal)}</td>
+      <td>${mxn(margin)}</td>
+      <td>${marginBadge(marginPct)}</td>
+    </tr>`;
+  }).join('');
+  const grossMargin=totalIncome-totalCost;
+  const grossPct=totalIncome?grossMargin/totalIncome:0;
+  setText('r-income',mxn(totalIncome));
+  setText('r-cost',mxn(totalCost));
+  setText('r-margin',mxn(grossMargin));
+  document.getElementById('r-margin-badge').innerHTML=marginBadge(grossPct);
+}
+
+// ── GENERATE TEXT WITH AI ──
+async function generateText(){
+  if(!CURRENT_Q||(!CURRENT_Q.supply.length&&!CURRENT_Q.labor.length)){
+    toast('Añade partidas primero','⚠️'); return;
+  }
+  switchTabById('tab-text');
+  document.getElementById('gen-loading').style.display='';
+  document.getElementById('proposal-text').innerHTML='';
+  const client=val('q-client')||'cliente';
+  const items=[...CURRENT_Q.supply,...CURRENT_Q.labor];
+  const itemList=items.map(x=>`- ${x.desc} (${x.vol} ${x.unit})`).join('\n');
+  const prompt=`Eres el equipo comercial de Hølz Floors, empresa especializada en pisos y revestimientos de alta gama. Escribe un texto de propuesta comercial en español, cálido y profesional, dirigido a ${client}.
+
+Los productos/servicios cotizados son:
+${itemList}
+
+El texto debe:
+1. Saludar al cliente por nombre
+2. Explicar brevemente la propuesta de valor de la combinación de materiales
+3. Listar los beneficios clave con checkmarks (✓)
+4. Cerrar con una frase de confianza en la propuesta
+5. Firmar como "Hølz Floors · Diseño. Sostenibilidad. Tecnología"
+
+Máximo 200 palabras. Tono sofisticado pero accesible. NO incluyas precios.`;
+
+  try{
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',
+        max_tokens:1000,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    const data=await resp.json();
+    const text=data.content?.[0]?.text||'Error generando texto';
+    document.getElementById('gen-loading').style.display='none';
+    document.getElementById('proposal-text').innerHTML=text.replace(/\n/g,'<br>');
+    CURRENT_Q.text=document.getElementById('proposal-text').innerHTML;
+  }catch(e){
+    document.getElementById('gen-loading').style.display='none';
+    document.getElementById('proposal-text').innerHTML='Error al conectar con IA: '+e.message;
+  }
+}
+
+// ── COPY TABLE ──
+function copyTable(){
+  if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
+  const discVol=(parseFloat(val('q-disc-vol'))||0)/100;
+  const discPP=(parseFloat(val('q-disc-pp'))||0)/100;
+  const supRaw=CURRENT_Q.supply.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const afterVol=supRaw*(1-discVol);
+  const supNet=afterVol*(1-discPP);
+  const labRaw=CURRENT_Q.labor.reduce((s,x)=>s+x.vol*x.pvp,0);
+
+  let txt=`COTIZACIÓN: ${val('q-num')}\nFECHA: ${val('q-date')}\nPROYECTO: ${val('q-project')}\nCLIENTE: ${val('q-client')}\n\n`;
+  txt+=`SUMINISTRO\n${'─'.repeat(80)}\n`;
+  txt+=`${'PARTIDA'.padEnd(55)} ${'VOLUMEN'.padStart(10)} ${'UD'.padStart(8)} ${'PVP'.padStart(12)} ${'SUBTOTAL'.padStart(14)}\n`;
+  CURRENT_Q.supply.forEach(x=>{ txt+=`${x.desc.substring(0,54).padEnd(55)} ${String(x.vol).padStart(10)} ${x.unit.padStart(8)} ${mxnR(x.pvp).padStart(12)} ${mxnR(x.vol*x.pvp).padStart(14)}\n`; });
+  txt+=`\n${''.padEnd(77)} SUBTOTAL ${mxnR(supRaw).padStart(14)}\n`;
+  if(discVol>0) txt+=`${''.padEnd(66)} DESC. VOLUMEN ${(discVol*100).toFixed(0)+'%'} ${mxnR(supRaw*discVol).padStart(10)}\n`;
+  if(discPP>0) txt+=`${''.padEnd(60)} DESC. PRONTO PAGO ${(discPP*100).toFixed(0)+'%'} ${mxnR(afterVol*discPP).padStart(10)}\n`;
+  txt+=`${''.padEnd(75)} SUBTOTAL ${mxnR(supNet).padStart(12)}\n`;
+  txt+=`${''.padEnd(77)} IVA 16% ${mxnR(supNet*0.16).padStart(13)}\n`;
+  txt+=`${''.padEnd(72)} TOTAL A PAGAR ${mxnR(supNet*1.16).padStart(8)}\n`;
+  txt+=`\nMANO DE OBRA\n${'─'.repeat(80)}\n`;
+  CURRENT_Q.labor.forEach(x=>{ txt+=`${x.desc.substring(0,54).padEnd(55)} ${String(x.vol).padStart(10)} ${x.unit.padStart(8)} ${mxnR(x.pvp).padStart(12)} ${mxnR(x.vol*x.pvp).padStart(14)}\n`; });
+  txt+=`\n${''.padEnd(77)} SUBTOTAL ${mxnR(labRaw).padStart(14)}\n`;
+  txt+=`${''.padEnd(77)} IVA 16% ${mxnR(labRaw*0.16).padStart(13)}\n`;
+  txt+=`${''.padEnd(72)} TOTAL A PAGAR ${mxnR(labRaw*1.16).padStart(8)}\n`;
+
+  navigator.clipboard.writeText(txt).then(()=>toast('Tabla copiada al portapapeles','📋','success')).catch(()=>toast('No se pudo copiar','❌','error'));
+}
+
+function copyText(){
+  const text=document.getElementById('proposal-text').innerText;
+  navigator.clipboard.writeText(text).then(()=>toast('Texto copiado','📋','success')).catch(()=>toast('Error copiando','❌','error'));
+}
+
+// ── TABS ──
+function switchTab(name, el){
+  document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  switchTabById('tab-'+name);
+}
+function switchTabById(id){
+  ['tab-quote','tab-text','tab-rent-content'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
+  if(id==='tab-rent-content') recalcAll();
+}
+
+// ── MISC ──
+function updateTopbar(){
+  setText('topbar-num',val('q-num'));
+  setText('topbar-client',val('q-client'));
+}
+function updateDiscounts(){ recalcAll(); }
+function genQuoteNum(){
+  const d=new Date();
+  const year=d.getFullYear();
+  const n=String(QUOTES.length+1).padStart(3,'0');
+  return `P${String(QUOTES.length+100).padStart(3,'0')}/C001/${year}`;
+}
+function val(id){ return (document.getElementById(id)||{}).value||''; }
+function setValue(id,v){ const el=document.getElementById(id); if(el) el.value=v; }
+function setText(id,v){ const el=document.getElementById(id); if(el) el.textContent=v; }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function uid(){ return 'q_'+Math.random().toString(36).substr(2,9); }
+function today(){ return new Date().toISOString().split('T')[0]; }
+function round(v,d){ return Math.round(v*Math.pow(10,d))/Math.pow(10,d); }
+function mxn(v){ return '$'+Number(v||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function mxnR(v){ return '$'+Number(v||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+function marginBadge(pct){
+  const p=(pct*100).toFixed(1)+'%';
+  if(pct>=0.35) return `<span class="margin-badge margin-good">▲ ${p}</span>`;
+  if(pct>=0.20) return `<span class="margin-badge margin-ok">◆ ${p}</span>`;
+  return `<span class="margin-badge margin-bad">▼ ${p}</span>`;
+}
+
+let _toastT;
+function toast(msg,icon='ℹ️',type=''){
+  const el=document.getElementById('toast');
+  el.innerHTML=`<span>${icon}</span> ${esc(msg)}`;
+  el.className='show '+(type==='success'?'success':type==='error'?'error':'');
+  clearTimeout(_toastT);
+  _toastT=setTimeout(()=>el.className='',3500);
+}
+</script>
+</body>
+</html>
