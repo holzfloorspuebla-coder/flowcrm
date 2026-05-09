@@ -302,9 +302,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
               <div class="fg"><label class="lbl">Fecha</label><input class="inp" id="q-date" type="date"></div>
               <div class="fg">
                 <label class="lbl">Cliente</label>
-                <div class="autocomplete-wrap">
-                  <input class="inp" id="q-client" placeholder="Buscar cliente..." autocomplete="off" oninput="onClientInput()" onblur="hideAC()" onfocus="onClientInput()" oninput="updateTopbar();onClientInput()">
-                  <div class="autocomplete-list hidden" id="ac-list"></div>
+                <div class="autocomplete-wrap" style="position:relative">
+                  <input class="inp" id="q-client" placeholder="Buscar cliente..." autocomplete="off" oninput="updateTopbar();onClientInput()" onblur="hideAC()" onfocus="onClientInput()">
+                  <div class="autocomplete-list hidden" id="ac-list" style="position:absolute;top:100%;left:0;right:0;z-index:100"></div>
                 </div>
               </div>
               <div class="fg"><label class="lbl">Proyecto</label><input class="inp" id="q-project" placeholder="Revestimientos oficinas"></div>
@@ -341,7 +341,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           <div class="sec-hd">
             <div class="sec-title">Suministro</div>
             <div style="display:flex;gap:6px">
-              <button class="btn btn-ghost" onclick="openCatalog('supply')">📦 Catálogo</button>
+              <button class="btn btn-primary" onclick="openCatalog('supply')">📦 Catálogo</button>
               <button class="btn btn-ghost" onclick="openManual('supply')">✏️ Manual</button>
             </div>
           </div>
@@ -375,7 +375,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           <div class="sec-hd">
             <div class="sec-title">Mano de obra</div>
             <div style="display:flex;gap:6px">
-              <button class="btn btn-ghost" onclick="openCatalog('labor')">📦 Catálogo</button>
+              <button class="btn btn-primary" onclick="openCatalog('labor')">📦 Catálogo</button>
               <button class="btn btn-ghost" onclick="openManual('labor')">✏️ Manual</button>
             </div>
           </div>
