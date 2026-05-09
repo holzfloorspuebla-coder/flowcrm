@@ -466,37 +466,36 @@ select.inp{cursor:pointer;}
 
         <!-- BASE DE DATOS TAB -->
         <div class="tab-panel" id="ctab-db" style="display:none;flex-direction:column;overflow:hidden;flex:1">
-          <div class="toolbar" style="gap:8px;flex-wrap:wrap;padding:10px 22px">
-            <span style="font-size:13px;color:var(--text2)" id="db-count"></span>
-            <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <button class="btn btn-ghost btn-sm" id="db-select-btn" onclick="toggleDbSelectMode()">&#9745; Seleccionar</button>
-              <button class="btn btn-ghost btn-sm" onclick="$('csv-db-input').click()">&#128229; Importar CSV</button>
-              <input type="file" id="csv-db-input" accept=".csv" style="display:none" onchange="handleDbCsvImport(this)">
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 22px 10px;border-bottom:1px solid var(--border)">
-            <input class="inp" id="db-search" placeholder="Buscar nombre, estudio, email, ciudad..." oninput="renderDbTable()" style="flex:1;min-width:180px;max-width:360px;font-size:13px;padding:6px 10px">
-            <select class="inp" id="db-f-agent" onchange="renderDbTable()" style="font-size:12px;padding:6px 10px;min-width:130px">
-              <option value="">Todos los vendedores</option>
+          <!-- Toolbar row -->
+          <div class="toolbar" style="gap:8px;padding:8px 22px;flex-wrap:nowrap;overflow-x:auto">
+            <input class="inp" id="db-search" placeholder="🔍 Buscar nombre, estudio, email, ciudad..." oninput="renderDbTable()" style="font-size:13px;padding:6px 10px;min-width:200px;max-width:280px;flex-shrink:0">
+            <select class="inp" id="db-f-agent" onchange="renderDbTable()" style="font-size:12px;padding:6px 8px;min-width:120px;flex-shrink:0">
+              <option value="">Vendedor</option>
             </select>
-            <select class="inp" id="db-f-type" onchange="renderDbTable()" style="font-size:12px;padding:6px 10px;min-width:130px">
-              <option value="">Todas las funciones</option>
+            <select class="inp" id="db-f-type" onchange="renderDbTable()" style="font-size:12px;padding:6px 8px;min-width:130px;flex-shrink:0">
+              <option value="">Función</option>
               <option>Specifier</option><option>Dealer</option><option>Developer</option>
               <option>General contractor</option><option>End user</option>
               <option>Fabricante</option><option>Operator</option>
               <option>Installer</option><option>Project manager</option>
             </select>
-            <select class="inp" id="db-f-state" onchange="renderDbTable()" style="font-size:12px;padding:6px 10px;min-width:130px">
-              <option value="">Todos los estados</option>
+            <select class="inp" id="db-f-state" onchange="renderDbTable()" style="font-size:12px;padding:6px 8px;min-width:120px;flex-shrink:0">
+              <option value="">Estado</option>
             </select>
-            <select class="inp" id="db-f-pricelist" onchange="renderDbTable()" style="font-size:12px;padding:6px 10px;min-width:130px">
-              <option value="">Todos los price list</option>
+            <select class="inp" id="db-f-pricelist" onchange="renderDbTable()" style="font-size:12px;padding:6px 8px;min-width:120px;flex-shrink:0">
+              <option value="">Price List</option>
               <option>End user</option><option>Specifier</option><option>Contract</option>
               <option>Industry</option><option>Hospitality</option><option>Retailer</option>
               <option>Specialized Chain</option><option>Fabricante</option>
               <option>General contractor</option><option>Workplace</option>
             </select>
-            <button class="btn btn-ghost btn-sm" onclick="resetDbFilters()">x Limpiar</button>
+            <button class="btn btn-ghost btn-sm" onclick="resetDbFilters()" style="flex-shrink:0">✕ Limpiar</button>
+            <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-shrink:0">
+              <span style="font-size:12px;color:var(--text2)" id="db-count"></span>
+              <button class="btn btn-ghost btn-sm" id="db-select-btn" onclick="toggleDbSelectMode()">☑️ Seleccionar</button>
+              <button class="btn btn-ghost btn-sm" onclick="$('xlsx-db-input').click()">📊 Importar Excel</button>
+              <input type="file" id="xlsx-db-input" accept=".xlsx,.xls" style="display:none" onchange="handleDbXlsxImport(this)">
+            </div>
           </div>
           <div class="bulk-bar" id="db-bulk-bar">
             <input type="checkbox" class="sel-cb" id="db-select-all" onchange="toggleSelectAllDb(this.checked)">
@@ -6412,6 +6411,162 @@ function handleDbCsvImport(input) {
     }
   };
   reader.readAsText(file, 'UTF-8');
+}
+
+// ══════════════════════════════════════════════════════
+//  IMPORTAR EXCEL (.xlsx) A BASE DE DATOS
+// ══════════════════════════════════════════════════════
+function handleDbXlsxImport(input) {
+  const file = input.files[0];
+  if (!file) return;
+  toast('Cargando Excel...', '⏳');
+
+  // Load SheetJS dynamically if not present
+  function doImport(XLSX) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        // Try to find the main sheet (prefer 'Arquitectos' or 'Hoja1')
+        const preferred = ['Arquitectos','Hoja1','Contactos','Sheet1'];
+        let sheetName = wb.SheetNames.find(n => preferred.includes(n)) || wb.SheetNames[0];
+        const ws = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        if (!rows.length) { toast('El archivo está vacío', '⚠️'); return; }
+
+        // Column mapping — handles both Spanish and English headers
+        const map = {
+          name:       ['NOMBRE ARQUITECTO','nombre_arquitecto','nombre','name','NOMBRE'],
+          studio:     ['NOMBRE DEL ESTUDIO','nombre_del_estudio','estudio','studio','ESTUDIO'],
+          mailingName:['NOMBRE WHATS','nombre_whats','mailing','MAILING','mailingName'],
+          phone:      ['TELÉFONO 1','TELEFONO 1','telefono_1','telefono','phone','CELULAR','MÓVIL'],
+          email:      ['EMAIL 1','E-MAIL 1','email_1','email','EMAIL','correo'],
+          instagram:  ['INSTAGRAM','instagram'],
+          linkedin:   ['LINKEDIN','linkedin'],
+          city:       ['CIUDAD','ciudad','city'],
+          state:      ['ESTADO','estado','state'],
+          type:       ['FUNCIÓN','FUNCION','funcion','type','tipo','TIPO'],
+          segment:    ['SEGMENTO','segmento','segment'],
+          priceList:  ['PRICE LIST','price_list','pricelist'],
+          origin:     ['ORIGEN','origen','origin'],
+          agent:      ['VENDEDOR ASIGNADO','vendedor_asignado','vendedor','agent'],
+          status:     ['ESTATUS','estatus','status'],
+        };
+
+        function getVal(row, keys) {
+          for (const k of keys) {
+            if (row[k] !== undefined && row[k] !== '') return String(row[k]).trim();
+          }
+          return '';
+        }
+
+        function cleanPhone(val) {
+          if (!val) return '';
+          // Remove formula errors and non-numeric garbage
+          if (val.startsWith('#') || val.includes('ERROR')) return '';
+          // Keep only digits and leading +
+          const cleaned = val.replace(/[^\d+]/g, '');
+          // If it looks like a float (e.g. "5212345678.0"), fix it
+          return cleaned.replace(/\.0+$/, '');
+        }
+
+        let created = 0, skipped = 0;
+        const existingNames = new Set(D.contacts.map(c => (c.name||'').toLowerCase().trim()));
+
+        for (const row of rows) {
+          const name = getVal(row, map.name);
+          if (!name) { skipped++; continue; }
+          if (existingNames.has(name.toLowerCase())) { skipped++; continue; }
+
+          // Studio — find or create
+          const studioName = getVal(row, map.studio);
+          let studioId = null;
+          if (studioName) {
+            const existing = (D.studios||[]).find(s => s.name.toLowerCase() === studioName.toLowerCase());
+            if (existing) {
+              studioId = existing.id;
+            } else {
+              const newStudio = {
+                id: nid(), name: studioName,
+                city: getVal(row, map.city), state: getVal(row, map.state),
+                agent: ME.id, notes: '', date: today()
+              };
+              if (!D.studios) D.studios = [];
+              D.studios.push(newStudio);
+              studioId = newStudio.id;
+            }
+          }
+
+          // Agent — match by name
+          const agentName = getVal(row, map.agent);
+          let agentId = ME.id;
+          if (agentName) {
+            const u = USERS.find(u => u.name.toLowerCase().includes(agentName.toLowerCase()));
+            if (u) agentId = u.id;
+          }
+
+          // Segment — match by label or id
+          const segName = getVal(row, map.segment);
+          let segId = '';
+          if (segName) {
+            const segs = D.segments || DEFAULT_SEGMENTS;
+            const sg = segs.find(s =>
+              s.label.toLowerCase().includes(segName.toLowerCase()) ||
+              s.id.toLowerCase() === segName.toLowerCase()
+            );
+            if (sg) segId = sg.id;
+          }
+
+          const phone = cleanPhone(getVal(row, map.phone));
+
+          D.contacts.push({
+            id: nid(),
+            name,
+            mailingName: getVal(row, map.mailingName) || name,
+            type: getVal(row, map.type) || 'Arquitecto',
+            phone,
+            email: getVal(row, map.email),
+            instagram: getVal(row, map.instagram),
+            linkedin: getVal(row, map.linkedin),
+            city: getVal(row, map.city),
+            state: getVal(row, map.state),
+            origin: getVal(row, map.origin),
+            priceList: getVal(row, map.priceList),
+            segment: segId,
+            studioId,
+            agent: agentId,
+            stage: null,
+            inPipeline: false,
+            tags: [], notes: '', date: today(), notesList: []
+          });
+
+          existingNames.add(name.toLowerCase());
+          created++;
+        }
+
+        saveData();
+        initDbFilters();
+        renderDbTable();
+        toast(`✓ ${created} contacto${created!==1?'s':''} importado${created!==1?'s':''} a la base de datos${skipped?' · '+skipped+' omitidos':''}`, '📊');
+        input.value = '';
+
+      } catch(err) {
+        console.error(err);
+        toast('Error procesando el Excel: ' + err.message, '⚠️');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  if (window.XLSX) {
+    doImport(window.XLSX);
+  } else {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    script.onload = () => doImport(window.XLSX);
+    script.onerror = () => toast('No se pudo cargar la librería de Excel', '❌');
+    document.head.appendChild(script);
+  }
 }
 
 </script>
