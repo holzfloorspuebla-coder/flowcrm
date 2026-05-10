@@ -610,14 +610,14 @@ const DEFAULT_CAT_DEFS = {
     {k:'model',l:'Modelo',t:'text'},{k:'format',l:'Formato',t:'text'},
     {k:'m2perBox',l:'M2/Caja',t:'number'},{k:'largo',l:'Largo cm',t:'text'},
     {k:'ancho',l:'Ancho cm',t:'text'},{k:'espesor',l:'Espesor mm',t:'text'},
-    {k:'capa',l:'Capa uso mm',t:'text'},
   ]},
   'Madera ingeniería': { fields:[
     {k:'brand',l:'Marca',t:'text'},{k:'collection',l:'Colección',t:'text'},
     {k:'model',l:'Modelo',t:'text'},{k:'species',l:'Especie',t:'text'},
-    {k:'format',l:'Formato',t:'text'},{k:'m2perBox',l:'M2/Caja',t:'number'},
-    {k:'largo',l:'Largo cm',t:'text'},{k:'ancho',l:'Ancho cm',t:'text'},
-    {k:'espesor',l:'Espesor mm',t:'text'},{k:'capa',l:'Capa noble mm',t:'text'},
+    {k:'format',l:'Formato',t:'text'},{k:'tipo',l:'Tipo',t:'text'},
+    {k:'m2perBox',l:'M2/Caja',t:'number'},{k:'largo',l:'Largo cm',t:'text'},
+    {k:'ancho',l:'Ancho cm',t:'text'},{k:'espesor',l:'Espesor mm',t:'text'},
+    {k:'capa',l:'Capa noble mm',t:'text'},{k:'bisel',l:'Bisel',t:'text'},
   ]},
   'Instalación': { fields:[
     {k:'brand',l:'Proveedor',t:'text'},{k:'model',l:'Servicio',t:'text'},
@@ -673,13 +673,15 @@ function goView(name){
 }
 
 // ── CATALOG DATA ──
-const CATALOG_VERSION = '2'; // bump to force reload from JSON
+const CATALOG_VERSION = '3'; // bump to force reload from JSON
 
 async function loadCatalogData(){
   const savedCat=localStorage.getItem('holz_catalog');
   const savedDefs=localStorage.getItem('holz_cat_defs');
   const savedVer=localStorage.getItem('holz_catalog_ver');
-  CAT_DEFS=savedDefs?JSON.parse(savedDefs):{...DEFAULT_CAT_DEFS};
+  // Always refresh cat defs from defaults when version bumps
+  const needsDefsRefresh = !savedDefs || savedVer !== CATALOG_VERSION;
+  CAT_DEFS=needsDefsRefresh?{...DEFAULT_CAT_DEFS}:(savedDefs?JSON.parse(savedDefs):{...DEFAULT_CAT_DEFS});
 
   // Load from localStorage only if version matches AND has products with data
   const needsReload = !savedCat || savedVer !== CATALOG_VERSION ||
