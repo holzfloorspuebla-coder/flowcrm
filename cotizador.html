@@ -179,6 +179,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 #toast.success{border-color:var(--green);}
 #toast.error{border-color:var(--accent);}
 
+/* ── CAT INLINE EDIT ── */
+.cat-cell-inp{background:transparent;border:none;border-bottom:1px solid transparent;color:var(--text2);font-family:var(--font);font-size:12px;padding:2px 3px;outline:none;width:100%;min-width:50px;transition:all .15s;}
+.cat-cell-inp:hover{border-bottom-color:var(--border2);}
+.cat-cell-inp:focus{border-bottom-color:var(--accent);color:var(--text);background:rgba(255,255,255,.03);}
+select.cat-cell-inp{cursor:pointer;appearance:none;-webkit-appearance:none;}
+
 /* ── MISC ── */
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;gap:12px;color:var(--text3);}
 .empty-icon{font-size:42px;opacity:.25;}
@@ -263,9 +269,29 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <div class="modal-hd"><h2 id="prod-title">Producto</h2><button class="modal-close" onclick="closeModal('modal-prod')">✕</button></div>
     <div class="modal-body">
       <div class="pd-grid" id="prod-fields"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <div class="fg"><label class="lbl">PVP lista (MXN/caja)</label><input class="inp" id="prod-pvp" type="number"></div>
-        <div class="fg" id="prod-cost-wrap"><label class="lbl">Costo (MXN/caja) — solo Luis</label><input class="inp" id="prod-cost" type="number"></div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:0">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:10px">Precio de lista del proveedor</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
+          <div class="fg"><label class="lbl">Precio lista</label><input class="inp" id="prod-pvp" type="number" placeholder="0.00" oninput="updateProdCalc()"></div>
+          <div class="fg"><label class="lbl">Moneda</label>
+            <select class="inp" id="prod-currency" onchange="updateProdCalc()">
+              <option value="MXN">MXN</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
+          <div class="fg"><label class="lbl">Unidad del precio</label>
+            <select class="inp" id="prod-unitprice" onchange="updateProdCalc()">
+              <option value="m2">por m²</option>
+              <option value="caja">por caja</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div class="fg"><label class="lbl">PVP/m² MXN (calculado)</label>
+            <input class="inp" id="prod-pvp-calc" readonly style="opacity:.7;font-family:var(--mono);font-size:12px" placeholder="—">
+          </div>
+          <div class="fg" id="prod-cost-wrap"><label class="lbl">Costo lista (mismo formato) — solo Luis</label><input class="inp" id="prod-cost" type="number"></div>
+        </div>
       </div>
     </div>
     <div class="modal-ft">
@@ -375,6 +401,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <div class="cat-main">
         <div class="cat-toolbar">
           <input class="inp" id="cat-search" placeholder="🔍 Buscar producto..." oninput="renderCatTable()" style="font-size:12px;flex:1;max-width:300px">
+          <span id="tc-display" style="font-size:11px;color:var(--text3);font-family:var(--mono);white-space:nowrap">TC: cargando...</span>
           <div style="margin-left:auto;display:flex;gap:6px" id="cat-admin-tools"></div>
         </div>
         <div class="cat-table-wrap">
@@ -603,6 +630,49 @@ let ADD_PROD = null;
 let EDIT_PROD = null;
 let EDIT_CAT_KEY = '';
 let CRM_CONTACTS = [];
+let TC = 17.5; // Tipo de cambio USD→MXN (actualizado al abrir)
+let TC_DATE = '';
+
+// ── TIPO DE CAMBIO ──
+async function fetchTC(){
+  try{
+    // Banxico API - serie SF43718 (FIX USD/MXN)
+    const today = new Date().toISOString().split('T')[0];
+    const url = `https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/oportuno?token=efa8d83bbc9df57e16fe9af0e81b22cf1f5cda6da8b43a4f9a21a32a62dc965a`;
+    const r = await fetch(url, {headers:{'Bmx-Token':'efa8d83bbc9df57e16fe9af0e81b22cf1f5cda6da8b43a4f9a21a32a62dc965a'}});
+    const j = await r.json();
+    const datos = j?.bmx?.series?.[0]?.datos;
+    if(datos?.length){
+      const last = datos[datos.length-1];
+      TC = parseFloat(last.dato)||TC;
+      TC_DATE = last.fecha||'';
+    }
+  } catch(e){
+    // Fallback: exchangerate-api
+    try{
+      const r2 = await fetch('https://open.er-api.com/v6/latest/USD');
+      const j2 = await r2.json();
+      if(j2?.rates?.MXN){ TC = j2.rates.MXN; TC_DATE = j2.time_last_update_utc?.split(' ').slice(0,4).join(' ')||''; }
+    } catch(e2){ /* keep default */ }
+  }
+  // Update TC display
+  const el = document.getElementById('tc-display');
+  if(el) el.textContent = `TC: $${TC.toFixed(2)} MXN/USD ${TC_DATE?'('+TC_DATE+')':''}`;
+}
+
+// Convert any price to MXN/m2
+function toMXNperM2(price, currency, unitPrice, m2perBox){
+  if(!price) return 0;
+  let mxn_m2 = price;
+  // Convert currency
+  if(currency === 'USD') mxn_m2 = mxn_m2 * TC;
+  // Convert unit
+  if(unitPrice === 'caja'){
+    if(m2perBox && m2perBox > 0) mxn_m2 = mxn_m2 / m2perBox;
+    else return 0; // can't convert without m2/caja
+  }
+  return mxn_m2;
+}
 
 const DEFAULT_CAT_DEFS = {
   'SPC': { fields:[
@@ -657,6 +727,7 @@ function unlock(){
   loadCatalogData();
   loadQuotes();
   loadCRMContacts();
+  fetchTC();
 }
 document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
@@ -722,26 +793,79 @@ function renderCatTable(){
   if(q) items=items.filter(p=>fields.some(f=>String(p[f.k]||'').toLowerCase().includes(q))||String(p.model||'').toLowerCase().includes(q));
 
   // Header
-  document.getElementById('cat-thead').innerHTML=`<tr>
+  document.getElementById('cat-thead').innerHTML=IS_ADMIN?`<tr>
     ${fields.map(f=>`<th>${esc(f.l)}</th>`).join('')}
-    <th>PVP/caja</th>
-    ${IS_ADMIN?'<th>Costo/caja</th>':''}
+    <th>Precio lista</th><th>Moneda</th><th>Unidad</th>
+    <th>PVP/m² MXN</th>
+    <th>Costo lista</th>
     <th></th>
+  </tr>`:`<tr>
+    ${fields.map(f=>`<th>${esc(f.l)}</th>`).join('')}
+    <th>PVP/m² MXN</th><th>Precio lista</th>
   </tr>`;
 
   document.getElementById('cat-empty').classList.toggle('hidden',items.length>0);
 
   if(!items.length){ document.getElementById('cat-tbody').innerHTML=''; return; }
 
-  document.getElementById('cat-tbody').innerHTML=items.map(p=>`
-    <tr>
-      ${fields.map(f=>`<td title="${esc(String(p[f.k]||''))}">${esc(String(p[f.k]||'—'))}</td>`).join('')}
-      <td class="pvp-cell">${p.pvpCajaMXN||p.pvpM2MXN?mxn(p.pvpCajaMXN||p.pvpM2MXN):'—'}</td>
-      ${IS_ADMIN?`<td class="cost-cell">${p.costoMXN?mxn(p.costoMXN):'—'}</td>`:''}
-      <td style="white-space:nowrap">
-        ${IS_ADMIN?`<button class="btn-icon" onclick="openEditProd('${p.id}')" title="Editar">✏️</button><button class="btn-icon" onclick="deleteProd('${p.id}')" style="color:var(--accent)" title="Eliminar">✕</button>`:''}
-      </td>
-    </tr>`).join('');
+  if(IS_ADMIN){
+    // Excel-style inline editing
+    document.getElementById('cat-tbody').innerHTML=items.map(p=>`
+      <tr data-id="${p.id}">
+        ${fields.map(f=>{
+          const v=String(p[f.k]||'');
+          if(f.t==='number') return `<td><input class="cat-cell-inp" type="number" value="${esc(v)}" style="width:70px" onchange="updateCatCell('${p.id}','${f.k}',this.value,'number')"></td>`;
+          return `<td><input class="cat-cell-inp" type="text" value="${esc(v)}" onchange="updateCatCell('${p.id}','${f.k}',this.value,'text')"></td>`;
+        }).join('')}
+        <td><input class="cat-cell-inp" type="number" value="${p.pvpLista||''}" style="width:80px" onchange="updateCatPrice('${p.id}','pvpLista',this.value)"></td>
+        <td>
+          <select class="cat-cell-inp" style="width:65px" onchange="updateCatPrice('${p.id}','currency',this.value)">
+            <option value="MXN" ${(p.currency||'MXN')==='MXN'?'selected':''}>MXN</option>
+            <option value="USD" ${p.currency==='USD'?'selected':''}>USD</option>
+          </select>
+        </td>
+        <td>
+          <select class="cat-cell-inp" style="width:70px" onchange="updateCatPrice('${p.id}','unitPrice',this.value)">
+            <option value="m2" ${(p.unitPrice||'m2')==='m2'?'selected':''}>m²</option>
+            <option value="caja" ${p.unitPrice==='caja'?'selected':''}>caja</option>
+          </select>
+        </td>
+        <td class="pvp-cell" id="pvpcalc-${p.id}">${p.pvpM2MXN?mxn(p.pvpM2MXN)+'/m²':'—'}</td>
+        ${IS_ADMIN?`<td><input class="cat-cell-inp" type="number" value="${p.costoLista||''}" style="width:80px" onchange="updateCatPrice('${p.id}','costoLista',this.value)"></td>`:''}
+        <td style="white-space:nowrap">
+          <button class="btn-icon" onclick="deleteProd('${p.id}')" style="color:var(--accent)" title="Eliminar">✕</button>
+        </td>
+      </tr>`).join('');
+  } else {
+    document.getElementById('cat-tbody').innerHTML=items.map(p=>`
+      <tr>
+        ${fields.map(f=>`<td>${esc(String(p[f.k]||'—'))}</td>`).join('')}
+        <td class="pvp-cell">${p.pvpM2MXN?mxn(p.pvpM2MXN)+'/m²':'—'}</td>
+        <td style="font-size:10px;color:var(--text3)">${p.pvpLista?mxn(p.pvpLista)+' '+(p.currency||'MXN')+'/'+(p.unitPrice||'m2'):'—'}</td>
+      </tr>`).join('');
+  }
+}
+
+function updateCatCell(id, field, value, type){
+  const p=CATALOG.find(x=>x.id===id);
+  if(!p) return;
+  p[field]=type==='number'?(parseFloat(value)||0):value;
+  p.description=buildDesc(p);
+  saveCatalog();
+}
+
+function updateCatPrice(id, field, value){
+  const p=CATALOG.find(x=>x.id===id);
+  if(!p) return;
+  if(field==='pvpLista'||field==='costoLista') p[field]=parseFloat(value)||null;
+  else p[field]=value;
+  // Recalculate MXN/m2
+  p.pvpM2MXN=toMXNperM2(p.pvpLista,p.currency||'MXN',p.unitPrice||'m2',p.m2perBox)||null;
+  p.costoM2MXN=toMXNperM2(p.costoLista,p.currency||'MXN',p.unitPrice||'m2',p.m2perBox)||null;
+  saveCatalog();
+  // Update the calculated cell in-place
+  const calcEl=document.getElementById('pvpcalc-'+id);
+  if(calcEl) calcEl.textContent=p.pvpM2MXN?mxn(p.pvpM2MXN)+'/m²':'—';
 }
 
 // ── PRODUCT CRUD ──
@@ -750,6 +874,9 @@ function openAddProd(){
   document.getElementById('prod-title').textContent='+ Producto en '+ACTIVE_CAT;
   renderProdFields({});
   document.getElementById('prod-pvp').value='';
+  document.getElementById('prod-currency').value='MXN';
+  document.getElementById('prod-unitprice').value='m2';
+  document.getElementById('prod-pvp-calc').value='';
   document.getElementById('prod-cost').value='';
   if(!IS_ADMIN) document.getElementById('prod-cost-wrap').style.display='none';
   document.getElementById('modal-prod').classList.remove('hidden');
@@ -759,8 +886,11 @@ function openEditProd(id){
   if(!EDIT_PROD) return;
   document.getElementById('prod-title').textContent='Editar: '+EDIT_PROD.model;
   renderProdFields(EDIT_PROD);
-  document.getElementById('prod-pvp').value=EDIT_PROD.pvpCajaMXN||EDIT_PROD.pvpM2MXN||'';
-  document.getElementById('prod-cost').value=EDIT_PROD.costoMXN||'';
+  document.getElementById('prod-pvp').value=EDIT_PROD.pvpLista||'';
+  document.getElementById('prod-currency').value=EDIT_PROD.currency||'MXN';
+  document.getElementById('prod-unitprice').value=EDIT_PROD.unitPrice||'m2';
+  document.getElementById('prod-cost').value=EDIT_PROD.costoLista||'';
+  updateProdCalc();
   if(!IS_ADMIN) document.getElementById('prod-cost-wrap').style.display='none';
   document.getElementById('modal-prod').classList.remove('hidden');
 }
@@ -772,6 +902,18 @@ function renderProdFields(p){
       <input class="inp" id="pf-${f.k}" type="${f.t||'text'}" value="${esc(String(p[f.k]||''))}" style="font-size:12px">
     </div>`).join('');
 }
+function updateProdCalc(){
+  const price=parseFloat(document.getElementById('prod-pvp').value)||0;
+  const currency=document.getElementById('prod-currency').value||'MXN';
+  const unitPrice=document.getElementById('prod-unitprice').value||'m2';
+  // Get m2perBox from the field if it exists
+  const m2El=document.getElementById('pf-m2perBox');
+  const m2perBox=m2El?parseFloat(m2El.value)||0:0;
+  const calc=toMXNperM2(price,currency,unitPrice,m2perBox);
+  const el=document.getElementById('prod-pvp-calc');
+  if(el) el.value=calc?('$'+calc.toFixed(2)+' MXN/m²'):'—';
+}
+
 function saveProd(){
   const fields=(CAT_DEFS[ACTIVE_CAT]||{fields:[]}).fields;
   const obj=EDIT_PROD?{...EDIT_PROD}:{id:uid(),category:ACTIVE_CAT};
@@ -779,8 +921,12 @@ function saveProd(){
     const el=document.getElementById('pf-'+f.k);
     if(el) obj[f.k]=f.t==='number'?(parseFloat(el.value)||0):el.value.trim();
   });
-  obj.pvpCajaMXN=parseFloat(document.getElementById('prod-pvp').value)||null;
-  obj.costoMXN=parseFloat(document.getElementById('prod-cost').value)||null;
+  obj.pvpLista=parseFloat(document.getElementById('prod-pvp').value)||null;
+  obj.currency=document.getElementById('prod-currency').value||'MXN';
+  obj.unitPrice=document.getElementById('prod-unitprice').value||'m2';
+  obj.costoLista=parseFloat(document.getElementById('prod-cost').value)||null;
+  obj.pvpM2MXN=toMXNperM2(obj.pvpLista,obj.currency,obj.unitPrice,obj.m2perBox)||null;
+  obj.costoM2MXN=toMXNperM2(obj.costoLista,obj.currency,obj.unitPrice,obj.m2perBox)||null;
   obj.m2perBox=obj.m2perBox||null;
   obj.unit=obj.unit||'m2';
   obj.description=buildDesc(obj);
@@ -971,7 +1117,7 @@ function renderQC(){
   document.getElementById('qc-tbody').innerHTML=items.map(p=>`
     <tr style="cursor:pointer" onclick="pickProduct('${p.id}')">
       ${fields.map(f=>`<td style="color:var(--text2);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(String(p[f.k]||'—'))}</td>`).join('')}
-      <td class="pvp-cell">${p.pvpCajaMXN||p.pvpM2MXN?mxn(p.pvpCajaMXN||p.pvpM2MXN):'—'}</td>
+      <td class="pvp-cell">${p.pvpM2MXN?mxn(p.pvpM2MXN)+'/m²':'—'}</td>
       <td><button class="btn btn-primary" style="font-size:11px;padding:4px 10px" onclick="pickProduct('${p.id}')">Seleccionar</button></td>
     </tr>`).join('');
 }
@@ -985,8 +1131,8 @@ function pickProduct(id){
   document.getElementById('add-vol').value='';
   document.getElementById('add-boxes').value='';
   document.getElementById('add-m2r').value='';
-  document.getElementById('add-pvp').value=ADD_PROD.pvpCajaMXN||ADD_PROD.pvpM2MXN||'';
-  document.getElementById('add-cost').value=ADD_PROD.costoMXN||'';
+  document.getElementById('add-pvp').value=ADD_PROD.pvpM2MXN?ADD_PROD.pvpM2MXN.toFixed(2):'';
+  document.getElementById('add-cost').value=ADD_PROD.costoM2MXN?ADD_PROD.costoM2MXN.toFixed(2):'';
   document.getElementById('add-table').value=ADD_TABLE;
   document.getElementById('add-rent').innerHTML='';
   document.getElementById('modal-add').classList.remove('hidden');
