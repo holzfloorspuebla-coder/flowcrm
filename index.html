@@ -3983,6 +3983,29 @@ function renderSettings(){
       <div id="users-list" style="margin-bottom:14px">${renderUsersList()}</div>
       <button class="btn btn-primary" onclick="openNewUser()">＋ Añadir usuario</button>
     </div>`;
+
+    // ── REASSIGN RECORDS (admin only) ──
+    const sellers=USERS.filter(u=>u.id!==ME.id);
+    const sellerOpts=sellers.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
+    html+=`<div class="scard" style="grid-column:span 2">
+      <h3>🔄 Reasignar registros</h3>
+      <p>Mueve todos los contactos, estudios y proyectos de un vendedor a otro. Útil cuando alguien deja el equipo.</p>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px">
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px">
+          <label style="font-size:11px;color:var(--text2);font-weight:600">ORIGEN (de quién)</label>
+          <select class="inp" id="reassign-from" style="padding:8px 10px">${sellerOpts}</select>
+        </div>
+        <div style="font-size:20px;color:var(--text3);padding-top:16px">→</div>
+        <div style="display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px">
+          <label style="font-size:11px;color:var(--text2);font-weight:600">DESTINO (a quién)</label>
+          <select class="inp" id="reassign-to" style="padding:8px 10px">${sellerOpts}</select>
+        </div>
+        <div style="padding-top:16px">
+          <button class="btn btn-primary" onclick="doReassign()">Reasignar todo</button>
+        </div>
+      </div>
+      <div id="reassign-result" style="margin-top:10px;font-size:13px;color:var(--text2)"></div>
+    </div>`;
   }
 
   // ── TAGS ──
@@ -4327,6 +4350,25 @@ async function testSyncUrl(){
     el.style.color='var(--red)';
     el.textContent='✕ Sin conexión o URL incorrecta: '+e.message;
   }
+}
+
+function doReassign(){
+  const fromId=parseInt($('reassign-from').value);
+  const toId=parseInt($('reassign-to').value);
+  const res=$('reassign-result');
+  if(fromId===toId){res.textContent='⚠️ Origen y destino son el mismo.';return;}
+  const fromUser=USERS.find(u=>u.id===fromId);
+  const toUser=USERS.find(u=>u.id===toId);
+  if(!fromUser||!toUser){res.textContent='⚠️ Usuario no encontrado.';return;}
+  if(!confirm(`¿Reasignar TODOS los registros de ${fromUser.name} a ${toUser.name}?\n\nEsto incluye contactos, estudios y proyectos.`))return;
+  let c=0,s=0,p=0,a=0;
+  (D.contacts||[]).forEach(x=>{if(x.agent===fromId){x.agent=toId;c++;}});
+  (D.studios||[]).forEach(x=>{if(x.agent===fromId){x.agent=toId;s++;}});
+  (D.projects||[]).forEach(x=>{if(x.agent===fromId){x.agent=toId;p++;}});
+  (D.activities||[]).forEach(x=>{if(x.agent===fromId){x.agent=toId;a++;}});
+  saveData();
+  res.innerHTML=`✅ Listo. Se reasignaron: <strong>${c} contactos</strong>, <strong>${s} estudios</strong>, <strong>${p} proyectos</strong> y <strong>${a} actividades</strong> de ${fromUser.name} → ${toUser.name}.`;
+  toast(`Reasignación completa: ${c}C / ${s}E / ${p}P / ${a}A ✓`);
 }
 
 function addType(){const inp=$('new-type');const v=inp.value.trim();if(v&&!D.contactTypes.includes(v)){D.contactTypes.push(v);saveData();inp.value='';renderSettings();}}
