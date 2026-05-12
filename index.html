@@ -439,6 +439,7 @@ select.inp{cursor:pointer;}
             <input type="checkbox" class="sel-cb" id="contacts-select-all" onchange="toggleSelectAllContacts(this.checked)" title="Seleccionar todos">
             <span class="bulk-bar-count" id="contacts-sel-count">0 seleccionados</span>
             <button class="btn btn-red btn-sm" onclick="deleteSelectedContacts()">🗑️ Eliminar seleccionados</button>
+            <button class="btn btn-primary btn-sm" onclick="openMergeContactsModal()" id="btn-merge-contacts" style="display:none">🔀 Fusionar seleccionados</button>
             <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="toggleContactsSelectMode(false)">✕ Cancelar</button>
           </div>
           <div style="padding:8px 0 4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -634,7 +635,25 @@ select.inp{cursor:pointer;}
       </div>
     </div>
 
-    <!-- DUPLICATE FINDER MODAL -->
+    <!-- MERGE CONTACTS MODAL -->
+    <div class="overlay hidden" id="modal-merge-contacts">
+      <div class="modal" style="max-width:920px;width:95vw;max-height:90vh;display:flex;flex-direction:column">
+        <div class="modal-hd" style="flex-shrink:0">
+          <h2>🔀 Fusionar contactos</h2>
+          <button class="modal-close" onclick="closeM('modal-merge-contacts')">✕</button>
+        </div>
+        <div style="padding:8px 20px 4px;font-size:13px;color:var(--text2);flex-shrink:0">
+          Haz clic en el valor que quieres conservar, o edítalo directamente. El resultado se guarda como un único contacto.
+        </div>
+        <div id="merge-contacts-body" style="flex:1;overflow-y:auto;padding:16px 20px"></div>
+        <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0">
+          <button class="btn btn-ghost" onclick="closeM('modal-merge-contacts')">Cancelar</button>
+          <button class="btn btn-primary" onclick="confirmMergeContacts()">✅ Confirmar fusión</button>
+        </div>
+      </div>
+    </div>
+
+<!-- DUPLICATE FINDER MODAL -->
     <div class="overlay hidden" id="modal-duplicates">
       <div class="modal wide" style="max-height:85vh;overflow-y:auto">
         <div class="modal-hd"><h2>🔍 Buscador de duplicados</h2><button class="modal-close" onclick="closeM('modal-duplicates')">✕</button></div>
@@ -2907,6 +2926,253 @@ function renderCTable(){
   }).join('');
   updateContactSelCount();
 }
+
+
+// ══════════════════════════════════════════════════════
+//  MERGE CONTACTS MODAL
+// ══════════════════════════════════════════════════════
+const MERGE_FIELDS=[
+  {key:'name',label:'Nombre'},
+  {key:'mailingName',label:'Nombre de correspondencia'},
+  {key:'type',label:'Tipo'},
+  {key:'phone',label:'Teléfono'},
+  {key:'whatsapp',label:'WhatsApp'},
+  {key:'email',label:'Email'},
+  {key:'email2',label:'Email 2'},
+  {key:'city',label:'Ciudad'},
+  {key:'state',label:'Estado'},
+  {key:'studioId',label:'Estudio'},
+  {key:'notes',label:'Notas'},
+  {key:'tags',label:'Etiquetas'},
+  {key:'stage',label:'Etapa pipeline'},
+  {key:'agent',label:'Vendedor'},
+];
+
+let _mergeContacts=[];   // contacts being merged
+let _mergeResult={};     // current chosen values
+
+function openMergeContactsModal(){
+  const sel=[...(S.selectedContacts||new Set())];
+  if(sel.length<2){toast('Selecciona al menos 2 contactos','⚠️');return;}
+  if(sel.length>5){toast('Máximo 5 contactos a la vez','⚠️');return;}
+  _mergeContacts=sel.map(id=>D.contacts.find(c=>c.id===id)).filter(Boolean);
+  if(_mergeContacts.length<2){toast('Contactos no encontrados','⚠️');return;}
+
+  // Initialize result: pick most complete value for each field
+  _mergeResult={};
+  MERGE_FIELDS.forEach(({key})=>{
+    // Find first non-empty value, preferring longer/richer ones
+    let best=null;
+    _mergeContacts.forEach(c=>{
+      const v=c[key];
+      if(v===undefined||v===null||v==='') return;
+      if(Array.isArray(v)&&v.length===0) return;
+      if(best===null) best=v;
+      else if(Array.isArray(v)&&v.length>(best?.length||0)) best=v;
+      else if(typeof v==='string'&&v.length>(best?.length||0)) best=v;
+    });
+    _mergeResult[key]=best??'';
+  });
+  // Merge tags from all contacts
+  const allTags=new Set();
+  _mergeContacts.forEach(c=>(c.tags||[]).forEach(t=>allTags.add(t)));
+  _mergeResult.tags=[...allTags];
+  // Merge notesList
+  _mergeResult._notesList=[];
+  _mergeContacts.forEach(c=>(c.notesList||[]).forEach(n=>{
+    if(!_mergeResult._notesList.some(m=>m.text===n.text)) _mergeResult._notesList.push(n);
+  }));
+
+  renderMergeModal();
+  openM('modal-merge-contacts');
+}
+
+function renderMergeModal(){
+  const contacts=_mergeContacts;
+  const nCols=contacts.length;
+
+  // Column headers
+  let html=`<div style="display:grid;grid-template-columns:140px ${Array(nCols).fill('1fr').join(' ')};gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;font-size:13px">`;
+
+  // Header row
+  html+=`<div style="background:var(--surface2);padding:10px 12px;font-weight:700;color:var(--text2);border-bottom:1px solid var(--border)">Campo</div>`;
+  contacts.forEach((c,i)=>{
+    const ag=USERS.find(u=>u.id===c.agent);
+    html+=`<div style="background:var(--surface2);padding:10px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border)">
+      <div style="font-weight:700">${c.name}</div>
+      <div style="font-size:11px;color:var(--text3)">${ag?.name||'—'} · ${c.stage?'En pipeline':'Base de datos'}</div>
+    </div>`;
+  });
+
+  // Result row header
+  html+=`<div style="background:rgba(79,124,255,.08);padding:10px 12px;font-weight:700;color:var(--accent);border-bottom:1px solid var(--border);border-top:2px solid var(--accent)">✅ Resultado</div>`;
+  html+=`<div style="background:rgba(79,124,255,.08);padding:10px 12px;grid-column:2/${nCols+2};border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent)">
+    <span style="font-size:12px;color:var(--text2)">Haz clic en cualquier celda para seleccionar ese valor, o edita el resultado directamente</span>
+  </div>`;
+
+  // Field rows
+  MERGE_FIELDS.forEach(({key,label})=>{
+    const allEmpty=contacts.every(c=>{const v=c[key];return !v||(Array.isArray(v)&&!v.length);});
+    if(allEmpty&&key!=='name') return; // skip empty rows (except name)
+
+    const rowStyle=`display:contents`;
+    html+=`<div style="${rowStyle}">`;
+
+    // Field label cell
+    html+=`<div style="padding:9px 12px;font-size:12px;font-weight:600;color:var(--text2);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">${label}</div>`;
+
+    // Source cells
+    contacts.forEach((c,ci)=>{
+      let raw=c[key];
+      let display='—';
+      if(key==='studioId'){
+        const s=(D.studios||[]).find(s=>s.id===raw);
+        display=s?s.name:'—'; raw=s?raw:null;
+      } else if(key==='stage'){
+        const st=C_STAGES.find(s=>s.id===raw);
+        display=raw?(st?.name||raw):'—';
+      } else if(key==='agent'){
+        const u=USERS.find(u=>u.id===raw);
+        display=u?u.name:'—';
+      } else if(key==='tags'){
+        display=(raw||[]).length?raw.join(', '):'—';
+      } else {
+        display=raw||'—';
+      }
+      const isEmpty=display==='—';
+      html+=`<div onclick="mergePickVal('${key}',${ci})"
+        style="padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);cursor:${isEmpty?'default':'pointer'};background:var(--surface);transition:background .15s;${isEmpty?'color:var(--text3)':''}"
+        onmouseover="if(!${isEmpty})this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">
+        ${display}
+      </div>`;
+    });
+
+    // Result editable cell
+    let curVal=_mergeResult[key];
+    let inputHtml='';
+    if(key==='studioId'){
+      const s=(D.studios||[]).find(s=>s.id===curVal);
+      inputHtml=`<input id="mr-${key}" class="inp" value="${s?s.name:''}" placeholder="Estudio..." oninput="mergeStudioSearch(this.value)" style="width:100%;font-size:12px;padding:4px 8px">
+        <div id="mr-studio-dd" style="display:none;position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:140px;overflow-y:auto;width:220px"></div>`;
+    } else if(key==='stage'){
+      const stOpts=C_STAGES.map(s=>`<option value="${s.id}" ${s.id===curVal?'selected':''}>${s.name}</option>`).join('');
+      inputHtml=`<select id="mr-${key}" class="inp" style="width:100%;font-size:12px;padding:4px 8px"><option value="">Sin etapa</option>${stOpts}</select>`;
+    } else if(key==='agent'){
+      const agOpts=USERS.map(u=>`<option value="${u.id}" ${u.id===curVal?'selected':''}>${u.name}</option>`).join('');
+      inputHtml=`<select id="mr-${key}" class="inp" style="width:100%;font-size:12px;padding:4px 8px">${agOpts}</select>`;
+    } else if(key==='tags'){
+      inputHtml=`<input id="mr-${key}" class="inp" value="${(curVal||[]).join(', ')}" placeholder="tag1, tag2..." style="width:100%;font-size:12px;padding:4px 8px">`;
+    } else if(key==='notes'){
+      inputHtml=`<textarea id="mr-${key}" class="inp" style="width:100%;font-size:12px;padding:4px 8px;min-height:56px;resize:vertical">${curVal||''}</textarea>`;
+    } else {
+      inputHtml=`<input id="mr-${key}" class="inp" value="${curVal||''}" style="width:100%;font-size:12px;padding:4px 8px">`;
+    }
+    html+=`<div style="padding:6px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(79,124,255,.05);position:relative;grid-column:2/${nCols+2}">
+      ${inputHtml}
+    </div>`;
+
+    html+='</div>'; // end display:contents
+  });
+
+  html+='</div>';
+
+  // Notes merge summary
+  if(_mergeResult._notesList&&_mergeResult._notesList.length){
+    html+=`<div style="margin-top:12px;background:var(--surface2);border-radius:10px;padding:12px">
+      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">📝 Notas fusionadas (${_mergeResult._notesList.length})</div>
+      ${_mergeResult._notesList.map(n=>`<div style="font-size:12px;color:var(--text2);padding:3px 0;border-bottom:1px solid var(--border)">${n.date||''} — ${n.text}</div>`).join('')}
+    </div>`;
+  }
+
+  $('merge-contacts-body').innerHTML=html;
+}
+
+function mergePickVal(key, contactIdx){
+  const c=_mergeContacts[contactIdx];
+  const v=c[key];
+  if(v===undefined||v===null||v==='') return;
+  if(Array.isArray(v)&&!v.length) return;
+
+  const inp=$('mr-'+key);
+  if(!inp) return;
+
+  if(key==='studioId'){
+    const s=(D.studios||[]).find(s=>s.id===v);
+    inp.value=s?s.name:'';
+    inp.dataset.studioId=v||'';
+  } else if(key==='tags'){
+    inp.value=(v||[]).join(', ');
+  } else if(key==='stage'||key==='agent'){
+    inp.value=v||'';
+  } else {
+    inp.value=v||'';
+  }
+  // Flash highlight
+  inp.style.background='rgba(79,124,255,.2)';
+  setTimeout(()=>inp.style.background='',600);
+}
+
+function mergeStudioSearch(q){
+  const dd=$('mr-studio-dd');
+  if(!q){dd.style.display='none';return;}
+  const results=(D.studios||[]).filter(s=>norm(s.name).includes(norm(q))).slice(0,8);
+  if(!results.length){dd.style.display='none';return;}
+  dd.innerHTML=results.map(s=>`<div style="padding:8px 12px;cursor:pointer;font-size:13px" onmousedown="selectMergeStudio(${s.id},'${s.name.replace(/'/g,'\'')}')">${s.name}</div>`).join('');
+  dd.style.display='block';
+}
+function selectMergeStudio(id,name){
+  const inp=$('mr-studioId');
+  if(inp){inp.value=name;inp.dataset.studioId=id;}
+  const dd=$('mr-studio-dd');
+  if(dd)dd.style.display='none';
+}
+
+function confirmMergeContacts(){
+  // Collect result values from inputs
+  const result={};
+  MERGE_FIELDS.forEach(({key})=>{
+    const inp=$('mr-'+key);
+    if(!inp) return;
+    if(key==='studioId'){
+      result[key]=parseInt(inp.dataset.studioId)||null;
+    } else if(key==='tags'){
+      result[key]=inp.value.split(',').map(t=>t.trim()).filter(Boolean);
+    } else if(key==='stage'){
+      result[key]=inp.value||null;
+    } else if(key==='agent'){
+      result[key]=parseInt(inp.value)||ME.id;
+    } else {
+      result[key]=inp.value.trim()||null;
+    }
+  });
+
+  if(!result.name){toast('El nombre no puede estar vacío','⚠️');return;}
+
+  // Keep master contact (first selected), update its fields
+  const master=_mergeContacts[0];
+  const dupeIds=new Set(_mergeContacts.slice(1).map(c=>c.id));
+
+  Object.assign(master, result);
+  master.inPipeline=result.stage?true:master.inPipeline;
+  master.notesList=_mergeResult._notesList||[];
+  master.stageDate=master.stageDate||today();
+
+  // Remove dupes
+  D.contacts=D.contacts.filter(c=>!dupeIds.has(c.id));
+
+  // Redirect projects and activities
+  (D.projects||[]).forEach(p=>{
+    if(p.contactIds) p.contactIds=[...new Set(p.contactIds.map(id=>dupeIds.has(id)?master.id:id))];
+  });
+  (D.activities||[]).forEach(a=>{if(dupeIds.has(a.contactId)) a.contactId=master.id;});
+
+  saveData();
+  closeM('modal-merge-contacts');
+  toggleContactsSelectMode(false);
+  renderCTable();
+  toast(`Fusión completa: ${_mergeContacts.length} contactos → "${master.name}" ✓`);
+}
+
 
 function addContactToPipeline(id){
   const c=D.contacts.find(x=>x.id===id);
@@ -6149,6 +6415,9 @@ function updateContactSelCount(){
   const n=(S.selectedContacts||new Set()).size;
   const el=$('contacts-sel-count');
   if(el)el.textContent=`${n} contacto${n!==1?'s':''} seleccionado${n!==1?'s':''}`;
+  // Show/hide merge button
+  const mergeBtn=$('btn-merge-contacts');
+  if(mergeBtn) mergeBtn.style.display=(n>=2&&n<=5)?'':'none';
   // Keep both select-all checkboxes in sync
   const items=visibleContacts();
   const allSelected=items.length>0&&items.every(c=>(S.selectedContacts||new Set()).has(c.id));
