@@ -423,21 +423,15 @@ select.inp{cursor:pointer;}
           <div class="kanban" id="c-kanban"></div>
         </div>
         <div class="tab-panel" id="ctab-table">
-          <div class="toolbar" style="flex-wrap:wrap;gap:6px">
+          <div class="toolbar">
             <span style="font-size:13px;color:var(--text2)" id="c-table-count"></span>
-            <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-              <div class="chip active" id="c-filter-all2" onclick="filterC(this,'all')">Todos</div>
-              <div id="c-agent-chips2"></div>
-            </div>
-          </div>
-          <div class="toolbar" style="border-top:none;padding-top:6px;padding-bottom:8px;gap:8px;flex-wrap:wrap">
-            <input class="inp" id="c-table-filter" placeholder="🔍 Filtrar tabla (nombre, estudio, email, ciudad...)" oninput="renderCTable()" style="flex:1;min-width:180px;max-width:360px;font-size:13px;padding:6px 10px">
-            <button class="btn btn-ghost btn-sm" onclick="clearTableFilter()" id="c-filter-clear" style="display:none">✕ Limpiar</button>
-            <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;align-items:center">
+            <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <button class="btn btn-ghost btn-sm" id="contacts-select-btn" onclick="toggleContactsSelectMode()">☑️ Seleccionar</button>
               <button class="btn btn-ghost btn-sm" id="btn-duplicados" onclick="openDuplicateFinder()" style="display:none;color:var(--orange)">🔍 Duplicados</button>
               <button class="btn btn-ghost btn-sm" onclick="$('csv-contact-input').click()">📥 Importar CSV</button>
               <input type="file" id="csv-contact-input" accept=".csv" style="display:none" onchange="handleContactCsvImport(this)">
+              <div class="chip active" id="c-filter-all2" onclick="filterC(this,'all')">Todos</div>
+              <div id="c-agent-chips2"></div>
             </div>
           </div>
           <!-- Bulk action bar (contacts) -->
@@ -445,10 +439,12 @@ select.inp{cursor:pointer;}
             <input type="checkbox" class="sel-cb" id="contacts-select-all" onchange="toggleSelectAllContacts(this.checked)" title="Seleccionar todos">
             <span class="bulk-bar-count" id="contacts-sel-count">0 seleccionados</span>
             <button class="btn btn-red btn-sm" onclick="deleteSelectedContacts()">🗑️ Eliminar seleccionados</button>
-            <button class="btn btn-primary btn-sm" onclick="openMergeContactsModal()" id="btn-merge-contacts" style="display:none">🔀 Fusionar seleccionados</button>
             <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="toggleContactsSelectMode(false)">✕ Cancelar</button>
           </div>
-
+          <div style="padding:8px 0 4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input class="inp" id="c-table-filter" placeholder="🔍 Filtrar tabla (nombre, estudio, email, ciudad...)" oninput="renderCTable()" style="flex:1;min-width:180px;max-width:400px;font-size:13px;padding:6px 10px">
+            <button class="btn btn-ghost btn-sm" onclick="clearTableFilter()" id="c-filter-clear" style="display:none">✕ Limpiar</button>
+          </div>
           <div class="table-wrap">
             <table><thead><tr>
               <th id="c-th-check" style="display:none"><input type="checkbox" class="sel-cb" id="contacts-select-all2" onchange="toggleSelectAllContacts(this.checked)"></th>
@@ -638,25 +634,7 @@ select.inp{cursor:pointer;}
       </div>
     </div>
 
-    <!-- MERGE CONTACTS MODAL -->
-    <div class="overlay hidden" id="modal-merge-contacts">
-      <div class="modal" style="max-width:920px;width:95vw;max-height:90vh;display:flex;flex-direction:column">
-        <div class="modal-hd" style="flex-shrink:0">
-          <h2>🔀 Fusionar contactos</h2>
-          <button class="modal-close" onclick="$('modal-merge-contacts').classList.add('hidden')">✕</button>
-        </div>
-        <div style="padding:8px 20px 4px;font-size:13px;color:var(--text2);flex-shrink:0">
-          Haz clic en el valor que quieres conservar, o edítalo directamente en la columna azul.
-        </div>
-        <div id="merge-contacts-body" style="flex:1;overflow-y:auto;padding:16px 20px"></div>
-        <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0">
-          <button class="btn btn-ghost" onclick="$('modal-merge-contacts').classList.add('hidden')">Cancelar</button>
-          <button class="btn btn-primary" onclick="confirmMergeContacts()">✅ Confirmar fusión</button>
-        </div>
-      </div>
-    </div>
-
-<!-- DUPLICATE FINDER MODAL -->
+    <!-- DUPLICATE FINDER MODAL -->
     <div class="overlay hidden" id="modal-duplicates">
       <div class="modal wide" style="max-height:85vh;overflow-y:auto">
         <div class="modal-hd"><h2>🔍 Buscador de duplicados</h2><button class="modal-close" onclick="closeM('modal-duplicates')">✕</button></div>
@@ -1384,11 +1362,21 @@ function showSyncDot(status){
 let _lastLocalEdit=0;
 function saveData(){
   _lastLocalEdit=Date.now();
-  D._savedAt = _lastLocalEdit; // timestamp de esta versión
+  D._savedAt = _lastLocalEdit;
+  // Stamp _updatedAt on records that don't have one yet (first save after this update)
+  // Records already stamped keep their timestamp so merge knows which is newer
+  (D.contacts||[]).forEach(c=>{if(!c._updatedAt) c._updatedAt=_lastLocalEdit;});
+  (D.projects||[]).forEach(p=>{if(!p._updatedAt) p._updatedAt=_lastLocalEdit;});
+  (D.studios||[]).forEach(s=>{if(!s._updatedAt) s._updatedAt=_lastLocalEdit;});
   try{localStorage.setItem('fcrm_data',JSON.stringify(D));}catch(e){}
   try{localStorage.setItem('fcrm_users',JSON.stringify(USERS));}catch(e){}
   showSaveIndicator();
   if(DRIVE_SYNC_URL) scheduleSyncToDrive();
+}
+
+// Call this whenever a specific record is modified, to stamp it with current time
+function touchRecord(record){
+  if(record) record._updatedAt=Date.now();
 }
 
 let _saveIndicatorTimer=null;
@@ -1511,31 +1499,89 @@ async function loadFromDrive(silent=false){
       try{localStorage.setItem('fcrm_users',JSON.stringify(USERS));}catch(e){}
     }
 
-    // Datos: solo aplicar si Sheets es MÁS RECIENTE que local
+    // Datos: merge granular por registro (evita race condition multi-usuario)
     if(json.data){
-      const localSavedAt = D._savedAt||0;
-      const sheetsSavedAt = json.data._savedAt||0;
-      if(sheetsSavedAt > localSavedAt){
-        // GUARDIA DE INTEGRIDAD: rechazar si los datos de Sheets tienen menos contactos
-        // que los locales (señal de respuesta truncada o corrupción)
-        const localContactCount = (D.contacts||[]).length;
-        const incomingContactCount = (json.data.contacts||[]).length;
-        if(localContactCount > 0 && incomingContactCount === 0){
-          console.warn('Sync: Sheets devolvió 0 contactos pero local tiene '+localContactCount+'. Posible truncado. Datos locales preservados.');
-          updateLastSyncLabel('error');
-          if(!silent) showSyncDot('error');
-          return false;
-        }
-        // Sheets tiene datos más nuevos (otro usuario guardó algo)
-        const incoming=json.data;
-        if(!incoming.studios)incoming.studios=[];
-        if(!incoming.stageAlarms)incoming.stageAlarms={};
-        if(!incoming.segments)incoming.segments=JSON.parse(JSON.stringify(DEFAULT_SEGMENTS));
-        D=incoming;
-        try{localStorage.setItem('fcrm_data',JSON.stringify(D));}catch(e){}
-        changed=true;
+      const localContactCount=(D.contacts||[]).length;
+      const incomingContactCount=(json.data.contacts||[]).length;
+      // Guardia: rechazar si Sheets devuelve 0 contactos y local tiene datos (truncado)
+      if(localContactCount>0 && incomingContactCount===0){
+        console.warn('Sync: Sheets devolvió 0 contactos. Posible truncado. Preservando local.');
+        updateLastSyncLabel('error');
+        if(!silent) showSyncDot('error');
+        return false;
       }
-      // Si local es más reciente o igual: NO tocar D (preservar cambios locales)
+      const remote=json.data;
+      const localTs=D._savedAt||0;
+      const remoteTs=remote._savedAt||0;
+      // Solo hacer merge si Sheets tiene algo distinto
+      if(remoteTs!==localTs){
+        let mergeChanged=false;
+        // Merge contacts: gana el registro con _updatedAt más reciente
+        if(remote.contacts&&remote.contacts.length){
+          const localMap=new Map((D.contacts||[]).map(c=>[c.id,c]));
+          const remoteMap=new Map(remote.contacts.map(c=>[c.id,c]));
+          // Update existing contacts if remote version is newer
+          remoteMap.forEach((rc,id)=>{
+            const lc=localMap.get(id);
+            if(!lc){
+              // New contact in remote → add it
+              (D.contacts=D.contacts||[]).push(rc);
+              mergeChanged=true;
+            } else {
+              const lTs=lc._updatedAt||lc.stageDate||0;
+              const rTs=rc._updatedAt||rc.stageDate||0;
+              if(rTs>lTs){
+                // Remote contact is newer → update it
+                Object.assign(lc,rc);
+                mergeChanged=true;
+              }
+              // else keep local (our change is newer)
+            }
+          });
+          // Remove contacts deleted in remote (only if remote has significantly fewer)
+          // Conservative: only remove if remote explicitly marks deleted
+          remote.contacts.forEach(rc=>{if(rc._deleted&&localMap.has(rc.id)){D.contacts=D.contacts.filter(c=>c.id!==rc.id);mergeChanged=true;}});
+        }
+        // Merge projects same way
+        if(remote.projects&&remote.projects.length){
+          const localMap=new Map((D.projects||[]).map(p=>[p.id,p]));
+          remote.projects.forEach(rp=>{
+            const lp=localMap.get(rp.id);
+            if(!lp){(D.projects=D.projects||[]).push(rp);mergeChanged=true;}
+            else{
+              const lTs=lp._updatedAt||lp.stageDate||0;
+              const rTs=rp._updatedAt||rp.stageDate||0;
+              if(rTs>lTs){Object.assign(lp,rp);mergeChanged=true;}
+            }
+          });
+        }
+        // Merge studios same way
+        if(remote.studios&&remote.studios.length){
+          const localMap=new Map((D.studios||[]).map(s=>[s.id,s]));
+          remote.studios.forEach(rs=>{
+            const ls=localMap.get(rs.id);
+            if(!ls){(D.studios=D.studios||[]).push(rs);mergeChanged=true;}
+            else{
+              const lTs=ls._updatedAt||0;
+              const rTs=rs._updatedAt||0;
+              if(rTs>lTs){Object.assign(ls,rs);mergeChanged=true;}
+            }
+          });
+        }
+        // Non-record fields: take remote if it's newer overall
+        if(remoteTs>localTs){
+          if(remote.stageAlarms) D.stageAlarms=remote.stageAlarms;
+          if(remote.segments) D.segments=remote.segments;
+          if(remote.activities&&remote.activities.length>=(D.activities||[]).length) D.activities=remote.activities;
+          if(remote.inbox&&remote.inbox.length>=(D.inbox||[]).length) D.inbox=remote.inbox;
+        }
+        if(mergeChanged){
+          // Keep the highest _savedAt so we don't re-apply same remote data
+          D._savedAt=Math.max(localTs,remoteTs);
+          try{localStorage.setItem('fcrm_data',JSON.stringify(D));}catch(e){}
+          changed=true;
+        }
+      }
     }
 
     if(ME) updateLastSyncLabel('ok');
@@ -2869,194 +2915,12 @@ function renderCTable(){
   updateContactSelCount();
 }
 
-
-// ══════════════════════════════════════════════════════
-//  MERGE CONTACTS MODAL
-// ══════════════════════════════════════════════════════
-const MERGE_FIELDS=[
-  {key:'name',label:'Nombre'},
-  {key:'mailingName',label:'Nombre de correspondencia'},
-  {key:'type',label:'Tipo'},
-  {key:'phone',label:'Teléfono'},
-  {key:'whatsapp',label:'WhatsApp'},
-  {key:'email',label:'Email'},
-  {key:'email2',label:'Email 2'},
-  {key:'city',label:'Ciudad'},
-  {key:'state',label:'Estado'},
-  {key:'studioId',label:'Estudio'},
-  {key:'notes',label:'Notas'},
-  {key:'tags',label:'Etiquetas'},
-  {key:'stage',label:'Etapa pipeline'},
-  {key:'agent',label:'Vendedor'},
-];
-
-let _mergeContacts=[];
-let _mergeResult={};
-
-function openMergeContactsModal(){
-  const sel=[...(S.selectedContacts||new Set())];
-  if(sel.length<2){toast('Selecciona al menos 2 contactos','⚠️');return;}
-  if(sel.length>5){toast('Máximo 5 contactos a la vez','⚠️');return;}
-  _mergeContacts=sel.map(id=>D.contacts.find(c=>c.id===id)).filter(Boolean);
-  if(_mergeContacts.length<2){toast('Contactos no encontrados','⚠️');return;}
-
-  _mergeResult={};
-  MERGE_FIELDS.forEach(({key})=>{
-    let best=null;
-    _mergeContacts.forEach(c=>{
-      const v=c[key];
-      if(v===undefined||v===null||v==='') return;
-      if(Array.isArray(v)&&v.length===0) return;
-      if(best===null) best=v;
-      else if(Array.isArray(v)&&v.length>(best?.length||0)) best=v;
-      else if(typeof v==='string'&&v.length>(best?.length||0)) best=v;
-    });
-    _mergeResult[key]=best??'';
-  });
-  const allTags=new Set();
-  _mergeContacts.forEach(c=>(c.tags||[]).forEach(t=>allTags.add(t)));
-  _mergeResult.tags=[...allTags];
-  _mergeResult._notesList=[];
-  _mergeContacts.forEach(c=>(c.notesList||[]).forEach(n=>{
-    if(!_mergeResult._notesList.some(m=>m.text===n.text)) _mergeResult._notesList.push(n);
-  }));
-
-  renderMergeModal();
-  $('modal-merge-contacts').classList.remove('hidden');
-}
-
-function renderMergeModal(){
-  const contacts=_mergeContacts;
-  const nCols=contacts.length;
-  let html=`<div style="display:grid;grid-template-columns:130px ${Array(nCols).fill('1fr').join(' ')} 1fr;gap:0;border:1px solid var(--border);border-radius:12px;overflow:hidden;font-size:13px">`;
-
-  // Header row
-  html+=`<div style="background:var(--surface2);padding:10px 12px;font-weight:700;color:var(--text2);border-bottom:1px solid var(--border)">Campo</div>`;
-  contacts.forEach(c=>{
-    const ag=USERS.find(u=>u.id===c.agent);
-    html+=`<div style="background:var(--surface2);padding:10px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border)">
-      <div style="font-weight:700">${c.name}</div>
-      <div style="font-size:11px;color:var(--text3)">${ag?.name||'—'} · ${c.stage?'En pipeline':'Base de datos'}</div>
-    </div>`;
-  });
-  html+=`<div style="background:rgba(79,124,255,.1);padding:10px 12px;font-weight:700;color:var(--accent);border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent)">✅ Resultado</div>`;
-
-  MERGE_FIELDS.forEach(({key,label})=>{
-    const allEmpty=contacts.every(c=>{const v=c[key];return !v||(Array.isArray(v)&&!v.length);});
-    if(allEmpty&&key!=='name') return;
-
-    html+=`<div style="padding:9px 12px;font-size:12px;font-weight:600;color:var(--text2);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">${label}</div>`;
-
-    contacts.forEach((c,ci)=>{
-      let raw=c[key];
-      let display='—';
-      if(key==='studioId'){const s=(D.studios||[]).find(s=>s.id===raw);display=s?s.name:'—';}
-      else if(key==='stage'){const st=C_STAGES.find(s=>s.id===raw);display=raw?(st?.name||raw):'—';}
-      else if(key==='agent'){const u=USERS.find(u=>u.id===raw);display=u?u.name:'—';}
-      else if(key==='tags'){display=(raw||[]).length?raw.join(', '):'—';}
-      else{display=raw||'—';}
-      const isEmpty=display==='—';
-      html+=`<div onclick="mergePickVal('${key}',${ci})"
-        style="padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);${isEmpty?'color:var(--text3)':'cursor:pointer'}background:var(--surface);transition:background .15s"
-        onmouseover="if(!${isEmpty})this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">${display}</div>`;
-    });
-
-    let curVal=_mergeResult[key];
-    let inputHtml='';
-    if(key==='studioId'){
-      const s=(D.studios||[]).find(s=>s.id===curVal);
-      inputHtml=`<div style="position:relative"><input id="mr-${key}" class="inp" value="${s?s.name:''}" placeholder="Estudio..." oninput="mergeStudioSearch(this.value)" style="width:100%;font-size:12px;padding:4px 8px"><div id="mr-studio-dd" style="display:none;position:absolute;background:var(--surface);border:1px solid var(--border);border-radius:8px;z-index:200;max-height:140px;overflow-y:auto;width:100%"></div></div>`;
-    } else if(key==='stage'){
-      const stOpts=C_STAGES.map(s=>`<option value="${s.id}" ${s.id===curVal?'selected':''}>${s.name}</option>`).join('');
-      inputHtml=`<select id="mr-${key}" class="inp" style="width:100%;font-size:12px;padding:4px 8px"><option value="">Sin etapa</option>${stOpts}</select>`;
-    } else if(key==='agent'){
-      const agOpts=USERS.map(u=>`<option value="${u.id}" ${u.id===curVal?'selected':''}>${u.name}</option>`).join('');
-      inputHtml=`<select id="mr-${key}" class="inp" style="width:100%;font-size:12px;padding:4px 8px">${agOpts}</select>`;
-    } else if(key==='tags'){
-      inputHtml=`<input id="mr-${key}" class="inp" value="${(curVal||[]).join(', ')}" placeholder="tag1, tag2..." style="width:100%;font-size:12px;padding:4px 8px">`;
-    } else if(key==='notes'){
-      inputHtml=`<textarea id="mr-${key}" class="inp" style="width:100%;font-size:12px;padding:4px 8px;min-height:52px;resize:vertical">${curVal||''}</textarea>`;
-    } else {
-      inputHtml=`<input id="mr-${key}" class="inp" value="${(curVal||'').toString().replace(/"/g,'&quot;')}" style="width:100%;font-size:12px;padding:4px 8px">`;
-    }
-    html+=`<div style="padding:6px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(79,124,255,.05)">${inputHtml}</div>`;
-  });
-
-  html+='</div>';
-
-  if(_mergeResult._notesList&&_mergeResult._notesList.length){
-    html+=`<div style="margin-top:12px;background:var(--surface2);border-radius:10px;padding:12px">
-      <div style="font-size:12px;font-weight:700;color:var(--text2);margin-bottom:6px">📝 Notas fusionadas (${_mergeResult._notesList.length})</div>
-      ${_mergeResult._notesList.map(n=>`<div style="font-size:12px;color:var(--text2);padding:3px 0;border-bottom:1px solid var(--border)">${n.date||''} — ${n.text}</div>`).join('')}
-    </div>`;
-  }
-  $('merge-contacts-body').innerHTML=html;
-}
-
-function mergePickVal(key,contactIdx){
-  const c=_mergeContacts[contactIdx];
-  const v=c[key];
-  if(v===undefined||v===null||v==='') return;
-  if(Array.isArray(v)&&!v.length) return;
-  const inp=$('mr-'+key);
-  if(!inp) return;
-  if(key==='studioId'){const s=(D.studios||[]).find(s=>s.id===v);inp.value=s?s.name:'';inp.dataset.studioId=v||'';}
-  else if(key==='tags'){inp.value=(v||[]).join(', ');}
-  else{inp.value=v||'';}
-  inp.style.background='rgba(79,124,255,.25)';
-  setTimeout(()=>inp.style.background='',600);
-}
-
-function mergeStudioSearch(q){
-  const dd=$('mr-studio-dd');
-  if(!q){dd.style.display='none';return;}
-  const results=(D.studios||[]).filter(s=>norm(s.name).includes(norm(q))).slice(0,8);
-  if(!results.length){dd.style.display='none';return;}
-  dd.innerHTML=results.map(s=>`<div style="padding:8px 12px;cursor:pointer;font-size:13px" onmousedown="selectMergeStudio(${s.id},'${s.name.replace(/'/g,"\'")}')">${s.name}</div>`).join('');
-  dd.style.display='block';
-}
-function selectMergeStudio(id,name){
-  const inp=$('mr-studioId');
-  if(inp){inp.value=name;inp.dataset.studioId=id;}
-  const dd=$('mr-studio-dd');if(dd)dd.style.display='none';
-}
-
-function confirmMergeContacts(){
-  const result={};
-  MERGE_FIELDS.forEach(({key})=>{
-    const inp=$('mr-'+key);
-    if(!inp) return;
-    if(key==='studioId') result[key]=parseInt(inp.dataset.studioId)||null;
-    else if(key==='tags') result[key]=inp.value.split(',').map(t=>t.trim()).filter(Boolean);
-    else if(key==='stage') result[key]=inp.value||null;
-    else if(key==='agent') result[key]=parseInt(inp.value)||ME.id;
-    else result[key]=inp.value.trim()||null;
-  });
-  if(!result.name){toast('El nombre no puede estar vacío','⚠️');return;}
-  const master=_mergeContacts[0];
-  const dupeIds=new Set(_mergeContacts.slice(1).map(c=>c.id));
-  Object.assign(master,result);
-  master.inPipeline=result.stage?true:master.inPipeline;
-  master.notesList=_mergeResult._notesList||[];
-  master.stageDate=master.stageDate||today();
-  D.contacts=D.contacts.filter(c=>!dupeIds.has(c.id));
-  (D.projects||[]).forEach(p=>{
-    if(p.contactIds) p.contactIds=[...new Set(p.contactIds.map(id=>dupeIds.has(id)?master.id:id))];
-  });
-  (D.activities||[]).forEach(a=>{if(dupeIds.has(a.contactId)) a.contactId=master.id;});
-  saveData();
-  $('modal-merge-contacts').classList.add('hidden');
-  toggleContactsSelectMode(false);
-  renderCTable();
-  toast(`Fusión completa: ${_mergeContacts.length} contactos → "${master.name}" ✓`);
-}
-
-
 function addContactToPipeline(id){
   const c=D.contacts.find(x=>x.id===id);
   if(!c||!canEdit(c.agent)){toast('Sin permiso','⚠️');return;}
   c.stage='c-lead';
   c.stageDate=today();
+  c._updatedAt=Date.now();
   saveData();renderCTable();renderCKanban();
   toast('✓ Contacto añadido al pipeline como Lead');
 }
@@ -3239,7 +3103,7 @@ function drp(e,stage,type){
       openLossModal(lossId);
       return;
     }
-    item.stage=stage;item.stageDate=today();saveData();
+    item.stage=stage;item.stageDate=today();item._updatedAt=Date.now();saveData();
     const sName=(dType==='c'?C_STAGES:P_STAGES).find(s=>s.id===stage)?.name;
     toast(`Movido a "${sName}"`);
     if(dType==='c')renderCKanban();else renderPKanban();
@@ -3401,7 +3265,7 @@ function toggleProjectPipeline(id){
 function changeContactStage(id,stage){
   const c=D.contacts.find(x=>x.id===id);
   if(!c||!canEdit(c.agent)){toast('Sin permiso','⚠️');return;}
-  c.stage=stage;c.stageDate=today();saveData();renderCKanban();toast('Etapa actualizada');
+  c.stage=stage;c.stageDate=today();c._updatedAt=Date.now();saveData();renderCKanban();toast('Etapa actualizada');
 }
 function toggleStudioPipeline(id, inPipeline){
   const s=(D.studios||[]).find(x=>x.id===id);
@@ -3540,7 +3404,7 @@ function changeProjStage(id,stage,selectEl){
     S._lossPrevStage=p.stage;
     openLossModal(id);
   } else {
-    p.stage=stage;saveData();renderPKanban();renderPTable();toast('Etapa actualizada');
+    p.stage=stage;p._updatedAt=Date.now();saveData();renderPKanban();renderPTable();toast('Etapa actualizada');
   }
 }
 function openLossModal(projectId){
@@ -4093,12 +3957,14 @@ function saveContact(){
     notes:$('c-notes').value.trim()
   };
   if(S.editCId){
-    Object.assign(D.contacts.find(x=>x.id===S.editCId),obj);
+    const _ec=D.contacts.find(x=>x.id===S.editCId);
+    Object.assign(_ec,obj);
+    _ec._updatedAt=Date.now();
     saveData();closeM('modal-contact');
     if(S.curView==='profile-view')openProfile(S.editCId);
     renderCKanban();renderCTable();toast('Contacto actualizado ✓');
   }else{
-    D.contacts.push({id:nid(),code:nextCode('A'),...obj,date:today(),notesList:[]});
+    D.contacts.push({id:nid(),code:nextCode('A'),...obj,date:today(),_updatedAt:Date.now(),notesList:[]});
     saveData();closeM('modal-contact');renderCKanban();renderCTable();toast('Contacto creado 🎉');
   }
 }
@@ -4144,7 +4010,7 @@ function saveProject(){
     stage:$('p-stage').value,agent:agentId,contactIds,tags:[...S.pTags],notes:$('p-notes').value.trim(),
     segment:$('p-segment').value||'',closeDate:$('p-closedate').value||''};
   if(S.editPId){
-    Object.assign(D.projects.find(x=>x.id===S.editPId),obj);
+    const _ep=D.projects.find(x=>x.id===S.editPId);_ep._updatedAt=Date.now();Object.assign(_ep,obj);
     saveData();closeM('modal-project');renderPKanban();renderPTable();
     if(S.curView==='profile-view')openProfile(S.profileId);toast('Proyecto actualizado ✓');
   }else{
@@ -6293,8 +6159,7 @@ function updateContactSelCount(){
   const n=(S.selectedContacts||new Set()).size;
   const el=$('contacts-sel-count');
   if(el)el.textContent=`${n} contacto${n!==1?'s':''} seleccionado${n!==1?'s':''}`;
-  const mergeBtn=$('btn-merge-contacts');
-  if(mergeBtn) mergeBtn.style.display=(n>=2&&n<=5)?'':'none';
+  // Keep both select-all checkboxes in sync
   const items=visibleContacts();
   const allSelected=items.length>0&&items.every(c=>(S.selectedContacts||new Set()).has(c.id));
   ['contacts-select-all','contacts-select-all2'].forEach(id=>{const el=$(id);if(el)el.checked=allSelected;});
