@@ -423,15 +423,21 @@ select.inp{cursor:pointer;}
           <div class="kanban" id="c-kanban"></div>
         </div>
         <div class="tab-panel" id="ctab-table">
-          <div class="toolbar">
+          <div class="toolbar" style="flex-wrap:wrap;gap:6px">
             <span style="font-size:13px;color:var(--text2)" id="c-table-count"></span>
-            <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <div class="chip active" id="c-filter-all2" onclick="filterC(this,'all')">Todos</div>
+              <div id="c-agent-chips2"></div>
+            </div>
+          </div>
+          <div class="toolbar" style="border-top:none;padding-top:6px;padding-bottom:8px;gap:8px;flex-wrap:wrap">
+            <input class="inp" id="c-table-filter" placeholder="🔍 Filtrar tabla (nombre, estudio, email, ciudad...)" oninput="renderCTable()" style="flex:1;min-width:180px;max-width:360px;font-size:13px;padding:6px 10px">
+            <button class="btn btn-ghost btn-sm" onclick="clearTableFilter()" id="c-filter-clear" style="display:none">✕ Limpiar</button>
+            <div style="display:flex;gap:6px;margin-left:auto;flex-wrap:wrap;align-items:center">
               <button class="btn btn-ghost btn-sm" id="contacts-select-btn" onclick="toggleContactsSelectMode()">☑️ Seleccionar</button>
               <button class="btn btn-ghost btn-sm" id="btn-duplicados" onclick="openDuplicateFinder()" style="display:none;color:var(--orange)">🔍 Duplicados</button>
               <button class="btn btn-ghost btn-sm" onclick="$('csv-contact-input').click()">📥 Importar CSV</button>
               <input type="file" id="csv-contact-input" accept=".csv" style="display:none" onchange="handleContactCsvImport(this)">
-              <div class="chip active" id="c-filter-all2" onclick="filterC(this,'all')">Todos</div>
-              <div id="c-agent-chips2"></div>
             </div>
           </div>
           <!-- Bulk action bar (contacts) -->
@@ -442,10 +448,7 @@ select.inp{cursor:pointer;}
             <button class="btn btn-primary btn-sm" onclick="openMergeContactsModal()" id="btn-merge-contacts" style="display:none">🔀 Fusionar seleccionados</button>
             <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="toggleContactsSelectMode(false)">✕ Cancelar</button>
           </div>
-          <div style="padding:8px 0 4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <input class="inp" id="c-table-filter" placeholder="🔍 Filtrar tabla (nombre, estudio, email, ciudad...)" oninput="renderCTable()" style="flex:1;min-width:180px;max-width:400px;font-size:13px;padding:6px 10px">
-            <button class="btn btn-ghost btn-sm" onclick="clearTableFilter()" id="c-filter-clear" style="display:none">✕ Limpiar</button>
-          </div>
+
           <div class="table-wrap">
             <table><thead><tr>
               <th id="c-th-check" style="display:none"><input type="checkbox" class="sel-cb" id="contacts-select-all2" onchange="toggleSelectAllContacts(this.checked)"></th>
