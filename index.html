@@ -643,14 +643,14 @@ select.inp{cursor:pointer;}
       <div class="modal" style="max-width:920px;width:95vw;max-height:90vh;display:flex;flex-direction:column">
         <div class="modal-hd" style="flex-shrink:0">
           <h2>🔀 Fusionar contactos</h2>
-          <button class="modal-close" onclick="closeM('modal-merge-contacts')">✕</button>
+          <button class="modal-close" onclick="$('modal-merge-contacts').classList.add('hidden')">✕</button>
         </div>
         <div style="padding:8px 20px 4px;font-size:13px;color:var(--text2);flex-shrink:0">
           Haz clic en el valor que quieres conservar, o edítalo directamente en la columna azul.
         </div>
         <div id="merge-contacts-body" style="flex:1;overflow-y:auto;padding:16px 20px"></div>
         <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0">
-          <button class="btn btn-ghost" onclick="closeM('modal-merge-contacts')">Cancelar</button>
+          <button class="btn btn-ghost" onclick="$('modal-merge-contacts').classList.add('hidden')">Cancelar</button>
           <button class="btn btn-primary" onclick="confirmMergeContacts()">✅ Confirmar fusión</button>
         </div>
       </div>
@@ -2922,7 +2922,7 @@ function openMergeContactsModal(){
   }));
 
   renderMergeModal();
-  openM('modal-merge-contacts');
+  $('modal-merge-contacts').classList.remove('hidden');
 }
 
 function renderMergeModal(){
@@ -3045,7 +3045,7 @@ function confirmMergeContacts(){
   });
   (D.activities||[]).forEach(a=>{if(dupeIds.has(a.contactId)) a.contactId=master.id;});
   saveData();
-  closeM('modal-merge-contacts');
+  $('modal-merge-contacts').classList.add('hidden');
   toggleContactsSelectMode(false);
   renderCTable();
   toast(`Fusión completa: ${_mergeContacts.length} contactos → "${master.name}" ✓`);
