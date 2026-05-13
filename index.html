@@ -537,6 +537,7 @@ select.inp{cursor:pointer;}
         <div style="flex:1">
           <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:21px" id="pf-name"></div>
           <div style="color:var(--text2);font-size:13px;margin-top:3px;display:flex;gap:12px;flex-wrap:wrap" id="pf-meta"></div>
+          <div id="pf-pending" style="display:none;margin-top:6px"></div>
         </div>
         <div style="display:flex;gap:7px" id="pf-actions"></div>
       </div>
@@ -1645,6 +1646,7 @@ function startPolling(){
     // Block polling for 15s after any local save to avoid race condition
     if(Date.now()-_lastLocalEdit < 15000) return;
     await loadFromDrive(true);
+    await checkRejectedChanges();
   },POLL_INTERVAL);
 }
 function stopPolling(){if(_pollTimer){clearInterval(_pollTimer);_pollTimer=null;}}
@@ -2207,7 +2209,7 @@ function filterMUCContact(q){
       style="padding:9px 12px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);opacity:${already?.5:1}"
       onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
       <span>&#128101;</span>
-      <div><div style="font-weight:600">${c.name}</div>${st?`<div style="font-size:11px;color:var(--text3)">&#127963; ${st.name}</div>`:''}</div>
+      <div><div style="font-weight:600">${c.name}${c._pendingFields&&Object.keys(c._pendingFields).length?'<span title="Cambios pendientes de aprobación" style="margin-left:5px;font-size:9px;background:rgba(251,146,60,.2);color:#fb923c;padding:1px 5px;border-radius:4px;font-weight:700">⏳</span>':''}</div>${st?`<div style="font-size:11px;color:var(--text3)">&#127963; ${st.name}</div>`:''}</div>
       ${already?'<span style="font-size:10px;color:var(--green);margin-left:auto">&#10003;</span>':''}
     </div>`;
   }).join('');
@@ -3128,11 +3130,26 @@ function openProfile(id){
   const studio=c.studioId?(D.studios||[]).find(s=>s.id===c.studioId):null;
   $('pf-meta').innerHTML=`<span>🔖 ${c.type}</span>${studio?`<span style="cursor:pointer;color:var(--accent)" onclick="openStudioProfile(${studio.id})">🏛️ ${studio.name}</span>`:c.company?`<span>🏢 ${c.company}</span>`:''}${c.city?`<span>📍 ${c.city}</span>`:''}${c.phone?`<span>📞 ${c.phone}</span>`:''}${c.email?`<span><a href="mailto:${c.email}" style="color:var(--accent);text-decoration:none">✉️ ${c.email}</a></span>`:''}${c.instagram?`<span><a href="https://instagram.com/${c.instagram.replace('@','')}" target="_blank" style="color:#c77dff;text-decoration:none">📸 ${c.instagram}</a></span>`:''}${c.linkedin?`<span><a href="${c.linkedin.startsWith('http')?c.linkedin:'https://'+c.linkedin}" target="_blank" style="color:#0a66c2;text-decoration:none">💼 LinkedIn</a></span>`:''}`;
 
+  // Pending changes notice
+  const pendingFields = c._pendingFields ? Object.keys(c._pendingFields) : [];
+  const pfPending = document.getElementById('pf-pending');
+  if(pfPending){
+    if(pendingFields.length){
+      pfPending.style.display='';
+      pfPending.innerHTML=`<div style="background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.3);border-radius:8px;padding:8px 12px;font-size:12px;color:#fb923c;margin-bottom:8px">
+        ⏳ <strong>${pendingFields.length} campo${pendingFields.length!==1?'s':''} pendiente${pendingFields.length!==1?'s':''} de aprobación:</strong> ${pendingFields.join(', ')}
+      </div>`;
+    } else {
+      pfPending.style.display='none';
+      pfPending.innerHTML='';
+    }
+  }
+
   // Actions: edit/delete only if can edit
   $('pf-actions').innerHTML=`
     <button class="btn btn-ghost btn-sm" onclick="goBack()">← Volver</button>
     ${owned?`<button class="btn btn-ghost btn-sm" onclick="openContactModal('${c.stage}',${id})">✏️ Editar</button>`:''}
-    ${owned?`<button class="btn btn-red btn-sm" onclick="deleteContact(${id})">🗑️</button>`:''}
+    ${owned?`<button class="btn btn-red btn-sm" onclick="requestDeleteContact(${id})">🗑️</button>`:''}
     <button class="btn btn-ghost btn-sm" style="background:rgba(62,207,142,.12);color:var(--green);border-color:rgba(62,207,142,.3)" onclick="registerShowroomVisit(${id})">🏢 Registrar visita</button>
     <button class="btn btn-primary btn-sm" onclick="openProjectModal(null,${id})">＋ Proyecto</button>
     ${owned?`<button class="btn btn-ghost btn-sm" style="${c.inPipeline===false?'color:var(--accent)':'color:var(--text3)'}" onclick="toggleContactPipeline(${id})">${c.inPipeline===false?'🎯 Añadir al pipeline':'⏸ Quitar del pipeline'}</button>`:''}
@@ -3281,6 +3298,122 @@ function changeStudioStage(id,stage){
   s.stage=stage;s.stageDate=today();saveData();renderCKanban();
   toast('Etapa actualizada');
 }
+// ══════════════════════════════════════════════════════════════════
+//  PENDING CHANGES — enviar cambios a aprobación
+// ══════════════════════════════════════════════════════════════════
+function submitPendingChanges(contact, newObj, fields){
+  if(!DRIVE_SYNC_URL) return;
+  fields.forEach(field=>{
+    const change={
+      id: Date.now()+'_'+Math.random().toString(36).slice(2,7),
+      contactId: contact.id,
+      type: 'field_change',
+      field,
+      oldValue: String(contact[field]||''),
+      newValue: String(newObj[field]||''),
+      authorId: ME.id,
+      authorName: ME.name,
+      timestamp: Date.now(),
+      status: 'pending',
+    };
+    // Apply optimistically to local
+    contact[field] = newObj[field];
+    contact._updatedAt = Date.now();
+    contact._pendingFields = contact._pendingFields || {};
+    contact._pendingFields[field] = change.id;
+    // Send to Sheets
+    fetch(DRIVE_SYNC_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'pending_change', change}),
+      mode:'no-cors',
+    });
+  });
+  saveData();
+  renderCKanban(); renderCTable();
+  if(S.curView==='profile-view') openProfile(contact.id);
+  // Show in inbox
+  const inboxEntry={
+    id: Date.now(),
+    type:'pending_sent',
+    contactId: contact.id,
+    contactName: contact.name,
+    fields,
+    timestamp: Date.now(),
+    read: false,
+  };
+  D.inbox = D.inbox || [];
+  D.inbox.unshift(inboxEntry);
+  saveData();
+}
+
+function requestDeleteContact(id){
+  const c = D.contacts.find(x=>x.id===id);
+  if(!c){toast('Contacto no encontrado','⚠️');return;}
+  if(ME.role==='admin'){
+    // Admin deletes directly
+    deleteContact(id);
+    return;
+  }
+  if(!confirm(`¿Solicitar eliminación de "${c.name}"?
+
+La solicitud será revisada por el administrador.`)) return;
+  if(!DRIVE_SYNC_URL){toast('Sin conexión a Sheets','⚠️');return;}
+  const change={
+    id: Date.now()+'_del',
+    contactId: id,
+    type: 'delete',
+    field: '',
+    oldValue: c.name,
+    newValue: '',
+    authorId: ME.id,
+    authorName: ME.name,
+    timestamp: Date.now(),
+    status: 'pending',
+  };
+  fetch(DRIVE_SYNC_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'pending_change', change}),
+    mode:'no-cors',
+  });
+  toast('Solicitud de eliminación enviada para aprobación');
+}
+
+// Poll for rejected changes and revert them
+async function checkRejectedChanges(){
+  if(!DRIVE_SYNC_URL) return;
+  try{
+    const res = await fetch(DRIVE_SYNC_URL+'?action=pending&t='+Date.now(),{cache:'no-store'});
+    const json = await res.json();
+    const rejected = (json.pending||[]).filter(p=>p.status==='rejected');
+    let reverted = 0;
+    rejected.forEach(p=>{
+      const c = D.contacts.find(x=>x.id==p.contactId);
+      if(!c||!c._pendingFields) return;
+      if(c._pendingFields[p.field]===p.id){
+        // Revert to old value
+        c[p.field] = p.oldValue;
+        delete c._pendingFields[p.field];
+        c._updatedAt = Date.now();
+        reverted++;
+        // Notify in inbox
+        (D.inbox=D.inbox||[]).unshift({
+          id:Date.now(), type:'change_rejected',
+          contactId:c.id, contactName:c.name,
+          field:p.field, oldValue:p.oldValue, newValue:p.newValue,
+          timestamp:Date.now(), read:false,
+        });
+      }
+    });
+    if(reverted>0){
+      saveData(); renderCKanban(); renderCTable();
+      toast(`${reverted} cambio${reverted!==1?'s':''} rechazado${reverted!==1?'s':''} por el administrador`,'⚠️');
+      updateInboxCount();
+    }
+  }catch(e){ console.warn('checkRejectedChanges error:',e); }
+}
+
 function deleteContact(id){
   const c=D.contacts.find(x=>x.id===id);
   if(!c||!canEdit(c.agent)){toast('Sin permiso','⚠️');return;}
@@ -3958,11 +4091,32 @@ function saveContact(){
   };
   if(S.editCId){
     const _ec=D.contacts.find(x=>x.id===S.editCId);
-    Object.assign(_ec,obj);
-    _ec._updatedAt=Date.now();
-    saveData();closeM('modal-contact');
-    if(S.curView==='profile-view')openProfile(S.editCId);
-    renderCKanban();renderCTable();toast('Contacto actualizado ✓');
+    // Admin: aplica directo. Vendedor: campos protegidos van a aprobación
+    const PROTECTED=['name','mailingName','phone','email','city','state','studioId','type','priceList','origin','segment','instagram','linkedin','web'];
+    if(ME.role==='admin'){
+      Object.assign(_ec,obj);
+      _ec._updatedAt=Date.now();
+      saveData();closeM('modal-contact');
+      if(S.curView==='profile-view')openProfile(S.editCId);
+      renderCKanban();renderCTable();toast('Contacto actualizado ✓');
+    } else {
+      // Check which protected fields changed
+      const changes=PROTECTED.filter(f=>String(obj[f]||'')!==String(_ec[f]||''));
+      if(changes.length>0){
+        // Send each changed field to approval queue
+        submitPendingChanges(_ec, obj, changes);
+        // Apply non-protected fields immediately (stage, notes, tags handled separately)
+        closeM('modal-contact');
+        toast('Cambios enviados para aprobación ✓');
+      } else {
+        // No protected fields changed - apply directly
+        Object.assign(_ec,obj);
+        _ec._updatedAt=Date.now();
+        saveData();closeM('modal-contact');
+        if(S.curView==='profile-view')openProfile(S.editCId);
+        renderCKanban();renderCTable();toast('Contacto actualizado ✓');
+      }
+    }
   }else{
     D.contacts.push({id:nid(),code:nextCode('A'),...obj,date:today(),_updatedAt:Date.now(),notesList:[]});
     saveData();closeM('modal-contact');renderCKanban();renderCTable();toast('Contacto creado 🎉');
