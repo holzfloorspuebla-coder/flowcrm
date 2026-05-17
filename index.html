@@ -1634,7 +1634,7 @@ function updateLastSyncLabel(status='ok'){
 }
 
 // ── Polling cada 30s: descarga solo si Sheets es más reciente ──
-const POLL_INTERVAL=30000;
+const POLL_INTERVAL=10000;
 let _pollTimer=null;
 function startPolling(){
   if(!DRIVE_SYNC_URL) return;
@@ -3281,13 +3281,58 @@ function changeStudioStage(id,stage){
   s.stage=stage;s.stageDate=today();saveData();renderCKanban();
   toast('Etapa actualizada');
 }
+function requestDeleteContact(id){
+  const c=D.contacts.find(x=>x.id===id);
+  if(!c){toast('Contacto no encontrado','⚠️');return;}
+  if(!confirm(`¿Solicitar eliminación de "${c.name}"?\n\nEl administrador recibirá la solicitud para aprobarla.`))return;
+  if(!DRIVE_SYNC_URL){toast('Sin conexión al servidor','⚠️');return;}
+  const change={
+    id:Date.now()+'_del_'+id,
+    contactId:id,
+    type:'delete',
+    field:'',
+    oldValue:c.name,
+    newValue:'',
+    authorId:ME.id,
+    authorName:ME.name,
+    timestamp:Date.now(),
+    status:'pending',
+  };
+  fetch(DRIVE_SYNC_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'pending_change', change}),
+    mode:'no-cors',
+  });
+  D.inbox=D.inbox||[];
+  D.inbox.unshift({id:Date.now(),type:'pending_sent',contactId:id,contactName:c.name,fields:['eliminación'],timestamp:Date.now(),read:false});
+  saveData();
+  toast('Solicitud enviada al administrador ✓');
+}
+
 function deleteContact(id){
   const c=D.contacts.find(x=>x.id===id);
   if(!c||!canEdit(c.agent)){toast('Sin permiso','⚠️');return;}
-  if(!confirm('¿Eliminar este contacto?'))return;
-  D.contacts=D.contacts.filter(c=>c.id!==id);
+
+  if(ME.role!=='admin'){
+    requestDeleteContact(id);
+    return;
+  }
+
+  if(!confirm(`¿Eliminar "${c.name}"? Esta acción no se puede deshacer.`))return;
+  D.contacts=D.contacts.filter(x=>x.id!==id);
   D.projects.forEach(p=>{p.contactIds=(p.contactIds||[]).filter(x=>x!==id);});
-  saveData();goView(S.prevView||'contacts-view');toast('Contacto eliminado');
+  saveData();
+  if(DRIVE_SYNC_URL){
+    fetch(DRIVE_SYNC_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'patch_contacts', deleteIds:[id], updates:[]}),
+      mode:'no-cors',
+    });
+  }
+  goView(S.prevView||'contacts-view');
+  toast('Contacto eliminado ✓');
 }
 
 // ══════════════════════════════════════════════════════
