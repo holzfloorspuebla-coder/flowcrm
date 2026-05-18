@@ -1404,12 +1404,12 @@ function scheduleSyncToDrive(){
     _isSyncing=true;
     try{
       const payload={...D, users:USERS};
-      await fetch(DRIVE_SYNC_URL,{
+      const _sr=await fetch(DRIVE_SYNC_URL+'/data',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(payload),
-        mode:'no-cors',
       });
+      if(!_sr.ok) throw new Error('HTTP '+_sr.status);
       showSyncDot('ok');
       // Reset local edit timer after successful push so polling can resume
       _lastLocalEdit=D._savedAt||Date.now();
@@ -1447,22 +1447,17 @@ async function decompressB64Gzip(b64){
 
 // ── Fetch con soporte de compresión gzip (evita truncado del proxy de Google) ──
 async function fetchFromDrive(url){
-  const res=await fetch(url+'?action=load_crm&t='+Date.now(),{cache:'no-store'});
+  const res=await fetch(url+'/data?t='+Date.now(),{cache:'no-store'});
   if(!res.ok) throw new Error('HTTP '+res.status);
   const rawText=await res.text();
   let json;
   try{ json=JSON.parse(rawText); }
-  catch(e){ throw new Error('JSON truncado: '+e.message); }
-  if(!json.ok) throw new Error(json.error||'Error');
-
-  // Si la respuesta viene comprimida, descomprimir
-  if(json.compressed && json.payload){
-    let decompressed;
-    try{ decompressed=await decompressB64Gzip(json.payload); }
-    catch(e){ throw new Error('Error descomprimiendo: '+e.message); }
-    try{ json=JSON.parse(decompressed); }
-    catch(e){ throw new Error('JSON inválido tras descomprimir: '+e.message); }
+  catch(e){ throw new Error('JSON inválido: '+e.message); }
+  // Worker devuelve {ok,data,users} — normalizar si devuelve datos directamente
+  if(json && !('ok' in json) && (json.contacts||json._savedAt)){
+    json={ok:true,data:json};
   }
+  if(!json.ok) throw new Error(json.error||'Error');
   return json;
 }
 
@@ -1664,7 +1659,7 @@ async function initApp(){
   $('login-loading').style.display='block';
   $('login-btn').disabled=true;
   $('login-btn').style.opacity='.5';
-  $('login-loading-msg').textContent='Conectando con Google Sheets...';
+  $('login-loading-msg').textContent='Conectando con el servidor...';
 
   try{
     // Usar fetchFromDrive que soporta paginación y protege contra truncado
@@ -1698,7 +1693,7 @@ async function initApp(){
 
       if(sheetsHasContacts && !localHasContacts){
         // Local vacío pero Sheets tiene datos → cargar Sheets (recuperación)
-        $('login-loading-msg').textContent='Recuperando datos de Google Sheets...';
+        $('login-loading-msg').textContent='Recuperando datos del servidor...';
         const incoming=sheetsData;
         if(!incoming.studios)incoming.studios=[];
         if(!incoming.stageAlarms)incoming.stageAlarms={};
@@ -1706,7 +1701,7 @@ async function initApp(){
         incoming._savedAt=incoming._savedAt||Date.now();
         D=incoming;
         localStorage.setItem('fcrm_data',JSON.stringify(D));
-        toast('✓ Datos recuperados de Google Sheets');
+        toast('✓ Datos recuperados del servidor');
 
       } else if(sheetsHasContacts && localHasContacts){
         // Ambos tienen datos → gana el más reciente por timestamp
@@ -1727,24 +1722,25 @@ async function initApp(){
             $('login-loading-msg').textContent='Sincronizando...';
             if(!D._savedAt){ D._savedAt=Date.now(); localStorage.setItem('fcrm_data',JSON.stringify(D)); }
             const payload={...D,users:USERS};
-            fetch(DRIVE_SYNC_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),mode:'no-cors'});
+            fetch(DRIVE_SYNC_URL+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
           }
         } else {
           // Local más reciente → subir a Sheets para sincronizar
           $('login-loading-msg').textContent='Sincronizando...';
           if(!D._savedAt){ D._savedAt=Date.now(); localStorage.setItem('fcrm_data',JSON.stringify(D)); }
           const payload={...D,users:USERS};
-          fetch(DRIVE_SYNC_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),mode:'no-cors'});
+          fetch(DRIVE_SYNC_URL+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
         }
 
       } else if(!sheetsHasContacts && localHasContacts){
         // Sheets vacío (o truncado), local tiene datos → subir a Sheets
-        $('login-loading-msg').textContent='Subiendo datos a Google Sheets...';
+        $('login-loading-msg').textContent='Subiendo datos al servidor...';
         if(!D._savedAt){ D._savedAt=Date.now(); localStorage.setItem('fcrm_data',JSON.stringify(D)); }
         const payload={...D,users:USERS};
-        await fetch(DRIVE_SYNC_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),mode:'no-cors'});
+        const _ir=await fetch(DRIVE_SYNC_URL+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        if(!_ir.ok) throw new Error('HTTP '+_ir.status);
         await new Promise(r=>setTimeout(r,1500));
-        toast('✓ Datos subidos a Google Sheets');
+        toast('✓ Datos subidos al servidor');
       }
     }
   }catch(e){
@@ -3298,12 +3294,10 @@ function requestDeleteContact(id){
     timestamp:Date.now(),
     status:'pending',
   };
-  fetch(DRIVE_SYNC_URL,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action:'pending_change', change}),
-    mode:'no-cors',
-  });
+  // Guardar change en inbox de D y hacer sync completo al Worker
+  D.pendingChanges=D.pendingChanges||[];
+  D.pendingChanges.push(change);
+  saveData();
   D.inbox=D.inbox||[];
   D.inbox.unshift({id:Date.now(),type:'pending_sent',contactId:id,contactName:c.name,fields:['eliminación'],timestamp:Date.now(),read:false});
   saveData();
@@ -3323,14 +3317,7 @@ function deleteContact(id){
   D.contacts=D.contacts.filter(x=>x.id!==id);
   D.projects.forEach(p=>{p.contactIds=(p.contactIds||[]).filter(x=>x!==id);});
   saveData();
-  if(DRIVE_SYNC_URL){
-    fetch(DRIVE_SYNC_URL,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'patch_contacts', deleteIds:[id], updates:[]}),
-      mode:'no-cors',
-    });
-  }
+  // saveData() ya disparó scheduleSyncToDrive con el estado actualizado
   goView(S.prevView||'contacts-view');
   toast('Contacto eliminado ✓');
 }
@@ -4430,11 +4417,11 @@ async function testSyncUrl(){
   el.style.color='var(--text2)';
   el.textContent='🔄 Probando conexión...';
   try{
-    const res=await fetch(url+'?action=load_crm&t='+Date.now(),{cache:'no-store'});
+    const res=await fetch(url+'/data?t='+Date.now(),{cache:'no-store'});
     const json=await res.json();
-    if(json.ok){
+    if(res.ok && (json.ok || json._savedAt || json.contacts)){
       el.style.color='var(--green)';
-      el.textContent='✓ Conexión correcta — Google Sheets responde bien';
+      el.textContent='✓ Conexión correcta — Worker responde bien';
     }else{
       el.style.color='var(--red)';
       el.textContent='✕ Error: '+( json.error||'Respuesta inválida');
