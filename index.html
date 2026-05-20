@@ -455,7 +455,14 @@ select.inp{cursor:pointer;}
               <th onclick="sortTable('city')" style="cursor:pointer;user-select:none">Ciudad <span id="sort-city"></span></th>
               <th onclick="sortTable('state')" style="cursor:pointer;user-select:none">Estado <span id="sort-state"></span></th>
               <th onclick="sortTable('phone')" style="cursor:pointer;user-select:none">Teléfono <span id="sort-phone"></span></th>
+              <th>WhatsApp</th>
               <th onclick="sortTable('email')" style="cursor:pointer;user-select:none">Email <span id="sort-email"></span></th>
+              <th>Email 2</th>
+              <th>Instagram</th>
+              <th>LinkedIn</th>
+              <th>Web</th>
+              <th>Origen</th>
+              <th>Notas</th>
               <th onclick="sortTable('stage')" style="cursor:pointer;user-select:none">Pipeline <span id="sort-stage"></span></th>
               <th>Segmento</th>
               <th onclick="sortTable('agent')" style="cursor:pointer;user-select:none">Agente <span id="sort-agent"></span></th>
@@ -2962,7 +2969,14 @@ function renderCTable(){
       <td style="color:var(--text2)">${c.city||'—'}</td>
       <td style="color:var(--text2)">${c.state||'—'}</td>
       <td style="color:var(--text2)">${c.phone||c.studioPhone||'—'}</td>
+      <td style="color:var(--text2)">${c.whatsapp||'—'}</td>
       <td style="color:var(--text2)">${c.email||c.studioEmail||'—'}</td>
+      <td style="color:var(--text2)">${c.email2||'—'}</td>
+      <td style="color:var(--text2)">${c.instagram||'—'}</td>
+      <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.linkedin?`<a href="${c.linkedin}" target="_blank" style="color:var(--accent)">${c.linkedin}</a>`:'—'}</td>
+      <td style="font-size:11px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.web?`<a href="${c.web}" target="_blank" style="color:var(--accent)">${c.web}</a>`:'—'}</td>
+      <td style="color:var(--text2)">${c.origin||'—'}</td>
+      <td style="font-size:11px;color:var(--text3);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.notes||'—'}</td>
       <td>${st?`<span class="sb" style="background:${st.color}22;color:${st.color}">${st.name}</span>`
         :`<span style="font-size:11px;color:var(--text3)">—</span>`}</td>
       <td>${seg?`<span style="background:${seg.color}22;color:${seg.color};padding:2px 7px;border-radius:10px;font-size:11px;font-weight:600">${seg.icon} ${seg.label}</span>`:'—'}</td>
@@ -3204,8 +3218,7 @@ function openProfile(id){
     <div><div class="il">Fecha de alta</div><div class="iv">📅 ${c.date||'—'}</div></div>
     ${c.instagram?`<div><div class="il">Instagram</div><div class="iv"><a href="https://instagram.com/${c.instagram.replace('@','')}" target="_blank" style="color:#c77dff;text-decoration:none">📸 ${c.instagram}</a></div></div>`:''}
     ${c.linkedin?`<div><div class="il">LinkedIn</div><div class="iv"><a href="${c.linkedin.startsWith('http')?c.linkedin:'https://'+c.linkedin}" target="_blank" style="color:#0a66c2;text-decoration:none">💼 LinkedIn</a></div></div>`:''}
-    ${c.notes?`<div style="grid-column:span 3"><div class="il">Notas iniciales</div><div class="iv" style="color:var(--text2);line-height:1.6">${c.notes}</div></div>`:''}
-  `;
+    ${c.whatsapp?`<div><div class="il">WhatsApp</div><div class="iv"><a href="https://wa.me/${c.whatsapp.replace(/\D/g,'')}" target="_blank" style="color:#25d366;text-decoration:none">💬 ${c.whatsapp}</a></div></div>`:''}    ${c.web?`<div><div class="il">Web</div><div class="iv"><a href="${c.web.startsWith('http')?c.web:'https://'+c.web}" target="_blank" style="color:var(--accent);text-decoration:none">🌐 ${c.web}</a></div></div>`:''}    ${c.email2?`<div><div class="il">Email 2</div><div class="iv"><a href="mailto:${c.email2}" style="color:var(--accent);text-decoration:none">✉️ ${c.email2}</a></div></div>`:''}    ${c.origin?`<div><div class="il">Origen</div><div class="iv">${c.origin}</div></div>`:''}    ${c.priceList?`<div><div class="il">Price List</div><div class="iv">${c.priceList}</div></div>`:''}    ${c.notes?`<div style="grid-column:span 3"><div class="il">Notas iniciales</div><div class="iv" style="color:var(--text2);line-height:1.6">${c.notes}</div></div>`:''}  `;
 
   $('pf-stage-sel').innerHTML=`<select class="inp" style="max-width:280px" ${owned?'':'disabled'} onchange="changeContactStage(${id},this.value)">
     ${C_STAGES.map(s=>`<option value="${s.id}" ${s.id===c.stage?'selected':''}>${s.name}</option>`).join('')}
@@ -5172,8 +5185,7 @@ function openStudioProfile(id){
       ${s.web?`<div><div class="il">Web</div><div class="iv"><a href="${s.web.startsWith('http')?s.web:'https://'+s.web}" target="_blank" style="color:var(--accent);text-decoration:none">🌐 ${s.web}</a></div></div>`:''}
       ${s.instagram?`<div><div class="il">Instagram</div><div class="iv"><a href="https://instagram.com/${s.instagram.replace('@','')}" target="_blank" style="color:#c77dff;text-decoration:none">📸 ${s.instagram}</a></div></div>`:''}
       ${s.linkedin?`<div><div class="il">LinkedIn</div><div class="iv"><a href="${s.linkedin.startsWith('http')?s.linkedin:'https://'+s.linkedin}" target="_blank" style="color:#0a66c2;text-decoration:none">💼 LinkedIn</a></div></div>`:''}
-      ${s.notes?`<div style="grid-column:span 3"><div class="il">Notas</div><div class="iv" style="color:var(--text2)">${s.notes}</div></div>`:''}
-    </div>
+      ${s.email?`<div><div class="il">Email</div><div class="iv"><a href="mailto:${s.email}" style="color:var(--accent);text-decoration:none">✉️ ${s.email}</a></div></div>`:''}      ${s.phone?`<div><div class="il">Teléfono</div><div class="iv">📞 ${s.phone}</div></div>`:''}      ${s.whatsapp?`<div><div class="il">WhatsApp</div><div class="iv">💬 ${s.whatsapp}</div></div>`:''}      ${s.origin?`<div><div class="il">Origen</div><div class="iv">${s.origin}</div></div>`:''}      ${s.notes?`<div style="grid-column:span 3"><div class="il">Notas</div><div class="iv" style="color:var(--text2)">${s.notes}</div></div>`:''}    </div>
     <div id="spf-tasks-section"></div>
     <div class="sdiv">Notas y registro de actividad</div>
     <div id="spf-notes"></div>
