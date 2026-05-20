@@ -1579,8 +1579,17 @@ async function loadFromDrive(silent=false){
                 }
               }).catch(()=>{});
           }
-          // Remove contacts deleted in remote (only if remote has significantly fewer)
-          // Conservative: only remove if remote explicitly marks deleted
+          // Eliminar del local contactos que ya no existen en el Worker
+          // Esto permite que fusiones y eliminaciones del gestor se propaguen correctamente
+          const localOnlyIds = [...localMap.keys()].filter(id => !remoteMap.has(id));
+          if(localOnlyIds.length > 0 && localOnlyIds.length < (D.contacts||[]).length * 0.1){
+            // Solo eliminar si son menos del 10% (protección contra truncado)
+            localOnlyIds.forEach(id => {
+              D.contacts = D.contacts.filter(c => c.id !== id);
+              mergeChanged = true;
+            });
+          }
+          // También eliminar los marcados con _deleted
           remote.contacts.forEach(rc=>{if(rc._deleted&&localMap.has(rc.id)){D.contacts=D.contacts.filter(c=>c.id!==rc.id);mergeChanged=true;}});
         }
         // Merge projects same way
