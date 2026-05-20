@@ -1847,9 +1847,8 @@ function visibleStudios(){
   return D.studios;
 }
 function canSeeStudioDetails(studioId){
-  if(ME.role==='admin')return true;
-  const s=D.studios.find(x=>x.id===studioId);
-  return s&&s.agent===ME.id;
+  // Todos los vendedores pueden ver todos los estudios
+  return true;
 }
 // Returns studios that have no architect/contact linked — treated as virtual contacts in pipeline
 function studioVirtualContacts(){
