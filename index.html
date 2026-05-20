@@ -3949,7 +3949,6 @@ function saveContact(){
   if(ctype==='Arquitecto'&&!studioId){toast('Los arquitectos deben vincularse a un estudio','⚠️');return;}
   if(studioId){
     const studio=D.studios.find(s=>s.id===studioId);
-    // Cualquier vendedor puede editar contactos de cualquier estudio; los cambios van a aprobación
     // Update studio record with any edited fields
     if(studio){
       const sEmail=$('c-studio-email').value.trim();
@@ -3990,11 +3989,41 @@ function saveContact(){
   };
   if(S.editCId){
     const _ec=D.contacts.find(x=>x.id===S.editCId);
-    Object.assign(_ec,obj);
-    _ec._updatedAt=Date.now();
-    saveData();closeM('modal-contact');
-    if(S.curView==='profile-view')openProfile(S.editCId);
-    renderCKanban();renderCTable();toast('Contacto actualizado ✓');
+    if(ME.role==='admin'){
+      // Admin: aplicar directo
+      Object.assign(_ec,obj);
+      _ec._updatedAt=Date.now();
+      saveData();closeM('modal-contact');
+      if(S.curView==='profile-view')openProfile(S.editCId);
+      renderCKanban();renderCTable();toast('Contacto actualizado ✓');
+    } else {
+      // Vendedor: aplicar local (optimista) + enviar a pendientes
+      const oldFields={};
+      const newFields={};
+      const TRACK=['name','mailingName','phone','email','instagram','linkedin','city','state','origin','priceList','web','studioId','type','segment','notes'];
+      TRACK.forEach(k=>{ if(String(_ec[k]||'')!==String(obj[k]||'')){oldFields[k]=_ec[k];newFields[k]=obj[k];} });
+      if(Object.keys(newFields).length===0){closeM('modal-contact');toast('Sin cambios');return;}
+      // Aplicar localmente (optimista)
+      Object.assign(_ec,obj);
+      _ec._updatedAt=Date.now();
+      // Registrar pendiente
+      if(!D.pending) D.pending=[];
+      D.pending.push({
+        id: Date.now()+'_edit_'+S.editCId,
+        type: 'edit',
+        contactId: S.editCId,
+        contactName: _ec.name,
+        authorId: ME.id,
+        authorName: ME.name,
+        oldFields,
+        newFields,
+        status: 'pending',
+        createdAt: Date.now()
+      });
+      saveData();closeM('modal-contact');
+      if(S.curView==='profile-view')openProfile(S.editCId);
+      renderCKanban();renderCTable();toast('Cambio enviado a aprobación ⏳');
+    }
   }else{
     D.contacts.push({id:nid(),code:nextCode('A'),...obj,date:today(),_updatedAt:Date.now(),notesList:[]});
     saveData();closeM('modal-contact');renderCKanban();renderCTable();toast('Contacto creado 🎉');
