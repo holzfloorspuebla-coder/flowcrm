@@ -3949,7 +3949,7 @@ function saveContact(){
   if(ctype==='Arquitecto'&&!studioId){toast('Los arquitectos deben vincularse a un estudio','⚠️');return;}
   if(studioId){
     const studio=D.studios.find(s=>s.id===studioId);
-    if(studio&&studio.agent!==ME.id&&ME.role!=='admin'){toast('Solo el vendedor responsable puede añadir arquitectos a este estudio','⚠️');return;}
+    // Cualquier vendedor puede editar contactos de cualquier estudio; los cambios van a aprobación
     // Update studio record with any edited fields
     if(studio){
       const sEmail=$('c-studio-email').value.trim();
