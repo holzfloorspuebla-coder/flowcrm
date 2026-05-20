@@ -1403,7 +1403,19 @@ function scheduleSyncToDrive(){
     _syncTimer=null;
     _isSyncing=true;
     try{
-      const payload={...D, users:USERS};
+      // Construir payload: revertir contactos con cambios pendientes a su valor anterior
+      // para que el Worker no reciba datos no aprobados
+      const pendingEdits = (D.pending||[]).filter(p=>p.status==='pending'&&p.type==='edit'&&p.oldFields);
+      let contactsToSync = D.contacts;
+      if(pendingEdits.length && ME && ME.role !== 'admin'){
+        contactsToSync = D.contacts.map(c => {
+          const pend = pendingEdits.find(p => p.contactId === c.id);
+          if(!pend) return c;
+          // Revertir a oldFields para el sync
+          return {...c, ...pend.oldFields, _updatedAt: c._updatedAt - 1};
+        });
+      }
+      const payload={...D, contacts: contactsToSync, users:USERS};
       const _sr=await fetch(DRIVE_SYNC_URL+'/data',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
@@ -1525,14 +1537,30 @@ async function loadFromDrive(silent=false){
             } else {
               const lTs=lc._updatedAt||lc.stageDate||0;
               const rTs=rc._updatedAt||rc.stageDate||0;
-              if(rTs>lTs){
+              // Si el contacto tiene un pendiente local, NO sobreescribir con remoto
+              // (el remoto tiene el valor anterior mientras está en aprobación)
+              const hasPending = ME && ME.role!=='admin' && (D.pending||[]).some(p=>p.contactId===id&&p.status==='pending'&&p.type==='edit');
+              if(rTs>lTs && !hasPending){
                 // Remote contact is newer → update it
                 Object.assign(lc,rc);
                 mergeChanged=true;
               }
-              // else keep local (our change is newer)
+              // else keep local (our change is newer or has pending approval)
             }
           });
+          // Limpiar pendientes rechazados: revertir contacto al valor del Worker
+          if(D.pending && ME && ME.role!=='admin'){
+            const rejected=(D.pending||[]).filter(p=>p.status==='rejected'&&p.type==='edit');
+            rejected.forEach(p=>{
+              const lc=(D.contacts||[]).find(c=>c.id===p.contactId);
+              const rc=remoteMap.get(p.contactId);
+              if(lc&&rc){ Object.assign(lc,rc); mergeChanged=true; }
+            });
+            // Eliminar rechazados del pending local
+            const before=D.pending.length;
+            D.pending=D.pending.filter(p=>p.status!=='rejected');
+            if(D.pending.length!==before) mergeChanged=true;
+          }
           // Remove contacts deleted in remote (only if remote has significantly fewer)
           // Conservative: only remove if remote explicitly marks deleted
           remote.contacts.forEach(rc=>{if(rc._deleted&&localMap.has(rc.id)){D.contacts=D.contacts.filter(c=>c.id!==rc.id);mergeChanged=true;}});
