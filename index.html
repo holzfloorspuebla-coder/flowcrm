@@ -1548,18 +1548,36 @@ async function loadFromDrive(silent=false){
               // else keep local (our change is newer or has pending approval)
             }
           });
-          // Limpiar pendientes rechazados: revertir contacto al valor del Worker
+          // Sincronizar estado de pendientes con el Worker
           if(D.pending && ME && ME.role!=='admin'){
-            const rejected=(D.pending||[]).filter(p=>p.status==='rejected'&&p.type==='edit');
-            rejected.forEach(p=>{
-              const lc=(D.contacts||[]).find(c=>String(c.id)===String(p.contactId));
-              const rc=remoteMap.get(p.contactId);
-              if(lc&&rc){ Object.assign(lc,rc); mergeChanged=true; }
-            });
-            // Eliminar rechazados del pending local
-            const before=D.pending.length;
-            D.pending=D.pending.filter(p=>p.status!=='rejected');
-            if(D.pending.length!==before) mergeChanged=true;
+            // Obtener pendientes del Worker para comparar estados
+            fetch('https://flowcrm-api.luis-castroman-fraga.workers.dev/pending?t='+Date.now(),{cache:'no-store'})
+              .then(r=>r.json()).then(remotePending=>{
+                const remoteMap2=new Map((remotePending.pending||[]).map(p=>[p.id,p]));
+                let changed=false;
+                D.pending.forEach(lp=>{
+                  const rp=remoteMap2.get(lp.id);
+                  if(!rp || rp.status==='approved' || rp.status==='rejected'){
+                    lp.status = rp ? rp.status : 'approved'; // si ya no está, fue aprobado/eliminado
+                    changed=true;
+                  }
+                });
+                if(changed){
+                  // Aplicar cambios: para aprobados, tomar valor del Worker; para rechazados, tomar oldFields
+                  D.pending.filter(p=>p.status==='rejected'&&p.type==='edit').forEach(p=>{
+                    const lc=(D.contacts||[]).find(c=>String(c.id)===String(p.contactId));
+                    if(lc&&p.oldFields){ Object.assign(lc,p.oldFields); }
+                  });
+                  D.pending.filter(p=>p.status==='approved'&&p.type==='edit').forEach(p=>{
+                    const lc=(D.contacts||[]).find(c=>String(c.id)===String(p.contactId));
+                    const rc=remoteMap.get(p.contactId);
+                    if(lc&&rc){ Object.assign(lc,rc); }
+                  });
+                  D.pending=D.pending.filter(p=>p.status==='pending');
+                  saveData();
+                  renderCKanban();renderCTable();
+                }
+              }).catch(()=>{});
           }
           // Remove contacts deleted in remote (only if remote has significantly fewer)
           // Conservative: only remove if remote explicitly marks deleted
@@ -4034,20 +4052,23 @@ function saveContact(){
       // Aplicar localmente (optimista)
       Object.assign(_ec,obj);
       _ec._updatedAt=Date.now();
-      // Registrar pendiente
+      // Registrar pendiente — reemplazar si ya existe uno para este contacto
       if(!D.pending) D.pending=[];
-      D.pending.push({
+      const existingPendIdx = D.pending.findIndex(p=>String(p.contactId)===String(S.editCId)&&p.status==='pending'&&p.type==='edit');
+      const pendEntry = {
         id: Date.now()+'_edit_'+S.editCId,
         type: 'edit',
         contactId: S.editCId,
         contactName: _ec.name,
         authorId: ME.id,
         authorName: ME.name,
-        oldFields,
+        oldFields: existingPendIdx>=0 ? D.pending[existingPendIdx].oldFields : oldFields, // preservar oldFields original
         newFields,
         status: 'pending',
         createdAt: Date.now()
-      });
+      };
+      if(existingPendIdx>=0) D.pending[existingPendIdx]=pendEntry;
+      else D.pending.push(pendEntry);
       saveData();closeM('modal-contact');
       if(S.curView==='profile-view')openProfile(S.editCId);
       renderCKanban();renderCTable();toast('Cambio enviado a aprobación ⏳');
