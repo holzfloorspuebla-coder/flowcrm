@@ -1606,8 +1606,10 @@ async function loadFromDrive(silent=false){
           });
         }
         // Merge studios same way
-        if(remote.studios&&remote.studios.length){
+        if(remote.studios){
           const localMap=new Map((D.studios||[]).map(s=>[s.id,s]));
+          const remoteStudioMap=new Map(remote.studios.map(s=>[s.id,s]));
+          // Agregar o actualizar estudios del remoto
           remote.studios.forEach(rs=>{
             const ls=localMap.get(rs.id);
             if(!ls){(D.studios=D.studios||[]).push(rs);mergeChanged=true;}
@@ -1617,6 +1619,14 @@ async function loadFromDrive(silent=false){
               if(rTs>lTs){Object.assign(ls,rs);mergeChanged=true;}
             }
           });
+          // Eliminar estudios locales que ya no existen en el remoto
+          const localOnlyStudios=(D.studios||[]).filter(s=>!remoteStudioMap.has(s.id));
+          if(localOnlyStudios.length>0 && localOnlyStudios.length<(D.studios||[]).length*0.2){
+            localOnlyStudios.forEach(s=>{
+              D.studios=D.studios.filter(x=>x.id!==s.id);
+              mergeChanged=true;
+            });
+          }
         }
         // Non-record fields: take remote if it's newer overall
         if(remoteTs>localTs){
