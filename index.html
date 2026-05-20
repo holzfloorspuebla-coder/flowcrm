@@ -1409,9 +1409,9 @@ function scheduleSyncToDrive(){
       let contactsToSync = D.contacts;
       if(pendingEdits.length && ME && ME.role !== 'admin'){
         contactsToSync = D.contacts.map(c => {
-          const pend = pendingEdits.find(p => p.contactId === c.id);
+          const pend = pendingEdits.find(p => String(p.contactId) === String(c.id));
           if(!pend) return c;
-          // Revertir a oldFields para el sync
+          // Revertir a oldFields para el sync — el Worker no recibe el cambio no aprobado
           return {...c, ...pend.oldFields, _updatedAt: c._updatedAt - 1};
         });
       }
@@ -1539,7 +1539,7 @@ async function loadFromDrive(silent=false){
               const rTs=rc._updatedAt||rc.stageDate||0;
               // Si el contacto tiene un pendiente local, NO sobreescribir con remoto
               // (el remoto tiene el valor anterior mientras está en aprobación)
-              const hasPending = ME && ME.role!=='admin' && (D.pending||[]).some(p=>p.contactId===id&&p.status==='pending'&&p.type==='edit');
+              const hasPending = ME && ME.role!=='admin' && (D.pending||[]).some(p=>String(p.contactId)===String(id)&&p.status==='pending'&&p.type==='edit');
               if(rTs>lTs && !hasPending){
                 // Remote contact is newer → update it
                 Object.assign(lc,rc);
@@ -1552,7 +1552,7 @@ async function loadFromDrive(silent=false){
           if(D.pending && ME && ME.role!=='admin'){
             const rejected=(D.pending||[]).filter(p=>p.status==='rejected'&&p.type==='edit');
             rejected.forEach(p=>{
-              const lc=(D.contacts||[]).find(c=>c.id===p.contactId);
+              const lc=(D.contacts||[]).find(c=>String(c.id)===String(p.contactId));
               const rc=remoteMap.get(p.contactId);
               if(lc&&rc){ Object.assign(lc,rc); mergeChanged=true; }
             });
