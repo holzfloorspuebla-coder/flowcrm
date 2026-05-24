@@ -217,8 +217,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         <div class="fg"><label class="lbl">m² reales</label><input class="inp" id="pa-m2r" type="number" readonly style="opacity:.6"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
-        <div class="fg"><label class="lbl">PVP por caja (MXN)</label><input class="inp" id="pa-pvp" type="number" oninput="calcPA()"></div>
-        <div class="fg" id="pa-cost-wrap"><label class="lbl">Costo por caja (solo Luis)</label><input class="inp" id="pa-cost" type="number"></div>
+        <div class="fg"><label class="lbl">PVP por m² (MXN)</label><input class="inp" id="pa-pvp" type="number" oninput="calcPA()"></div>
+        <div class="fg" id="pa-cost-wrap"><label class="lbl">Costo por m² (solo Luis)</label><input class="inp" id="pa-cost" type="number" oninput="calcPA()"></div>
       </div>
       <div class="fg"><label class="lbl">Tabla</label>
         <select class="inp" id="pa-table"><option value="supply">Suministro</option><option value="labor">Mano de obra</option></select>
@@ -331,7 +331,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
                 <label class="lbl">Cliente</label>
                 <div class="autocomplete-wrap">
                   <div style="display:flex;gap:6px;align-items:center">
-                    <input class="inp" id="q-client" placeholder="Nombre del cliente" autocomplete="off" oninput="updateTopbar();markDirty()" style="flex:1">
+                    <input class="inp" id="q-client" placeholder="Nombre del cliente" autocomplete="off" oninput="updateTopbar();markDirty();openClientSearchFromInput(this.value)" onfocus="openClientSearchFromInput(this.value)" style="flex:1">
                     <button class="btn btn-ghost" id="btn-search-client" onclick="openClientSearch()" title="Buscar en CRM" style="flex-shrink:0;padding:7px 10px;font-size:13px">🔍</button>
                   </div>
                 </div>
@@ -649,6 +649,17 @@ function openClientSearch(){
   setTimeout(()=>document.getElementById('cs-input').focus(),80);
 }
 
+function openClientSearchFromInput(val){
+  const modal = document.getElementById('modal-client-search');
+  if(!modal.classList.contains('hidden')) return; // ya está abierto
+  modal.classList.remove('hidden');
+  const csInput = document.getElementById('cs-input');
+  csInput.value = val||'';
+  if((val||'').length>=2) onClientSearch();
+  else document.getElementById('cs-results').innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Escribe para buscar...</div>';
+  setTimeout(()=>csInput.focus(),80);
+}
+
 function onClientSearch(){
   clearTimeout(_csTimer);
   const q=(document.getElementById('cs-input').value||'').trim();
@@ -891,8 +902,12 @@ function openProductAdd(id){
   document.getElementById('pa-vol').value='';
   document.getElementById('pa-boxes').value='';
   document.getElementById('pa-m2r').value='';
-  document.getElementById('pa-pvp').value=p.pvpCajaMXN||p.pvpM2MXN||'';
-  document.getElementById('pa-cost').value=p.costoMXN||'';
+  // Convertir precio de caja a m² si tenemos m2perBox
+  const m2pb=parseFloat(p.m2perBox)||0;
+  const pvpCaja=parseFloat(p.pvpCajaMXN||p.pvpM2MXN)||0;
+  const costoCaja=parseFloat(p.costoMXN)||0;
+  document.getElementById('pa-pvp').value=m2pb&&pvpCaja ? round(pvpCaja/m2pb,2) : pvpCaja||'';
+  document.getElementById('pa-cost').value=m2pb&&costoCaja ? round(costoCaja/m2pb,2) : costoCaja||'';
   document.getElementById('pa-table').value=CAT_TARGET_TABLE;
   document.getElementById('pa-rent').innerHTML='';
   closeModal('modal-catalog');
@@ -900,17 +915,24 @@ function openProductAdd(id){
 }
 function calcPA(){
   const p=PA_PRODUCT;
-  if(!p||!p.m2perBox) return;
   const vol=parseFloat(document.getElementById('pa-vol').value)||0;
-  const boxes=Math.ceil(vol/p.m2perBox);
-  const m2r=round(boxes*p.m2perBox,3);
-  document.getElementById('pa-boxes').value=boxes||'';
-  document.getElementById('pa-m2r').value=m2r||'';
-  if(IS_ADMIN){
-    const pvp=parseFloat(document.getElementById('pa-pvp').value)||0;
-    const cost=parseFloat(document.getElementById('pa-cost').value)||0;
-    if(pvp&&boxes){
-      const totPVP=boxes*pvp,totCost=boxes*cost,margin=totPVP-totCost,pct=totPVP?margin/totPVP:0;
+  // Cajas y m² reales (solo si el producto tiene m2perBox)
+  if(p&&p.m2perBox&&vol){
+    const boxes=Math.ceil(vol/p.m2perBox);
+    const m2r=round(boxes*p.m2perBox,3);
+    document.getElementById('pa-boxes').value=boxes;
+    document.getElementById('pa-m2r').value=m2r;
+  } else {
+    document.getElementById('pa-boxes').value='';
+    document.getElementById('pa-m2r').value=vol||'';
+  }
+  if(IS_ADMIN&&vol){
+    const pvpM2=parseFloat(document.getElementById('pa-pvp').value)||0;
+    const costM2=parseFloat(document.getElementById('pa-cost').value)||0;
+    const m2real=p&&p.m2perBox ? round(Math.ceil(vol/p.m2perBox)*p.m2perBox,3) : vol;
+    if(pvpM2){
+      const totPVP=round(m2real*pvpM2,2), totCost=round(m2real*costM2,2);
+      const margin=totPVP-totCost, pct=totPVP?margin/totPVP:0;
       document.getElementById('pa-rent').innerHTML=`<div style="display:flex;gap:14px;flex-wrap:wrap">
         <div><div class="lbl">PVP total</div><div style="font-family:var(--mono)">${mxn(totPVP)}</div></div>
         <div><div class="lbl">Costo total</div><div style="font-family:var(--mono);color:var(--orange)">${mxn(totCost)}</div></div>
@@ -922,8 +944,8 @@ function calcPA(){
 function confirmAddToQuote(){
   const p=PA_PRODUCT;
   if(!p){toast('Sin producto','⚠️');return;}
-  const pvp=parseFloat(document.getElementById('pa-pvp').value)||0;
-  const cost=parseFloat(document.getElementById('pa-cost').value)||0;
+  const pvpM2=parseFloat(document.getElementById('pa-pvp').value)||0;
+  const costM2=parseFloat(document.getElementById('pa-cost').value)||0;
   const table=document.getElementById('pa-table').value;
   let vol,unit;
   if(p.m2perBox&&document.getElementById('pa-vol').value){
@@ -934,8 +956,9 @@ function confirmAddToQuote(){
     vol=parseFloat(document.getElementById('pa-vol').value)||0;
     unit=p.unit||'m2';
   }
-  if(!vol||!pvp){toast('Ingresa volumen y PVP','⚠️');return;}
-  CURRENT_Q[table].push({id:uid(),desc:p.description||p.model,vol,unit,pvp,cost});
+  if(!vol||!pvpM2){toast('Ingresa volumen y PVP','⚠️');return;}
+  // pvp y cost se guardan por m² — la tabla los multiplica por volumen directamente
+  CURRENT_Q[table].push({id:uid(),desc:p.description||p.model,vol,unit,pvp:pvpM2,cost:costM2});
   closeModal('modal-prod-add');
   renderQuoteTables(); recalcAll(); markDirty();
   toast('Producto añadido','✅','success');
