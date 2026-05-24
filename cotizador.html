@@ -902,12 +902,22 @@ function openProductAdd(id){
   document.getElementById('pa-vol').value='';
   document.getElementById('pa-boxes').value='';
   document.getElementById('pa-m2r').value='';
-  // Convertir precio de caja a m² si tenemos m2perBox
   const m2pb=parseFloat(p.m2perBox)||0;
-  const pvpCaja=parseFloat(p.pvpCajaMXN||p.pvpM2MXN)||0;
-  const costoCaja=parseFloat(p.costoMXN)||0;
-  document.getElementById('pa-pvp').value=m2pb&&pvpCaja ? round(pvpCaja/m2pb,2) : pvpCaja||'';
-  document.getElementById('pa-cost').value=m2pb&&costoCaja ? round(costoCaja/m2pb,2) : costoCaja||'';
+  // PVP/m²: usar campo directo si existe, si no convertir desde caja
+  let pvpM2=0, costoM2=0;
+  if(p.pvpM2MXN && parseFloat(p.pvpM2MXN)){
+    pvpM2=round(parseFloat(p.pvpM2MXN),2);
+  } else if(p.pvpCajaMXN && m2pb){
+    pvpM2=round(parseFloat(p.pvpCajaMXN)/m2pb,2);
+  }
+  // Costo/m²: usar campo directo si existe, si no convertir desde caja
+  if(p.costoM2MXN && parseFloat(p.costoM2MXN)){
+    costoM2=round(parseFloat(p.costoM2MXN),2);
+  } else if(p.costoMXN && m2pb){
+    costoM2=round(parseFloat(p.costoMXN)/m2pb,2);
+  }
+  document.getElementById('pa-pvp').value=pvpM2||'';
+  document.getElementById('pa-cost').value=costoM2||'';
   document.getElementById('pa-table').value=CAT_TARGET_TABLE;
   document.getElementById('pa-rent').innerHTML='';
   closeModal('modal-catalog');
@@ -1002,6 +1012,9 @@ function selectQuote(id){
   document.querySelectorAll('.quote-item').forEach(el=>el.classList.toggle('active',el.dataset.id===id));
   document.getElementById('no-quote').style.display='none';
   document.getElementById('quote-editor').style.display='';
+  // Resetear siempre al tab Cotización al abrir una cotización
+  switchTabById('tab-quote');
+  document.querySelectorAll('.tab-btn').forEach((t,i)=>t.classList.toggle('active',i===0));
   loadQuoteToForm(); renderQuoteTables(); recalcAll(); updateTopbar();
   const el=document.getElementById('save-ind'); el.textContent=''; el.className='save-ind';
 }
@@ -1107,20 +1120,26 @@ function recalcAll(){
   if(IS_ADMIN) recalcRent(supNet,labRaw,d1,d2,d3,flete);
 }
 function recalcRent(supNet,labRaw,d1,d2,d3,flete){
-  const income=supNet+labRaw;
+  const discVol=(parseFloat(val('q-disc-vol'))||0)/100;
+  const discPP=(parseFloat(val('q-disc-pp'))||0)/100;
+  const income=supNet+labRaw; // supNet ya lleva descVol y descPP; labRaw sin descuentos
   const allItems=[...CURRENT_Q.supply,...CURRENT_Q.labor];
   let totalCost=flete;
-  document.getElementById('rent-tbody').innerHTML=allItems.map(x=>{
+  document.getElementById('rent-tbody').innerHTML=allItems.map((x,i)=>{
+    const isSupply=i<CURRENT_Q.supply.length;
+    // PVP neto por partida: aplicar descuentos solo a suministro
+    const pvpBruto=x.vol*x.pvp;
+    const pvpNeto=isSupply ? pvpBruto*(1-discVol)*(1-discPP) : pvpBruto;
     let cost=x.cost||0;
     if(cost>0) cost=cost*(1-d1)*(1-d2)*(1-d3);
-    const pvpT=x.vol*x.pvp, costT=x.vol*cost;
+    const costT=x.vol*cost;
     totalCost+=costT;
-    const margin=pvpT-costT, pct=pvpT?margin/pvpT:0;
+    const margin=pvpNeto-costT, pct=pvpNeto?margin/pvpNeto:0;
     return`<tr>
       <td class="lft" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.desc)}">${esc(x.desc.substring(0,60)+(x.desc.length>60?'…':''))}</td>
       <td>${x.vol}</td><td style="color:var(--text3)">${x.unit}</td>
       <td>${mxn(x.pvp)}</td><td style="color:var(--orange)">${mxn(cost)}</td>
-      <td>${mxn(pvpT)}</td><td style="color:var(--orange)">${mxn(costT)}</td>
+      <td>${mxn(pvpNeto)}</td><td style="color:var(--orange)">${mxn(costT)}</td>
       <td>${mxn(margin)}</td><td>${mbadge(pct)}</td>
     </tr>`;
   }).join('');
@@ -1191,6 +1210,12 @@ function switchTab(name,el){
 }
 function switchTabById(id){
   ['tab-quote','tab-text','tab-rent'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
+  // Sincronizar botón activo
+  const nameMap={'tab-quote':'quote','tab-text':'text','tab-rent':'rent'};
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    const match=btn.getAttribute('onclick')||'';
+    btn.classList.toggle('active', match.includes("'"+nameMap[id]+"'"));
+  });
   if(id==='tab-rent') recalcAll();
 }
 
