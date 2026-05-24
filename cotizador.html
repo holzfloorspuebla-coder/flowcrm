@@ -195,9 +195,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <div class="modal-body">
       <div id="pe-fields" class="pd-fields"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-        <div class="fg"><label class="lbl">Precio lista (MXN/caja)</label><input class="inp" id="pe-pvp" type="number" placeholder="98.20"></div>
-        <div class="fg"><label class="lbl">Costo (MXN/caja) — solo Luis</label><input class="inp" id="pe-cost" type="number" placeholder="50.00"></div>
+        <div class="fg"><label class="lbl">Precio lista (MXN/caja)</label><input class="inp" id="pe-pvp" type="number" placeholder="4799.00" oninput="calcPEPrices()"></div>
+        <div class="fg"><label class="lbl" id="pe-cost-lbl">Costo (MXN/caja) — solo Luis</label><input class="inp" id="pe-cost" type="number" placeholder="3599.00" oninput="calcPEPrices()"></div>
       </div>
+      <div id="pe-disc-wrap" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px">
+        <div class="fg"><label class="lbl">Desc. 1 proveedor %</label><input class="inp" id="pe-d1" type="number" placeholder="30" min="0" max="100" oninput="calcPEPrices()"></div>
+        <div class="fg"><label class="lbl">Desc. 2 %</label><input class="inp" id="pe-d2" type="number" placeholder="5" min="0" max="100" oninput="calcPEPrices()"></div>
+        <div class="fg"><label class="lbl">Margen venta %</label><input class="inp" id="pe-margen" type="number" placeholder="50" min="0" max="100" oninput="calcPEPrices()"></div>
+      </div>
+      <div id="pe-calc-preview" style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:var(--r);font-size:11px;display:none"></div>
     </div>
     <div class="modal-ft">
       <button class="btn btn-ghost" onclick="closeModal('modal-prod-edit')">Cancelar</button>
@@ -312,6 +318,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <div class="tab-btn active" onclick="switchTab('quote',this)">📋 Cotización</div>
       <div class="tab-btn" onclick="switchTab('text',this)">📝 Propuesta</div>
       <div class="tab-btn" id="tab-rent-btn" onclick="switchTab('rent',this)">📊 Rentabilidad</div>
+      <div class="tab-btn" onclick="switchTab('catalog-tab',this)">📦 Catálogo</div>
     </div>
 
     <!-- TAB COTIZACIÓN -->
@@ -490,9 +497,40 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           </div>
         </div>
       </div>
+    </div><!-- end tab-rent -->
+
+    <!-- TAB CATÁLOGO -->
+    <div class="content hidden" id="tab-catalog-tab">
+      <div class="sec">
+        <div class="sec-hd">
+          <div class="sec-title">📦 Catálogo de productos</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <input class="inp" id="cat-tab-search" placeholder="Buscar..." oninput="renderCatalogTabTable()" style="width:200px;font-size:12px">
+            <select class="inp" id="cat-tab-filter" onchange="renderCatalogTabTable()" style="width:160px;font-size:12px">
+              <option value="">Todas las categorías</option>
+            </select>
+            <button class="btn btn-primary" style="font-size:12px" onclick="openNewProdCatalogTab()">+ Añadir producto</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto">
+          <table class="rent-table">
+            <thead><tr>
+              <th>Marca</th>
+              <th style="min-width:200px">Modelo / Descripción</th>
+              <th>Categoría</th>
+              <th>Ud.</th>
+              <th>m²/caja</th>
+              <th>PVP/m² MXN</th>
+              <th>PVP/caja MXN</th>
+              <th style="color:var(--orange)">Costo neto</th>
+              <th>Margen</th>
+              <th style="width:64px"></th>
+            </tr></thead>
+            <tbody id="cat-tab-tbody"></tbody>
+          </table>
+        </div>
+      </div>
     </div>
-  </div>
-</div>
 
 <script>
 // ── CONFIG ──
@@ -853,7 +891,14 @@ function openEditProduct(id){
     <input class="inp" id="pe-f-${f.key}" type="${f.type||'text'}" value="${esc(String(PE_PRODUCT[f.key]||''))}" style="font-size:12px"></div>`).join('');
   document.getElementById('pe-pvp').value=PE_PRODUCT.pvpCajaMXN||PE_PRODUCT.pvpM2MXN||'';
   document.getElementById('pe-cost').value=PE_PRODUCT.costoMXN||'';
-  if(!IS_ADMIN) document.getElementById('pe-cost').closest('.fg').style.display='none';
+  document.getElementById('pe-d1').value=PE_PRODUCT.descD1||'';
+  document.getElementById('pe-d2').value=PE_PRODUCT.descD2||'';
+  document.getElementById('pe-margen').value=PE_PRODUCT.margenPct||'';
+  if(!IS_ADMIN){
+    document.getElementById('pe-cost').closest('.fg').style.display='none';
+    document.getElementById('pe-disc-wrap').style.display='none';
+  }
+  calcPEPrices();
   document.getElementById('modal-prod-edit').classList.remove('hidden');
 }
 async function saveProdEdit(){
@@ -863,10 +908,31 @@ async function saveProdEdit(){
     const el=document.getElementById('pe-f-'+f.key);
     if(el) obj[f.key]=f.type==='number'?(parseFloat(el.value)||0):el.value.trim();
   });
-  obj.pvpCajaMXN=parseFloat(document.getElementById('pe-pvp').value)||null;
-  obj.costoMXN=parseFloat(document.getElementById('pe-cost').value)||null;
+  const pvpCaja=parseFloat(document.getElementById('pe-pvp').value)||null;
+  const costoCaja=parseFloat(document.getElementById('pe-cost').value)||null;
+  const d1=(parseFloat(document.getElementById('pe-d1').value)||0)/100;
+  const d2=(parseFloat(document.getElementById('pe-d2').value)||0)/100;
+  const margen=(parseFloat(document.getElementById('pe-margen').value)||0)/100;
+  obj.pvpCajaMXN=pvpCaja;
+  obj.costoMXN=costoCaja;
+  obj.descD1=parseFloat(document.getElementById('pe-d1').value)||0;
+  obj.descD2=parseFloat(document.getElementById('pe-d2').value)||0;
+  obj.margenPct=parseFloat(document.getElementById('pe-margen').value)||0;
+  // Calcular costo neto aplicando descuentos
+  if(costoCaja!==null){
+    obj.costoNetoMXN=round(costoCaja*(1-d1)*(1-d2),2);
+  }
+  // Si tiene m2perBox, calcular precios por m²
+  const m2pb=parseFloat(obj.m2perBox)||0;
+  if(m2pb&&pvpCaja){
+    obj.pvpM2MXN=round(pvpCaja/m2pb,2);
+    if(obj.costoNetoMXN) obj.costoM2MXN=round(obj.costoNetoMXN/m2pb,2);
+  } else {
+    // Sin m2perBox: precio unitario directo
+    obj.pvpM2MXN=null;
+    obj.costoM2MXN=null;
+  }
   obj.description=buildDesc(obj,fields);
-  if(fields.find(f=>f.key==='m2perBox')) obj.m2perBox=obj.m2perBox||null;
   if(PE_PRODUCT){ const idx=CATALOG.findIndex(p=>p.id===PE_PRODUCT.id); if(idx>-1) CATALOG[idx]=obj; }
   else CATALOG.push(obj);
   closeModal('modal-prod-edit');
@@ -874,8 +940,36 @@ async function saveProdEdit(){
   await persistAll();
   toast(PE_PRODUCT?'Producto actualizado':'Producto añadido','✅','success');
 }
+function calcPEPrices(){
+  const pvpCaja=parseFloat(document.getElementById('pe-pvp').value)||0;
+  const costoCaja=parseFloat(document.getElementById('pe-cost').value)||0;
+  const d1=(parseFloat(document.getElementById('pe-d1').value)||0)/100;
+  const d2=(parseFloat(document.getElementById('pe-d2').value)||0)/100;
+  const preview=document.getElementById('pe-calc-preview');
+  if(!pvpCaja){preview.style.display='none';return;}
+  const costoNeto=costoCaja?(costoCaja*(1-d1)*(1-d2)):0;
+  // Intentar leer m2perBox del campo dinámico si existe
+  const m2El=document.getElementById('pe-f-m2perBox');
+  const m2pb=m2El?parseFloat(m2El.value)||0:0;
+  let html=`<div style="display:flex;gap:18px;flex-wrap:wrap">`;
+  if(costoNeto) html+=`<div><div class="lbl">Costo neto/caja</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(costoNeto)}</div></div>`;
+  if(m2pb&&pvpCaja){
+    const pvpM2=round(pvpCaja/m2pb,2);
+    const costoM2=costoNeto?round(costoNeto/m2pb,2):0;
+    const margen=pvpM2-costoM2, pct=pvpM2?margen/pvpM2:0;
+    html+=`<div><div class="lbl">PVP/m²</div><div style="font-family:var(--mono)">${mxn(pvpM2)}</div></div>`;
+    if(costoM2) html+=`<div><div class="lbl">Costo/m²</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(costoM2)}</div></div>`;
+    if(costoM2) html+=`<div><div class="lbl">Margen</div>${mbadge(pct)}</div>`;
+  } else if(costoNeto){
+    const margen=pvpCaja-costoNeto, pct=pvpCaja?margen/pvpCaja:0;
+    html+=`<div><div class="lbl">Margen</div>${mbadge(pct)}</div>`;
+  }
+  html+=`</div>`;
+  preview.innerHTML=html;
+  preview.style.display='';
+}
+
 function buildDesc(p,fields){
-  const cat=p.category||'';
   if(cat==='Instalación'||cat==='Servicios') return p.model||p.brand||'';
   let d=`Suministro ${cat} marca ${p.brand||''} colección ${p.collection||''}, modelo ${p.model||''}, formato ${p.format||''}`;
   if(p.largo&&p.ancho) d+=`, de ${p.largo} cm de largo, ${p.ancho} cm de ancho`;
@@ -904,19 +998,36 @@ function openProductAdd(id){
   document.getElementById('pa-boxes').value='';
   document.getElementById('pa-m2r').value='';
   const m2pb=parseFloat(p.m2perBox)||0;
-  // PVP/m²: usar campo directo si existe, si no convertir desde caja
+  // PVP: si tiene precio/m² explícito, usarlo; si tiene m2perBox, calcular; si no, precio unitario directo
   let pvpM2=0, costoM2=0;
   if(p.pvpM2MXN && parseFloat(p.pvpM2MXN)){
     pvpM2=round(parseFloat(p.pvpM2MXN),2);
   } else if(p.pvpCajaMXN && m2pb){
     pvpM2=round(parseFloat(p.pvpCajaMXN)/m2pb,2);
+  } else if(p.pvpCajaMXN){
+    // Producto por unidad (galón, pieza, etc.) — usar precio directo
+    pvpM2=round(parseFloat(p.pvpCajaMXN),2);
   }
-  // Costo/m²: usar campo directo si existe, si no convertir desde caja
+  // Costo neto (ya con descuentos si se calcularon) o bruto convertido
   if(p.costoM2MXN && parseFloat(p.costoM2MXN)){
     costoM2=round(parseFloat(p.costoM2MXN),2);
+  } else if(p.costoNetoMXN && m2pb){
+    costoM2=round(parseFloat(p.costoNetoMXN)/m2pb,2);
+  } else if(p.costoNetoMXN){
+    costoM2=round(parseFloat(p.costoNetoMXN),2);
   } else if(p.costoMXN && m2pb){
     costoM2=round(parseFloat(p.costoMXN)/m2pb,2);
+  } else if(p.costoMXN){
+    costoM2=round(parseFloat(p.costoMXN),2);
   }
+  // Etiqueta dinámica según tipo de producto
+  const unitLabel = m2pb ? 'PVP por m² (MXN)' : `PVP por ${p.unit||'ud.'} (MXN)`;
+  const costLabel = m2pb ? 'Costo por m² (solo Luis)' : `Costo por ${p.unit||'ud.'} (solo Luis)`;
+  document.querySelector('label[for="pa-pvp"],#modal-prod-add label.lbl').textContent=unitLabel;
+  document.getElementById('pa-pvp').previousElementSibling&&(document.getElementById('pa-pvp').previousElementSibling.textContent=unitLabel);
+  // Actualizar labels directamente
+  const paLabels=document.querySelectorAll('#modal-prod-add .lbl');
+  paLabels.forEach(l=>{if(l.textContent.startsWith('PVP')) l.textContent=unitLabel; if(l.textContent.startsWith('Costo')) l.textContent=costLabel;});
   document.getElementById('pa-pvp').value=pvpM2||'';
   document.getElementById('pa-cost').value=costoM2||'';
   document.getElementById('pa-table').value=CAT_TARGET_TABLE;
@@ -1210,17 +1321,95 @@ function switchTab(name,el){
   switchTabById('tab-'+name);
 }
 function switchTabById(id){
-  ['tab-quote','tab-text','tab-rent'].forEach(t=>document.getElementById(t).classList.toggle('hidden',t!==id));
-  // Sincronizar botón activo
-  const nameMap={'tab-quote':'quote','tab-text':'text','tab-rent':'rent'};
+  ['tab-quote','tab-text','tab-rent','tab-catalog-tab'].forEach(t=>{
+    const el=document.getElementById(t);
+    if(el) el.classList.toggle('hidden',t!==id);
+  });
+  const nameMap={'tab-quote':'quote','tab-text':'text','tab-rent':'rent','tab-catalog-tab':'catalog-tab'};
   document.querySelectorAll('.tab-btn').forEach(btn=>{
     const match=btn.getAttribute('onclick')||'';
     btn.classList.toggle('active', match.includes("'"+nameMap[id]+"'"));
   });
   if(id==='tab-rent') recalcAll();
+  if(id==='tab-catalog-tab') renderCatalogTabTable();
 }
 
-// ── DECOMPRESS (for legacy CRM compat) ──
+// ── CATALOG TAB ──
+function renderCatalogTabTable(){
+  // Poblar filtro de categorías
+  const filterEl=document.getElementById('cat-tab-filter');
+  const cats=[...new Set(CATALOG.map(p=>p.category||'').filter(Boolean))].sort();
+  const current=filterEl.value;
+  filterEl.innerHTML='<option value="">Todas las categorías</option>'+cats.map(c=>`<option${c===current?' selected':''}>${esc(c)}</option>`).join('');
+  const q=(document.getElementById('cat-tab-search').value||'').toLowerCase();
+  const cat=filterEl.value;
+  let items=CATALOG;
+  if(cat) items=items.filter(p=>p.category===cat);
+  if(q) items=items.filter(p=>(p.brand||p.model||p.description||'').toLowerCase().includes(q));
+  const tbody=document.getElementById('cat-tab-tbody');
+  if(!IS_ADMIN) document.getElementById('cat-cost-hd').style.display='none';
+  tbody.innerHTML=items.map(p=>{
+    const pvpM2=p.pvpM2MXN||0;
+    const pvpCaja=p.pvpCajaMXN||0;
+    const costoNeto=p.costoM2MXN||(p.costoNetoMXN&&p.m2perBox?round(p.costoNetoMXN/p.m2perBox,2):0)||(p.costoNetoMXN||0);
+    const margen=pvpM2&&costoNeto?(pvpM2-costoNeto)/pvpM2:(pvpCaja&&costoNeto?(pvpCaja-costoNeto)/pvpCaja:null);
+    return`<tr>
+      <td>${esc(p.brand||'—')}</td>
+      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(p.description||'')}">
+        ${esc(p.model||p.description||'—')}</td>
+      <td><span style="font-size:10px;background:var(--surface3);padding:2px 6px;border-radius:10px">${esc(p.category||'—')}</span></td>
+      <td style="color:var(--text3)">${esc(p.unit||'m2')}</td>
+      <td style="color:var(--text3)">${p.m2perBox||'—'}</td>
+      <td style="font-family:var(--mono)">${pvpM2?mxn(pvpM2):'—'}</td>
+      <td style="font-family:var(--mono)">${pvpCaja?mxn(pvpCaja):'—'}</td>
+      ${IS_ADMIN?`<td style="font-family:var(--mono);color:var(--orange)">${costoNeto?mxn(costoNeto):'—'}</td>`:'<td></td>'}
+      <td>${margen!==null?mbadge(margen):'—'}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn-icon" title="Editar" onclick="openProdEditFromCatalogTab('${p.id}')">✏️</button>
+        <button class="btn-icon" style="color:var(--accent)" title="Eliminar" onclick="deleteProdFromCatalogTab('${p.id}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('')||`<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:24px">Sin productos</td></tr>`;
+}
+function openProdEditFromCatalogTab(id){
+  // Activar la categoría correcta y abrir el editor
+  const p=CATALOG.find(x=>x.id===id);
+  if(!p) return;
+  CAT_ACTIVE_CAT=p.category||Object.keys(CAT_DEFS)[0];
+  PE_PRODUCT=p;
+  openProdEdit();
+  // Al cerrar el modal volver a renderizar
+  const orig=document.getElementById('modal-prod-edit').querySelector('.btn-primary').onclick;
+  document.getElementById('modal-prod-edit').querySelector('.btn-primary').onclick=async function(){
+    await saveProdEdit();
+    renderCatalogTabTable();
+  };
+}
+async function deleteProdFromCatalogTab(id){
+  if(!confirm('¿Eliminar este producto?')) return;
+  CATALOG=CATALOG.filter(p=>p.id!==id);
+  renderCatalogTabTable();
+  await persistAll();
+  toast('Producto eliminado');
+}
+function openNewProdCatalogTab(){
+  CAT_ACTIVE_CAT=Object.keys(CAT_DEFS)[0];
+  PE_PRODUCT=null;
+  document.getElementById('pe-title').textContent='+ Nuevo producto';
+  const fields=CAT_DEFS[CAT_ACTIVE_CAT]?.fields||[];
+  document.getElementById('pe-fields').innerHTML=fields.map(f=>`
+    <div class="fg"><label class="lbl">${esc(f.label)}</label>
+    <input class="inp" id="pe-f-${f.key}" type="${f.type||'text'}" style="font-size:12px"></div>`).join('');
+  ['pe-pvp','pe-cost','pe-d1','pe-d2','pe-margen'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  document.getElementById('pe-calc-preview').style.display='none';
+  if(!IS_ADMIN){
+    document.getElementById('pe-cost').closest('.fg').style.display='none';
+    document.getElementById('pe-disc-wrap').style.display='none';
+  }
+  document.getElementById('modal-prod-edit').classList.remove('hidden');
+}
+
+
 async function decompressB64(b64){
   const bin=atob(b64),bytes=new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
