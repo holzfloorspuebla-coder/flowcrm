@@ -1033,11 +1033,11 @@ function openProductAdd(id){
   // Etiqueta dinámica según tipo de producto
   const unitLabel = m2pb ? 'PVP por m² (MXN)' : `PVP por ${p.unit||'ud.'} (MXN)`;
   const costLabel = m2pb ? 'Costo por m² (solo Luis)' : `Costo por ${p.unit||'ud.'} (solo Luis)`;
-  document.querySelector('label[for="pa-pvp"],#modal-prod-add label.lbl').textContent=unitLabel;
-  document.getElementById('pa-pvp').previousElementSibling&&(document.getElementById('pa-pvp').previousElementSibling.textContent=unitLabel);
-  // Actualizar labels directamente
-  const paLabels=document.querySelectorAll('#modal-prod-add .lbl');
-  paLabels.forEach(l=>{if(l.textContent.startsWith('PVP')) l.textContent=unitLabel; if(l.textContent.startsWith('Costo')) l.textContent=costLabel;});
+  // Actualizar solo los labels de PVP y Costo, por id de su input hermano
+  const pvpLbl=document.getElementById('pa-pvp').closest('.fg')?.querySelector('.lbl');
+  const costLbl=document.getElementById('pa-cost').closest('.fg')?.querySelector('.lbl');
+  if(pvpLbl) pvpLbl.textContent=unitLabel;
+  if(costLbl) costLbl.textContent=costLabel;
   document.getElementById('pa-pvp').value=pvpM2||'';
   document.getElementById('pa-cost').value=costoM2||'';
   document.getElementById('pa-table').value=CAT_TARGET_TABLE;
