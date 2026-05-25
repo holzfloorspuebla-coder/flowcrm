@@ -869,6 +869,9 @@ async function deleteCatEditor(){
 }
 
 // ── PRODUCT ADD / EDIT ──
+function _resetSaveBtn(){
+  document.getElementById('modal-prod-edit').querySelector('.btn-primary').onclick=saveProdEdit;
+}
 function openAddProduct(){
   PE_PRODUCT=null;
   document.getElementById('pe-title').textContent='+ Añadir producto a '+CAT_ACTIVE_CAT;
@@ -876,9 +879,10 @@ function openAddProduct(){
   document.getElementById('pe-fields').innerHTML=fields.map(f=>`
     <div class="fg"><label class="lbl">${esc(f.label)}</label>
     <input class="inp" id="pe-f-${f.key}" type="${f.type||'text'}" style="font-size:12px"></div>`).join('');
-  document.getElementById('pe-pvp').value='';
-  document.getElementById('pe-cost').value='';
+  ['pe-pvp','pe-cost','pe-d1','pe-d2','pe-margen'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('pe-calc-preview').style.display='none';
   if(!IS_ADMIN) document.getElementById('pe-cost').closest('.fg').style.display='none';
+  _resetSaveBtn();
   document.getElementById('modal-prod-edit').classList.remove('hidden');
 }
 function openEditProduct(id){
@@ -899,6 +903,7 @@ function openEditProduct(id){
     document.getElementById('pe-disc-wrap').style.display='none';
   }
   calcPEPrices();
+  _resetSaveBtn();
   document.getElementById('modal-prod-edit').classList.remove('hidden');
 }
 async function saveProdEdit(){
@@ -1372,18 +1377,32 @@ function renderCatalogTabTable(){
   }).join('')||`<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:24px">Sin productos</td></tr>`;
 }
 function openProdEditFromCatalogTab(id){
-  // Activar la categoría correcta y abrir el editor
   const p=CATALOG.find(x=>x.id===id);
   if(!p) return;
   CAT_ACTIVE_CAT=p.category||Object.keys(CAT_DEFS)[0];
   PE_PRODUCT=p;
-  openProdEdit();
-  // Al cerrar el modal volver a renderizar
-  const orig=document.getElementById('modal-prod-edit').querySelector('.btn-primary').onclick;
-  document.getElementById('modal-prod-edit').querySelector('.btn-primary').onclick=async function(){
+  const fields=CAT_DEFS[CAT_ACTIVE_CAT]?.fields||[];
+  document.getElementById('pe-title').textContent='Editar: '+p.model;
+  document.getElementById('pe-fields').innerHTML=fields.map(f=>`
+    <div class="fg"><label class="lbl">${esc(f.label)}</label>
+    <input class="inp" id="pe-f-${f.key}" type="${f.type||'text'}" value="${esc(String(p[f.key]||''))}" style="font-size:12px"></div>`).join('');
+  document.getElementById('pe-pvp').value=p.pvpCajaMXN||p.pvpM2MXN||'';
+  document.getElementById('pe-cost').value=p.costoMXN||'';
+  document.getElementById('pe-d1').value=p.descD1||'';
+  document.getElementById('pe-d2').value=p.descD2||'';
+  document.getElementById('pe-margen').value=p.margenPct||'';
+  if(!IS_ADMIN){
+    document.getElementById('pe-cost').closest('.fg').style.display='none';
+    document.getElementById('pe-disc-wrap').style.display='none';
+  }
+  calcPEPrices();
+  // Al guardar, también refresca la tabla de catálogo
+  const saveBtn=document.getElementById('modal-prod-edit').querySelector('.btn-primary');
+  saveBtn.onclick=async function(){
     await saveProdEdit();
     renderCatalogTabTable();
   };
+  document.getElementById('modal-prod-edit').classList.remove('hidden');
 }
 async function deleteProdFromCatalogTab(id){
   if(!confirm('¿Eliminar este producto?')) return;
