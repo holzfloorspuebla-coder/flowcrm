@@ -1787,7 +1787,7 @@ async function initApp(){
         const localTs=D._savedAt||0;
         if(sheetsTs > localTs){
           // GUARDIA EXTRA: solo aplicar si Sheets trae igual o más contactos que local
-          if(sheetsContactCount >= localContactCount){
+          if(sheetsContactCount >= localContactCount - 50){ // Permitir hasta 50 menos por fusiones legítimas
             $('login-loading-msg').textContent='Actualizando datos...';
             const incoming=sheetsData;
             if(!incoming.studios)incoming.studios=[];
@@ -2622,8 +2622,17 @@ function findDuplicates(by){
     contacts.forEach(c=>{
       const keys=[];
       if(by==='phone'||by==='both'){
-        const p=(c.phone||'').replace(/\D/g,'');
+        const normP = p => {
+          let d = (p||'').replace(/\D/g,'');
+          if(d.length===13 && d.startsWith('521')) d=d.slice(3);
+          else if(d.length===12 && d.startsWith('52')) d=d.slice(2);
+          else if(d.length===11 && d.startsWith('1')) d=d.slice(1);
+          return d;
+        };
+        const p=normP(c.phone||'');
         if(p.length>=7) keys.push('p:'+p);
+        const w=normP(c.whatsapp||'');
+        if(w.length>=7 && w!==p) keys.push('p:'+w);
       }
       if(by==='email'||by==='both'){
         const e=(c.email||'').toLowerCase().trim();
