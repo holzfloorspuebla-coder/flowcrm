@@ -1329,8 +1329,9 @@ function saveUsers(u){
 }
 function loadData(){
   try{
-    const d=localStorage.getItem('fcrm_data');
-    const data=d?JSON.parse(d):JSON.parse(JSON.stringify(DEFAULT_DATA));
+    // MODO WORKER-ONLY: ignorar localStorage, siempre cargar del Worker
+    // Esto previene que datos locales viejos pisen fusiones del gestor
+    const data=JSON.parse(JSON.stringify(DEFAULT_DATA));
     if(!data.studios)data.studios=JSON.parse(JSON.stringify(DEFAULT_DATA.studios||[]));
     if(!data.segments){
       data.segments=JSON.parse(JSON.stringify(DEFAULT_SEGMENTS||[]));
@@ -1376,6 +1377,8 @@ let _lastLocalEdit=0;
 function saveData(){
   _lastLocalEdit=Date.now();
   D._savedAt = _lastLocalEdit;
+  // MODO WORKER-ONLY: no guardar en localStorage
+  // MODO WORKER-ONLY: no guardar en localStorage
   // Stamp _updatedAt on records that don't have one yet (first save after this update)
   // Records already stamped keep their timestamp so merge knows which is newer
   (D.contacts||[]).forEach(c=>{if(!c._updatedAt) c._updatedAt=_lastLocalEdit;});
@@ -1523,9 +1526,9 @@ async function loadFromDrive(silent=false){
     if(json.data){
       const localContactCount=(D.contacts||[]).length;
       const incomingContactCount=(json.data.contacts||[]).length;
-      // Guardia: rechazar si Sheets devuelve 0 contactos y local tiene datos (truncado)
+      // MODO WORKER-ONLY: rechazar solo si Worker devuelve 0 contactos (Worker caído)
       if(localContactCount>0 && incomingContactCount===0){
-        console.warn('Sync: Sheets devolvió 0 contactos. Posible truncado. Preservando local.');
+        console.warn('Sync: Worker devolvió 0 contactos. Posible error. Preservando local.');
         updateLastSyncLabel('error');
         if(!silent) showSyncDot('error');
         return false;
@@ -1723,6 +1726,9 @@ function startPolling(){
 function stopPolling(){if(_pollTimer){clearInterval(_pollTimer);_pollTimer=null;}}
 
 let USERS=loadUsers();
+// MODO WORKER-ONLY: limpiar localStorage para que loadData() devuelva datos vacíos
+// Los datos reales siempre vienen del Worker
+try { localStorage.removeItem('fcrm_data'); } catch(e) {}
 let D=loadData();
 
 // ── SESSION ──
@@ -1746,7 +1752,13 @@ async function initApp(){
       json=await fetchFromDrive(DRIVE_SYNC_URL);
     }catch(parseErr){
       console.warn('initApp: error al cargar Sheets. Usando datos locales.',parseErr.message);
-      json={ok:false};
+      // Worker no disponible - mostrar error, no usar localStorage
+      $('login-loading-msg').textContent='Error de conexión. Verifica tu internet.';
+      $('login-loading').style.display='none';
+      $('login-btn').disabled=false;
+      $('login-btn').style.opacity='1';
+      showToast('No se puede conectar al servidor. Verifica tu conexión.','error');
+      return;
     }
 
     if(json.ok){
