@@ -1064,7 +1064,9 @@ function findDupsStudios(by){
       const group = [a.s];
       for(let j=i+1; j<scored.length; j++){
         if(used.has(j)) continue;
-        if(nameSimilarity(a.key, scored[j].key) >= 0.70){
+        const shorter = Math.min(a.key.length, scored[j].key.length);
+      const threshold = shorter <= 8 ? 0.92 : shorter <= 14 ? 0.82 : 0.75;
+      if(nameSimilarity(a.key, scored[j].key) >= threshold){
           group.push(scored[j].s);
           used.add(j);
         }
@@ -1721,13 +1723,8 @@ async function deleteStudio(studioId, name){
   if(!confirm('Eliminar el estudio "'+name+'"?\nLos contactos vinculados quedarán sin estudio.')) return;
   const WORKER='https://flowcrm-api.luis-castroman-fraga.workers.dev';
   try{
-    const res=await fetch(WORKER+'/data?t='+Date.now(),{cache:'no-store'});
+    const res=await fetch(WORKER+'/studio/'+studioId, {method:'DELETE'});
     if(!res.ok) throw new Error('HTTP '+res.status);
-    const data=await res.json();
-    data.studios=(data.studios||[]).filter(s=>String(s.id)!==String(studioId));
-    (data.contacts||[]).forEach(c=>{ if(String(c.studioId)===String(studioId)){ c.studioId=null; c.studio=''; c._updatedAt=Date.now(); }});
-    data._savedAt=Date.now()+30000;
-    await fetch(WORKER+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
     ALL_STUDIOS=ALL_STUDIOS.filter(s=>String(s.id)!==String(studioId));
     ALL.forEach(c=>{ if(String(c.studioId)===String(studioId)){ c.studioId=null; c.studio=''; }});
     renderStudios(); applyFilters();
