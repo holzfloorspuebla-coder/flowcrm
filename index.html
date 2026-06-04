@@ -1374,6 +1374,7 @@ function showSyncDot(status){
 // ── Guardar: siempre local primero, con timestamp, luego sube a Sheets ──
 let _lastLocalEdit=0;
 let _lastSuccessfulSync=parseInt(localStorage.getItem('fcrm_lastSync')||'0');
+let _serverDataLoaded=false; // Bloquea sync hasta que Supabase haya cargado
 function saveData(){
   _lastLocalEdit=Date.now();
   D._savedAt = _lastLocalEdit;
@@ -1412,6 +1413,7 @@ function showSaveIndicator(){
 let _syncTimer=null;
 let _isSyncing=false;
 function scheduleSyncToDrive(){
+  if(!_serverDataLoaded){ return; } // No sync hasta que Supabase haya cargado
   clearTimeout(_syncTimer);
   showSyncDot('syncing');
   _syncTimer=setTimeout(async()=>{
@@ -1896,6 +1898,7 @@ async function initApp(){
   }catch(e){
     console.warn('initApp error (usando datos locales):',e);
   }finally{
+    _serverDataLoaded=true; // Permitir sync a partir de aquí
     $('login-loading').style.display='none';
     $('login-btn').disabled=false;
     $('login-btn').style.opacity='';
