@@ -1453,6 +1453,15 @@ function scheduleSyncToDrive(){
         _nextContactCode: D._nextContactCode,
         _savedAt: D._savedAt,
       };
+      // Safety check client-side: no mandar sync si los datos locales parecen vacíos
+      const localContactCount = (D.contacts||[]).length;
+      if(localContactCount > 0 && (isFirstSync ? contactsToSync.length : changedContacts.length) === 0 && !isFirstSync){
+        // Sync incremental sin cambios — OK, no es un error
+      } else if(isFirstSync && contactsToSync.length < 50 && localContactCount > 1000){
+        console.warn('Safety check: evitando sync con datos insuficientes');
+        showSyncDot('error');
+        return;
+      }
       const _sr=await fetch(DRIVE_SYNC_URL+'/data',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
