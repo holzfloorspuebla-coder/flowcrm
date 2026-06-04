@@ -1512,10 +1512,11 @@ const SUPABASE_URL = 'https://umrdjgmtxvgjxzirypkg.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcmRqZ210eHZnanh6aXJ5cGtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNDMyMjgsImV4cCI6MjA5MjYxOTIyOH0.qeHYgKYkaTHRVHKJGearvmQ4OjWHv_nbT9rOCY3XtKs';
 const SB_HEADERS = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON };
 
-async function sbFetchAll(table, select='*'){
+async function sbFetchAll(table, select='*', filter=''){
   const pageSize=1000; let all=[]; let offset=0;
   while(true){
-    const res=await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${select}&limit=${pageSize}&offset=${offset}`,{headers:SB_HEADERS});
+    const filterStr = filter ? '&'+filter : '';
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${select}&limit=${pageSize}&offset=${offset}${filterStr}`,{headers:SB_HEADERS});
     if(!res.ok) throw new Error('Supabase '+table+': '+res.status);
     const rows=await res.json();
     all=all.concat(rows);
@@ -1527,8 +1528,9 @@ async function sbFetchAll(table, select='*'){
 
 async function fetchFromDrive(url){
   // Lee directamente de Supabase para evitar timeout del Worker con 8000+ registros
+  // Solo carga contactos que tienen stage asignado (los que están en pipeline)
   const [contacts, studios, projects, pending, metaRows] = await Promise.all([
-    sbFetchAll('crm_contacts'),
+    sbFetchAll('crm_contacts', '*', 'data->>stage=not.is.null'),
     sbFetchAll('crm_studios'),
     sbFetchAll('crm_projects'),
     sbFetchAll('crm_pending'),
@@ -1536,9 +1538,16 @@ async function fetchFromDrive(url){
   ]);
   const meta={};
   metaRows.forEach(r=>meta[r.key]=r.value);
+
+  // Solo contactos con stage asignado (en pipeline)
+  const allContacts = contacts.map(r=>r.data).filter(c=>c.stage&&c.stage!=='');
+  // Solo estudios asociados a esos contactos
+  const studioIds = new Set(allContacts.map(c=>String(c.studioId)).filter(Boolean));
+  const allStudios = studios.map(r=>r.data).filter(s=>studioIds.has(String(s.id)));
+
   const data={
-    contacts:  contacts.map(r=>r.data),
-    studios:   studios.map(r=>r.data),
+    contacts:  allContacts,
+    studios:   allStudios,
     projects:  projects.map(r=>r.data),
     pending:   pending.map(r=>r.data),
     users:           meta.users           || [],
@@ -5540,8 +5549,9 @@ function globalSearch(val){
   }).slice(0,5);
 
   if(!cMatch.length && !pMatch.length && !sMatch.length){
-    box.innerHTML=`<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Sin resultados para "<strong>${val}</strong>"</div>`;
+    box.innerHTML=`<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Buscando en la base de datos completa...</div>`;
     box.style.display='block';
+    searchInFullDB(val, box);
     return;
   }
 
@@ -5631,6 +5641,85 @@ function globalSearch(val){
   box.innerHTML=html;
   box.style.display='block';
   _searchIdx=0;
+}
+
+async function searchInFullDB(val, box){
+  const nq = norm(val.trim());
+  try {
+    // Search in all contacts (no stage filter)
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/crm_contacts?select=data&limit=20`,
+      { headers: { ...SB_HEADERS, 'Prefer': 'count=none' } }
+    );
+    // Use PostgREST full-text or client-side filter on fetched batch
+    // Since we can't do complex JSONB text search easily, fetch with or filter
+    const allRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/crm_contacts?select=data&data->>stage=is.null&limit=500`,
+      { headers: SB_HEADERS }
+    );
+    if(!allRes.ok) throw new Error('Error buscando en BD');
+    const rows = await allRes.json();
+    const matches = rows.map(r=>r.data).filter(c=>{
+      return [c.name,c.mailingName,c.email,c.email2,c.phone,c.whatsapp,c.city,c.studio]
+        .some(f=>norm(f).includes(nq));
+    }).slice(0,10);
+
+    if(!matches.length){
+      box.innerHTML=`<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Sin resultados para "<strong>${esc(val)}</strong>"</div>`;
+      return;
+    }
+
+    let html=`<div style="padding:8px 12px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--accent)">En base de datos (no en CRM)</div>`;
+    html+=matches.map(c=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--border)">
+        <div style="width:30px;height:30px;border-radius:8px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;color:var(--text3)">👤</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:13px">${esc(c.name||'—')}</div>
+          <div style="font-size:11px;color:var(--text2)">${[c.studio,c.city,c.email].filter(Boolean).join(' · ')||'—'}</div>
+        </div>
+        <button onclick="addToCRM('${String(c.id).replace(/'/g,'')}')" style="flex-shrink:0;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap">➕ Agregar al CRM</button>
+      </div>`).join('');
+    box.innerHTML=html;
+  } catch(e) {
+    box.innerHTML=`<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Sin resultados para "<strong>${esc(val)}</strong>"</div>`;
+  }
+}
+
+async function addToCRM(contactId){
+  // Fetch the full contact from Supabase
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/crm_contacts?id=eq.${encodeURIComponent(contactId)}&select=data`,
+      { headers: SB_HEADERS }
+    );
+    const rows = await res.json();
+    if(!rows[0]) { toast('Contacto no encontrado','⚠️'); return; }
+    const c = rows[0].data;
+    // Assign default stage
+    c.stage = 'c-lead';
+    c.stageDate = today();
+    c._updatedAt = Date.now();
+    // Add to local data
+    if(!D.contacts.find(x=>String(x.id)===String(c.id))){
+      D.contacts.push(c);
+    }
+    // Also load studio if not present
+    if(c.studioId && !D.studios.find(s=>String(s.id)===String(c.studioId))){
+      const sRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/crm_studios?id=eq.${c.studioId}&select=data`,
+        { headers: SB_HEADERS }
+      );
+      const sRows = await sRes.json();
+      if(sRows[0]) D.studios.push(sRows[0].data);
+    }
+    saveData();
+    document.getElementById('search-results').style.display='none';
+    document.getElementById('global-search-input'||'search-inp').value='';
+    toast(`✅ ${c.name} agregado al CRM`);
+    renderContacts();
+  } catch(e) {
+    toast('Error al agregar contacto','⚠️');
+  }
 }
 
 function highlightSearch(el){
