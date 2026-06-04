@@ -1496,19 +1496,53 @@ async function decompressB64Gzip(b64){
 }
 
 // ── Fetch con soporte de compresión gzip (evita truncado del proxy de Google) ──
-async function fetchFromDrive(url){
-  const res=await fetch(url+'/data?t='+Date.now(),{cache:'no-store'});
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  const rawText=await res.text();
-  let json;
-  try{ json=JSON.parse(rawText); }
-  catch(e){ throw new Error('JSON inválido: '+e.message); }
-  // Worker devuelve {ok,data,users} — normalizar si devuelve datos directamente
-  if(json && !('ok' in json) && (json.contacts||json._savedAt)){
-    json={ok:true,data:json};
+const SUPABASE_URL = 'https://umrdjgmtxvgjxzirypkg.supabase.co';
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcmRqZ210eHZnanh6aXJ5cGtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNDMyMjgsImV4cCI6MjA5MjYxOTIyOH0.qeHYgKYkaTHRVHKJGearvmQ4OjWHv_nbT9rOCY3XtKs';
+const SB_HEADERS = { 'apikey': SUPABASE_ANON, 'Authorization': 'Bearer ' + SUPABASE_ANON };
+
+async function sbFetchAll(table, select='*'){
+  const pageSize=1000; let all=[]; let offset=0;
+  while(true){
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/${table}?select=${select}&limit=${pageSize}&offset=${offset}`,{headers:SB_HEADERS});
+    if(!res.ok) throw new Error('Supabase '+table+': '+res.status);
+    const rows=await res.json();
+    all=all.concat(rows);
+    if(rows.length<pageSize) break;
+    offset+=pageSize;
   }
-  if(!json.ok) throw new Error(json.error||'Error');
-  return json;
+  return all;
+}
+
+async function fetchFromDrive(url){
+  // Lee directamente de Supabase para evitar timeout del Worker con 8000+ registros
+  const [contacts, studios, projects, pending, metaRows] = await Promise.all([
+    sbFetchAll('crm_contacts'),
+    sbFetchAll('crm_studios'),
+    sbFetchAll('crm_projects'),
+    sbFetchAll('crm_pending'),
+    sbFetchAll('crm_meta'),
+  ]);
+  const meta={};
+  metaRows.forEach(r=>meta[r.key]=r.value);
+  const data={
+    contacts:  contacts.map(r=>r.data),
+    studios:   studios.map(r=>r.data),
+    projects:  projects.map(r=>r.data),
+    pending:   pending.map(r=>r.data),
+    users:           meta.users           || [],
+    tags:            meta.tags            || [],
+    contactTypes:    meta.contactTypes    || [],
+    lossReasons:     meta.lossReasons     || [],
+    stageAlarms:     meta.stageAlarms     || {},
+    segments:        meta.segments        || [],
+    adminTasks:      meta.adminTasks      || [],
+    activities:      meta.activities      || [],
+    showroomVisits:  meta.showroomVisits  || [],
+    _nextStudioCode:  meta._nextStudioCode?.v  || meta._nextStudioCode  || 0,
+    _nextContactCode: meta._nextContactCode?.v || meta._nextContactCode || 0,
+    _savedAt: Date.now()
+  };
+  return {ok:true, data, users: data.users};
 }
 
 // ── Cargar desde Google Sheets ──
