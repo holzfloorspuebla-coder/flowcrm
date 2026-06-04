@@ -1473,7 +1473,6 @@ function scheduleSyncToDrive(){
       _lastSuccessfulSync = Date.now();
       localStorage.setItem('fcrm_lastSync', _lastSuccessfulSync);
       showSyncDot('ok');
-      _lastLocalEdit=D._savedAt||Date.now();
       _lastSuccessfulSync=Date.now();
     }catch(e){
       showSyncDot('error');
