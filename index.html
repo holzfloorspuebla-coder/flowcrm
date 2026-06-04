@@ -3484,7 +3484,8 @@ function deleteContact(id){
   D.contacts=D.contacts.filter(x=>x.id!==id);
   D.projects.forEach(p=>{p.contactIds=(p.contactIds||[]).filter(x=>x!==id);});
   saveData();
-  // saveData() ya disparó scheduleSyncToDrive con el estado actualizado
+  // Propagar borrado a Supabase
+  if(DRIVE_SYNC_URL) fetch(DRIVE_SYNC_URL+'/contact/'+encodeURIComponent(String(id)),{method:'DELETE'}).catch(()=>{});
   goView(S.prevView||'contacts-view');
   toast('Contacto eliminado ✓');
 }
@@ -3934,6 +3935,8 @@ function deleteProject(id){
   D.projects=D.projects.filter(p=>p.id!==id);
   saveData();closeM('modal-proj-detail');renderPKanban();renderPTable();
   if(S.curView==='profile-view')openProfile(S.profileId);
+  // Propagar borrado a Supabase
+  if(DRIVE_SYNC_URL) fetch(DRIVE_SYNC_URL+'/quote/'+encodeURIComponent(String(id)),{method:'DELETE'}).catch(()=>{});
   toast('Proyecto eliminado');
 }
 
