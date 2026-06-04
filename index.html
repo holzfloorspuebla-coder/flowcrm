@@ -1373,7 +1373,7 @@ function showSyncDot(status){
 
 // ── Guardar: siempre local primero, con timestamp, luego sube a Sheets ──
 let _lastLocalEdit=0;
-let _lastSuccessfulSync=0;
+let _lastSuccessfulSync=parseInt(localStorage.getItem('fcrm_lastSync')||'0');
 function saveData(){
   _lastLocalEdit=Date.now();
   D._savedAt = _lastLocalEdit;
@@ -1469,6 +1469,7 @@ function scheduleSyncToDrive(){
       });
       if(!_sr.ok) throw new Error('HTTP '+_sr.status);
       _lastSuccessfulSync = Date.now();
+      localStorage.setItem('fcrm_lastSync', _lastSuccessfulSync);
       showSyncDot('ok');
       _lastLocalEdit=D._savedAt||Date.now();
       _lastSuccessfulSync=Date.now();
