@@ -1630,17 +1630,22 @@ async function loadFromDrive(silent=false){
             } else {
               const lTs=lc._updatedAt||lc.stageDate||0;
               const rTs=rc._updatedAt||rc.stageDate||0;
-              // Si el contacto tiene un pendiente local, NO sobreescribir con remoto
-              // (el remoto tiene el valor anterior mientras está en aprobación)
               const hasPending = ME && ME.role!=='admin' && (D.pending||[]).some(p=>String(p.contactId)===String(id)&&p.status==='pending'&&p.type==='edit');
               if(rTs>lTs && !hasPending){
-                // Remote contact is newer → update it
                 Object.assign(lc,rc);
                 mergeChanged=true;
               }
-              // else keep local (our change is newer or has pending approval)
             }
           });
+          // Detectar contactos eliminados en remoto (por el gestor)
+          // Solo si remoto tiene un número similar de contactos (evita falsos positivos)
+          const remoteCount=remote.contacts.length;
+          const localCount=(D.contacts||[]).length;
+          if(remoteCount>0 && localCount>remoteCount){
+            const before=(D.contacts||[]).length;
+            D.contacts=(D.contacts||[]).filter(c=>remoteMap.has(c.id));
+            if(D.contacts.length<before) mergeChanged=true;
+          }
           // Sincronizar estado de pendientes con el Worker
           if(D.pending && ME && ME.role!=='admin'){
             // Obtener pendientes del Worker para comparar estados
