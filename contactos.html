@@ -184,26 +184,12 @@ tr.selected td{background:var(--accentDim);}
   <div class="modal" style="width:720px">
     <div class="modal-hd"><h2>🔍 Buscador de duplicados</h2><button class="modal-close" onclick="closeModal('modal-dup')">✕</button></div>
     <div class="modal-body">
-      <!-- Mode toggle -->
-      <div style="display:flex;gap:6px;margin-bottom:12px;background:var(--surface2);border-radius:var(--r);padding:4px;width:fit-content">
-        <button id="dup-mode-contacts" class="btn btn-primary" style="font-size:12px;padding:5px 14px" onclick="setDupMode('contacts')">👤 Contactos</button>
-        <button id="dup-mode-studios" class="btn btn-ghost" style="font-size:12px;padding:5px 14px" onclick="setDupMode('studios')">🏛️ Estudios</button>
-      </div>
-      <!-- Contacts criteria -->
-      <div id="dup-criteria-contacts" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
         <span style="font-size:12px;color:var(--text3)">Buscar por:</span>
-        <button class="btn btn-primary" onclick="findDups('name')">Nombre ≥70%</button>
-        <button class="btn btn-ghost" onclick="findDups('phone')">Teléfono</button>
-        <button class="btn btn-ghost" onclick="findDups('email')">Email</button>
-        <span id="dup-summary" style="font-size:12px;color:var(--text3);margin-left:auto"></span>
-      </div>
-      <!-- Studios criteria -->
-      <div id="dup-criteria-studios" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
-        <span style="font-size:12px;color:var(--text3)">Buscar por:</span>
-        <button class="btn btn-primary" onclick="findDupsStudios('name')">Nombre ≥70%</button>
-        <button class="btn btn-ghost" onclick="findDupsStudios('phone')">Teléfono</button>
-        <button class="btn btn-ghost" onclick="findDupsStudios('email')">Email</button>
-        <span id="dup-summary-studios" style="font-size:12px;color:var(--text3);margin-left:auto"></span>
+        <button class="btn btn-ghost" id="dup-btn-name" onclick="findDupsAll('name')">Nombre ≥70%</button>
+        <button class="btn btn-ghost" id="dup-btn-email" onclick="findDupsAll('email')">Email</button>
+        <button class="btn btn-ghost" id="dup-btn-phone" onclick="findDupsAll('phone')">Teléfono</button>
+        <span id="dup-summary-all" style="font-size:12px;color:var(--text3);margin-left:auto"></span>
       </div>
       <div id="dup-results" style="max-height:55vh;overflow-y:auto"></div>
     </div>
@@ -399,9 +385,9 @@ tr.selected td{background:var(--accentDim);}
       <input type="checkbox" id="sel-all-cb" onchange="toggleAllVisible(this.checked)" style="accent-color:var(--accent)">
       <span class="bulk-count"><span id="sel-count">0</span> seleccionados</span>
       <button class="btn btn-green" onclick="openSendCRM()">⚡ Enviar al CRM</button>
-      <button class="btn btn-ghost" id="btn-combine" onclick="openMergeFromSelection()" style="display:none">🔀 Combinar</button>
+      <button class="btn btn-ghost" id="btn-fusionar" onclick="openFusionar()" style="display:none">🔀 Fusionar</button>
       <button class="btn" onclick="bulkDelete()" style="background:rgba(255,92,92,.15);color:#ff5c5c;border:1px solid rgba(255,92,92,.3)">🗑 Eliminar</button>
-      <button class="btn btn-ghost" onclick="clearSel()" style="margin-left:auto">✕ Cancelar</button>
+      <button class="btn btn-ghost" onclick="clearSelAll()" style="margin-left:auto">✕ Deseleccionar todo</button>
     </div>
 
     <!-- STATUS BAR -->
@@ -451,8 +437,8 @@ tr.selected td{background:var(--accentDim);}
         <button id="clear-studio-search" onclick="document.getElementById('studio-search').value='';document.getElementById('clear-studio-search').style.display='none';renderStudios()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1">✕</button>
       </div>
       <span style="font-size:13px;color:var(--text2);margin-left:8px" id="studio-count"></span>
-      <button class="btn btn-ghost" style="margin-left:auto" onclick="setDupMode('studios');openDups()">🔍 Buscar duplicados</button>
-      <button class="btn btn-ghost" id="btn-merge-studios" style="display:none" onclick="openMergeStudiosFromSelection()">🔀 Fusionar seleccionados</button>
+      <button class="btn btn-ghost" style="margin-left:auto" onclick="openDups()">🔍 Buscar duplicados</button>
+      <button class="btn btn-ghost" id="btn-desel-studios" style="display:none" onclick="clearSelStudios()">✕ Deseleccionar todo</button>
     </div>
     <div class="table-wrap">
       <table>
@@ -627,9 +613,99 @@ async function init(){
     setupScroll();
     setText('count-total', ALL.length.toLocaleString('es'));
     setSyncDot('ok'); setText('sync-lbl','Datos cargados · '+ALL.length.toLocaleString('es')+' contactos');
+    startPolling();
   } catch(e){
     toast('Error cargando datos: '+e.message,'❌');
     setSyncDot('err'); setText('sync-lbl','Error de conexión');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  POLLING — sincroniza cambios del Worker cada 20 segundos
+// ══════════════════════════════════════════════════════════════════
+let _lastPollAt = 0;
+let _pollInterval = null;
+let _isSaving = false; // se pone true cuando el gestor está guardando
+
+function startPolling(){
+  if(_pollInterval) clearInterval(_pollInterval);
+  _pollInterval = setInterval(pollWorker, 20000);
+}
+
+async function pollWorker(){
+  // No hacer polling si hay un modal abierto o el gestor está guardando
+  if(_isSaving) return;
+  if(document.querySelector('.overlay:not(.hidden)')) return;
+  const WORKER = 'https://flowcrm-api.luis-castroman-fraga.workers.dev';
+  try{
+    const res = await fetch(WORKER+'/data?t='+Date.now(), {cache:'no-store'});
+    if(!res.ok) return;
+    const data = await res.json();
+    if(!data.contacts) return;
+
+    let contactsUpdated = 0, studiosUpdated = 0;
+
+    // Actualizar contactos que cambiaron
+    (data.contacts || []).forEach(c => {
+      const idx = ALL.findIndex(x => String(x.id) === String(c.id));
+      if(idx === -1) {
+        // Contacto nuevo — agregar
+        ALL.push({
+          _i: ALL.length, id: c.id, name: c.name||'', mailingName: c.mailingName||c.name||'',
+          phone: c.phone||'', email: c.email||'', email2: c.email2||'',
+          instagram: c.instagram||'', linkedin: c.linkedin||'', whatsapp: c.whatsapp||'',
+          web: c.web||'', segment: c.segment||'', notes: c.notes||'',
+          studio: (data.studios||[]).find(s=>s.id===c.studioId)?.name||c.studio||'',
+          studioId: c.studioId||null, type: c.type||'', city: c.city||'', state: c.state||'',
+          priceList: c.priceList||'', agent: (data.users||[]).find(u=>u.id===c.agent)?.name||c.agent||'',
+          _agentId: c.agent||null, origin: c.origin||'', stage: c.stage||'',
+          tags: c.tags||[], notesList: c.notesList||[], date: c.date||'', code: c.code||'',
+          _crmId: c.id, _updatedAt: c._updatedAt||0,
+        });
+        contactsUpdated++;
+      } else if((c._updatedAt||0) > (ALL[idx]._updatedAt||0)) {
+        // Contacto modificado — actualizar campos
+        const existing = ALL[idx];
+        ALL[idx] = { ...existing,
+          name: c.name||existing.name, mailingName: c.mailingName||existing.mailingName,
+          phone: c.phone||'', email: c.email||'', email2: c.email2||'',
+          instagram: c.instagram||'', linkedin: c.linkedin||'', whatsapp: c.whatsapp||'',
+          web: c.web||'', segment: c.segment||existing.segment, notes: c.notes||existing.notes,
+          studio: (data.studios||[]).find(s=>s.id===c.studioId)?.name||c.studio||existing.studio,
+          studioId: c.studioId||existing.studioId, type: c.type||existing.type,
+          city: c.city||'', state: c.state||'', priceList: c.priceList||'',
+          agent: (data.users||[]).find(u=>u.id===c.agent)?.name||c.agent||existing.agent,
+          _agentId: c.agent||existing._agentId, origin: c.origin||existing.origin,
+          stage: c.stage||'', tags: c.tags||[], notesList: c.notesList||existing.notesList,
+          date: c.date||existing.date, code: c.code||existing.code,
+          _updatedAt: c._updatedAt||0,
+        };
+        contactsUpdated++;
+      }
+    });
+
+    // Actualizar estudios que cambiaron
+    (data.studios || []).forEach(s => {
+      const idx = ALL_STUDIOS.findIndex(x => String(x.id) === String(s.id));
+      if(idx === -1){
+        ALL_STUDIOS.push({...s});
+        studiosUpdated++;
+      } else if((s._updatedAt||0) > (ALL_STUDIOS[idx]._updatedAt||0)){
+        ALL_STUDIOS[idx] = {...ALL_STUDIOS[idx], ...s};
+        studiosUpdated++;
+      }
+    });
+
+    if(contactsUpdated > 0 || studiosUpdated > 0){
+      applyFilters();
+      renderStudios();
+      setText('count-total', ALL.length.toLocaleString('es'));
+      const t = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+      setSyncDot('ok'); setText('sync-lbl','Datos cargados · '+ALL.length.toLocaleString('es')+' contactos');
+    }
+    _lastPollAt = Date.now();
+  } catch(e){
+    // Silencioso — no interrumpir al usuario
   }
 }
 
@@ -856,7 +932,7 @@ function applyFilters(){
   const st=(document.getElementById('f-state').value||'').toLowerCase();
   const pl=(document.getElementById('f-pricelist').value||'').toLowerCase();
   filtered=ALL.filter(c=>{
-    if((c.type||'').toLowerCase()==='estudio') return false; // estudios shown in studios tab only
+    if((c.type||'').toLowerCase()==='estudio') return false;
     if(q&&![c.name,c.studio,c.email,c.city,c.phone,c.mailingName].some(v=>norm(v).includes(q))) return false;
     if(ag&&(c.agent||'').toLowerCase()!==ag) return false;
     if(ty&&(c.type||'').toLowerCase()!==ty) return false;
@@ -867,6 +943,35 @@ function applyFilters(){
   sortFiltered();
   renderedN=0;
   document.getElementById('tbody').innerHTML='';
+  // Show studios inline if search query matches any studio
+  if(q && typeof ALL_STUDIOS!=='undefined'){
+    const studioHits=ALL_STUDIOS.filter(s=>norm(s.name).includes(q)||norm(s.city).includes(q)||norm(s.email||'').includes(q)).slice(0,10);
+    if(studioHits.length){
+      const frag=document.createDocumentFragment();
+      const hdr=document.createElement('tr');
+      hdr.innerHTML=`<td colspan="20" style="padding:6px 12px;background:var(--accentDim);color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.05em">🏛 ESTUDIOS ENCONTRADOS</td>`;
+      frag.appendChild(hdr);
+      studioHits.forEach(s=>{
+        const tr=document.createElement('tr');
+        tr.style.background='var(--bg2)';
+        tr.innerHTML=`
+          <td><input type="checkbox" ${selectedStudios.has(String(s.id))?'checked':''} style="accent-color:var(--accent)" onchange="toggleStudioSel('${s.id}',this.checked);updateStudioSelUI()"></td>
+          <td class="name-cell" colspan="2"><span onclick="openStudioEdit(${s.id})" style="cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px">${esc(s.name||'—')}</span><div style="font-size:11px;color:var(--text3)">Estudio</div></td>
+          <td>${typeBadge('Estudio')}</td>
+          <td>${esc(s.city||'—')}</td>
+          <td>${esc(s.state||'—')}</td>
+          <td style="font-family:var(--mono);font-size:11px">${esc(s.phone||'—')}</td>
+          <td>—</td>
+          <td style="font-size:12px">${esc(s.email||'—')}</td>
+          <td colspan="11" style="font-size:11px;color:var(--text3)">${s.instagram?`<a href="${esc(s.instagram)}" target="_blank" style="color:var(--accent)">${esc(s.instagram)}</a>`:'—'}</td>`;
+        frag.appendChild(tr);
+      });
+      const div=document.createElement('tr');
+      div.innerHTML=`<td colspan="20" style="padding:4px 12px;background:var(--bg2);color:var(--text3);font-size:11px;border-bottom:1px solid var(--border)">── Contactos ──</td>`;
+      frag.appendChild(div);
+      document.getElementById('tbody').appendChild(frag);
+    }
+  }
   renderBatch();
   setText('count-vis',filtered.length.toLocaleString('es'));
   updateSelUI();
@@ -953,13 +1058,40 @@ function toggleAllVisible(on){
   document.querySelectorAll('#tbody tr').forEach(tr=>on?tr.classList.add('selected'):tr.classList.remove('selected'));
   updateSelUI();
 }
-function clearSel(){ selected.clear(); applyFilters(); }
+function clearSelAll(){ selected.clear(); selectedStudios.clear(); applyFilters(); renderStudios(); updateSelUI(); }
+function clearSelContacts(){ selected.clear(); applyFilters(); updateSelUI(); }
+function clearSelStudios(){ selectedStudios.clear(); renderStudios(); updateSelUI(); }
+function clearSel(){ clearSelAll(); }
+
+// Single unified merge entry point
+function openFusionar(){
+  const n=selected.size, ns=selectedStudios.size;
+  if(n+ns<2){toast('Selecciona al menos 2 elementos','⚠️');return;}
+  if(ns===0){
+    // Only contacts
+    openMergeFromSelection();
+  } else if(n===0){
+    // Only studios
+    openMergeStudiosFromSelection();
+  } else {
+    // Mixed: contacts + studios
+    openMergeContactWithStudio();
+  }
+}
 function updateSelUI(){
   const n=selected.size;
-  setText('sel-count',n);
-  document.getElementById('bulk-bar').style.display=n?'flex':'none';
-  const btnC=document.getElementById('btn-combine');
-  if(btnC) btnC.style.display=(n>=2&&n<=5)?'':'none';
+  const ns=selectedStudios.size;
+  const total=n+ns;
+  let label='';
+  if(n&&ns) label=`${n} contacto${n!==1?'s':''} + ${ns} estudio${ns!==1?'s':''}`;
+  else if(n) label=`${n} seleccionado${n!==1?'s':''}`;
+  else if(ns) label=`${ns} estudio${ns!==1?'s':''} seleccionado${ns!==1?'s':''}`;
+  setText('sel-count', label);
+  document.getElementById('bulk-bar').style.display=total?'flex':'none';
+  const btnF=document.getElementById('btn-fusionar');
+  if(btnF) btnF.style.display=total>=2?'':'none';
+  const btnDs=document.getElementById('btn-desel-studios');
+  if(btnDs) btnDs.style.display=ns?'':'none';
   ['sel-all-cb','header-cb'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=n>0&&n>=filtered.length;});
 }
 
@@ -1019,385 +1151,107 @@ async function confirmSendCRM(){
   }
 }
 
-// ── DUPLICADOS ──
-let _dupMode = 'contacts'; // 'contacts' | 'studios'
-
-function setDupMode(mode){
-  _dupMode = mode;
-  document.getElementById('dup-mode-contacts').className = mode==='contacts' ? 'btn btn-primary' : 'btn btn-ghost';
-  document.getElementById('dup-mode-studios').className  = mode==='studios'  ? 'btn btn-primary' : 'btn btn-ghost';
-  document.getElementById('dup-criteria-contacts').style.display = mode==='contacts' ? 'flex' : 'none';
-  document.getElementById('dup-criteria-studios').style.display  = mode==='studios'  ? 'flex' : 'none';
-  document.getElementById('dup-results').innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px 0">Elige un criterio de búsqueda para comenzar.</div>';
-  setText('dup-summary',''); setText('dup-summary-studios','');
-  // Reset active button state so no button appears selected until user clicks
-  document.querySelectorAll('#dup-criteria-contacts .btn, #dup-criteria-studios .btn').forEach(b=>b.className='btn btn-ghost');
-}
-
+// ── DUPLICADOS (unificado) ──
 function openDups(){
   document.getElementById('modal-dup').classList.remove('hidden');
-  // Just show the panel in the current mode, don't trigger any search
-  const mode = _dupMode;
-  document.getElementById('dup-mode-contacts').className = mode==='contacts' ? 'btn btn-primary' : 'btn btn-ghost';
-  document.getElementById('dup-mode-studios').className  = mode==='studios'  ? 'btn btn-primary' : 'btn btn-ghost';
-  document.getElementById('dup-criteria-contacts').style.display = mode==='contacts' ? 'flex' : 'none';
-  document.getElementById('dup-criteria-studios').style.display  = mode==='studios'  ? 'flex' : 'none';
-  document.getElementById('dup-results').innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px 0">Elige un criterio de búsqueda para comenzar.</div>';
-  document.querySelectorAll('#dup-criteria-contacts .btn, #dup-criteria-studios .btn').forEach(b=>b.className='btn btn-ghost');
-  setText('dup-summary',''); setText('dup-summary-studios','');
+  document.getElementById('dup-results').innerHTML='<div style="color:var(--text3);font-size:13px;padding:20px 0">Elige un criterio de búsqueda para comenzar.</div>';
+  document.querySelectorAll('#dup-btn-name,#dup-btn-email,#dup-btn-phone').forEach(b=>b.className='btn btn-ghost');
+  setText('dup-summary-all','');
 }
 
-// ── DUPLICADOS ESTUDIOS ──
-function findDupsStudios(by){
-  document.querySelectorAll('#dup-criteria-studios .btn').forEach(b=>b.className='btn btn-ghost');
-  event?.target?.classList.replace('btn-ghost','btn-primary');
-  const norm = s => (s||'').toLowerCase().replace(/\s+/g,' ').trim().replace(/[^a-z0-9 ]/g,'');
+function findDupsAll(by){
+  document.querySelectorAll('#dup-btn-name,#dup-btn-email,#dup-btn-phone').forEach(b=>b.className='btn btn-ghost');
+  document.getElementById('dup-btn-'+by)?.classList.replace('btn-ghost','btn-primary');
 
-  const groups = [];
+  const normStr=s=>(s||'').toLowerCase().replace(/\s+/g,' ').trim().replace(/[^a-z0-9 ]/g,'');
+  const normPhone=p=>{ const d=(p||'').replace(/\D/g,'');
+    if(d.length===12&&d.startsWith('1')) return d.slice(1);
+    if(d.length===13&&d.startsWith('521')) return d.slice(3);
+    if(d.length===12&&d.startsWith('52')) return d.slice(2);
+    return d; };
 
-  if(by === 'name'){
-    // Pairwise similarity ≥ 70% using longest-common-subsequence ratio
-    const scored = ALL_STUDIOS.map(s=>({ s, key: norm(s.name||'') })).filter(x=>x.key.length>=3);
-    const used = new Set();
-    scored.forEach((a, i)=>{
-      if(used.has(i)) return;
-      const group = [a.s];
-      for(let j=i+1; j<scored.length; j++){
-        if(used.has(j)) continue;
-        const shorter = Math.min(a.key.length, scored[j].key.length);
-      const threshold = shorter <= 8 ? 0.92 : shorter <= 14 ? 0.82 : 0.75;
-      if(nameSimilarity(a.key, scored[j].key) >= threshold){
-          group.push(scored[j].s);
-          used.add(j);
+  // Build unified list of contacts + studios
+  const contacts=ALL.filter(c=>(c.type||'').toLowerCase()!=='estudio').map(c=>({...c,_kind:'contact'}));
+  const studios=ALL_STUDIOS.map(s=>({...s,_kind:'studio',_i:-1}));
+  const all=[...contacts,...studios];
+
+  const groups=[];
+
+  if(by==='name'){
+    const scored=all.map(x=>({x,key:normStr(x.name||'')})).filter(x=>x.key.length>=3);
+    const matched=new Set();
+    for(let i=0;i<scored.length;i++){
+      if(matched.has(i)) continue;
+      const group=[scored[i].x];
+      for(let j=i+1;j<scored.length;j++){
+        if(matched.has(j)) continue;
+        if(nameSimilarity(scored[i].key,scored[j].key)>=0.70){
+          group.push(scored[j].x); matched.add(j);
         }
       }
-      if(group.length > 1){ used.add(i); groups.push(group); }
-    });
-  } else if(by === 'phone'){
-    const map = {};
-    ALL_STUDIOS.forEach(s=>{
-      const key = normalizePhone(s.phone||'');
-      if(key.length < 7) return;
-      if(!map[key]) map[key]=[];
-      map[key].push(s);
-    });
-    Object.values(map).filter(g=>g.length>1).forEach(g=>groups.push(g));
-  } else {
-    // email
-    const map = {};
-    ALL_STUDIOS.forEach(s=>{
-      const key = (s.email||'').toLowerCase().trim();
-      if(!key || key.length<5) return;
-      if(!map[key]) map[key]=[];
-      map[key].push(s);
-    });
-    Object.values(map).filter(g=>g.length>1).forEach(g=>groups.push(g));
+      if(group.length>=2){ matched.add(i); groups.push(group); }
+    }
+  } else if(by==='email'){
+    const map={};
+    all.forEach(x=>{ const e=(x.email||'').toLowerCase().trim(); if(e.length>=5)(map[e]=map[e]||[]).push(x); });
+    Object.values(map).filter(g=>g.length>=2).forEach(g=>groups.push(g));
+  } else if(by==='phone'){
+    const map={};
+    all.forEach(x=>{ const p=normPhone(x.phone||''); if(p.length>=7)(map[p]=map[p]||[]).push(x); });
+    Object.values(map).filter(g=>g.length>=2).forEach(g=>groups.push(g));
   }
 
   groups.sort((a,b)=>b.length-a.length);
-  setText('dup-summary-studios',`${groups.length} grupos · ${groups.reduce((s,g)=>s+g.length-1,0)} extra`);
+  const total=groups.reduce((s,g)=>s+g.length,0);
+  setText('dup-summary-all', groups.length?`${groups.length} grupos · ${total} registros`:'Sin duplicados encontrados');
+
   const res=document.getElementById('dup-results');
-  if(!groups.length){res.innerHTML='<div style="color:var(--text3);font-size:13px;padding:20px">No se encontraron estudios duplicados</div>';return;}
-  const gKey=`_dupSG_${Date.now()}`;
-  res.innerHTML=groups.slice(0,80).map((arr,gi)=>{
-    const cbKey=`${gKey}_cb_${gi}`;
-    window[cbKey]=arr;
-    const contactCount=s=>ALL.filter(c=>String(c.studioId)===String(s.id)).length;
-    const groupLabel = by==='name' ? esc(arr[0].name||'') : by==='phone' ? normalizePhone(arr[0].phone||'') : (arr[0].email||'');
-    return `<div style="margin-bottom:10px;background:var(--surface2);border-radius:10px;padding:10px 12px" id="dupgrp-${gKey}-${gi}">
-      <div style="font-size:11px;color:var(--orange);font-weight:700;margin-bottom:6px">${arr.length} estudios · <span style="color:var(--text3)">${esc(groupLabel)}</span></div>
-      ${arr.map((s,si)=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
-        <input type="checkbox" id="dscb-${gKey}-${gi}-${si}" checked style="accent-color:var(--accent);flex-shrink:0">
-        <label for="dscb-${gKey}-${gi}-${si}" style="flex:1;cursor:pointer">
-          <div style="font-size:13px;font-weight:600">${esc(s.name||'Sin nombre')}</div>
-          <div style="font-size:11px;color:var(--text3)">${esc(s.city||'—')} · ${esc(s.state||'—')} · ${esc(s.phone||'—')} · ${contactCount(s)} contacto${contactCount(s)!==1?'s':''}</div>
-        </label>
-      </div>`).join('')}
-      <div style="padding-top:8px;display:flex;gap:8px;align-items:center">
-        <button class="btn btn-primary" style="font-size:12px" onclick="openMergeStudiosFromGroup('${gKey}',${gi})">🔀 Fusionar seleccionados</button>
-        <span style="font-size:11px;color:var(--text3)">Desmarca los que NO quieres fusionar</span>
-      </div>
-    </div>`;
+  if(!groups.length){ res.innerHTML='<div style="color:var(--text3);font-size:13px;padding:20px">✅ No se encontraron duplicados</div>'; return; }
+
+  const gKey=`_dupA_${Date.now()}`; window[gKey]=groups;
+  res.innerHTML=groups.slice(0,100).map((arr,gi)=>{
+    window[gKey+'_cb_'+gi]=arr;
+    const rows=arr.map((x,ci)=>{
+      const isS=x._kind==='studio';
+      const fn=isS?'openStudioEdit('+x.id+')':'openContactEdit('+x._i+')';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">'
+        +'<input type="checkbox" id="dcb-'+gKey+'-'+gi+'-'+ci+'" checked style="accent-color:var(--accent);flex-shrink:0">'
+        +'<span style="font-size:10px;padding:2px 6px;border-radius:3px;flex-shrink:0;background:'+(isS?'var(--accentDim)':'rgba(100,100,200,.15)')+';color:'+(isS?'var(--accent)':'#8888ff')+'">'+(isS?'🏛':'👤')+'</span>'
+        +'<label for="dcb-'+gKey+'-'+gi+'-'+ci+'" style="flex:1;cursor:pointer;min-width:0">'
+        +'<div style="font-size:13px;font-weight:600;color:var(--accent);text-decoration:underline;text-underline-offset:2px;cursor:pointer" onclick="event.stopPropagation();'+fn+'">'+esc(x.name||'—')+'</div>'
+        +'<div style="font-size:11px;color:var(--text3)">'+esc(isS?'Estudio':(x.type||'—'))+' · '+esc(x.email||'—')+' · '+esc(x.city||'—')+'</div>'
+        +'</label></div>';
+    }).join('');
+    return '<div style="margin-bottom:10px;background:var(--surface2);border-radius:10px;padding:10px 12px">'
+      +'<div style="font-size:11px;color:var(--orange);font-weight:700;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">'
+      +'<span>'+arr.length+' registros similares</span>'
+      +'<button class="btn btn-primary" style="font-size:12px" onclick="openMergeFromDupGroup(\''+gKey+'\','+gi+')">🔀 Fusionar seleccionados</button>'
+      +'</div>'+rows
+      +'<div style="padding-top:6px;font-size:11px;color:var(--text3)">Desmarca los que NO quieres fusionar</div></div>';
   }).join('');
 }
 
-let _mergeStudios = [];
-
-function openMergeStudiosFromGroup(gKey, gi){
+function openMergeFromDupGroup(gKey,gi){
   const cbKey=`${gKey}_cb_${gi}`;
-  const allStudios=window[cbKey];
-  if(!allStudios) return;
-  const selected=allStudios.filter((_,si)=>{
-    const cb=document.getElementById(`dscb-${gKey}-${gi}-${si}`);
-    return cb&&cb.checked;
-  });
-  if(selected.length<2){toast('Selecciona al menos 2 estudios para fusionar','⚠️');return;}
-  _mergeStudios=selected;
-  _mergeContacts=[];
-  renderMergeFieldsStudios();
-  document.getElementById('merge-modal-title').textContent='🔀 Fusionar estudios';
-  document.getElementById('merge-confirm-btn').onclick=confirmMergeStudios;
-  document.getElementById('modal-merge').classList.remove('hidden');
-}
-
-function renderMergeFieldsStudios(){
-  const studios=_mergeStudios;
-  const nCols=studios.length;
-  const gridCols=`140px ${Array(nCols).fill('1fr').join(' ')} minmax(170px,1.2fr)`;
-  const STUDIO_FIELDS=[
-    {k:'name',label:'Nombre'},
-    {k:'city',label:'Ciudad'},
-    {k:'state',label:'Estado'},
-    {k:'email',label:'Email'},
-    {k:'phone',label:'Teléfono'},
-    {k:'web',label:'Web'},
-    {k:'instagram',label:'Instagram'},
-    {k:'linkedin',label:'LinkedIn'},
-    {k:'agent',label:'Vendedor'},
-    {k:'notes',label:'Notas'},
-  ];
-  let html=`<div style="display:grid;grid-template-columns:${gridCols};gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;font-size:13px">`;
-  // Header
-  html+=`<div style="background:var(--surface2);padding:9px 12px;font-weight:700;color:var(--text3);border-bottom:1px solid var(--border);font-size:11px">CAMPO</div>`;
-  studios.forEach(s=>{
-    const cnt=ALL.filter(c=>String(c.studioId)===String(s.id)).length;
-    html+=`<div style="background:var(--surface2);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border)">
-      <div style="font-weight:700;font-size:13px">${esc(s.name||'Sin nombre')}</div>
-      <div style="font-size:10px;color:var(--text3)">${esc(s.city||'—')} · ${cnt} contacto${cnt!==1?'s':''}</div>
-    </div>`;
-  });
-  html+=`<div style="background:rgba(230,51,41,.08);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent);font-weight:700;color:var(--accent);font-size:11px">RESULTADO</div>`;
-  // Field rows
-  STUDIO_FIELDS.forEach(f=>{
-    const vals=studios.map(s=>s[f.k]||'');
-    html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">${f.label}</div>`;
-    vals.forEach((v,si)=>{
-      const isEmpty=!v;
-      html+=`<div onclick="studioPick('${f.k}',${si})"
-        style="padding:7px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--surface);cursor:${isEmpty?'default':'pointer'};color:${isEmpty?'var(--text3)':'var(--text)'};transition:background .12s;word-break:break-word"
-        onmouseover="if(${!isEmpty})this.style.background='var(--surface2)'"
-        onmouseout="this.style.background='var(--surface)'">${esc(v||'—')}</div>`;
-    });
-    const bestVal=vals.find(v=>v)||'';
-    const isTextarea=f.k==='notes';
-    if(isTextarea){
-      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04)">
-        <textarea id="msr-${f.k}" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box;resize:vertical;min-height:54px">${esc(bestVal)}</textarea>
-      </div>`;
-    } else {
-      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04)">
-        <input id="msr-${f.k}" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="${f.label}...">
-      </div>`;
-    }
-  });
-  html+='</div>';
-  // Show contacts that will be reassigned
-  const allAffected=[];
-  studios.forEach(s=>{ ALL.filter(c=>String(c.studioId)===String(s.id)).forEach(c=>allAffected.push(c)); });
-  if(allAffected.length){
-    html+=`<div style="margin-top:14px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
-      <div style="background:var(--surface2);padding:9px 14px;font-weight:700;font-size:11px;color:var(--text3);border-bottom:1px solid var(--border)">
-        ${allAffected.length} CONTACTO${allAffected.length!==1?'S':''} QUE SE REASIGNARÁN AL ESTUDIO RESULTANTE
-      </div>
-      <div style="padding:8px 14px;display:flex;flex-wrap:wrap;gap:6px">
-        ${allAffected.map(c=>`<span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:3px 8px;color:var(--text2)">${esc(c.name)}</span>`).join('')}
-      </div>
-    </div>`;
-  }
-  window._studioMergeFields=STUDIO_FIELDS;
-  document.getElementById('merge-fields').innerHTML=html;
-}
-
-function studioPick(k,si){
-  const v=_mergeStudios[si][k];
-  if(!v) return;
-  const inp=document.getElementById('msr-'+k);
-  if(!inp) return;
-  inp.value=v;
-  inp.style.background='rgba(230,51,41,.25)';
-  setTimeout(()=>inp.style.background='',500);
-}
-
-async function confirmMergeStudios(){
-  if(!_mergeStudios.length) return;
-  const fields=window._studioMergeFields||[];
-  const master={..._mergeStudios[0]};
-  fields.forEach(f=>{
-    const inp=document.getElementById('msr-'+f.k);
-    if(inp) master[f.k]=inp.value.trim();
-  });
-  master._updatedAt=Date.now();
-  // Keep the master studio, remove the rest
-  const masterId=master.id;
-  const dupeIds=_mergeStudios.slice(1).map(s=>s.id);
-  // Reassign all contacts from dupe studios to master
-  ALL.forEach(c=>{
-    if(dupeIds.some(did=>String(c.studioId)===String(did))){
-      c.studioId=masterId;
-      c.studio=master.name;
-      c._updatedAt=Date.now();
-    }
-  });
-  // Update master in ALL_STUDIOS, remove dupes
-  const masterIdx=ALL_STUDIOS.findIndex(s=>String(s.id)===String(masterId));
-  if(masterIdx>-1) ALL_STUDIOS[masterIdx]=master;
-  ALL_STUDIOS=ALL_STUDIOS.filter(s=>!dupeIds.some(did=>String(s.id)===String(did)));
-  const mergeCount=_mergeStudios.length;
-  _mergeStudios=[];
-  closeModal('modal-merge');
-  renderStudios(); applyFilters();
-  // Don't auto-search — user will re-trigger when ready
-  // Persist to cloud
-  try{
-    const WORKER='https://flowcrm-api.luis-castroman-fraga.workers.dev';
-    const res=await fetch(WORKER+'/data?t='+Date.now(),{cache:'no-store'});
-    const data=await res.json();
-    data.studios=ALL_STUDIOS.map(s=>({...s,_updatedAt:s._updatedAt||Date.now()}));
-    data.contacts=(data.contacts||[]).map(c=>{
-      const local=ALL.find(lc=>String(lc._crmId)===String(c.id)||String(lc._crmId)===String(c._crmId));
-      return local ? {...c, studioId:local.studioId, studio:local.studio, _updatedAt:local._updatedAt||c._updatedAt} : c;
-    });
-    data._savedAt=Date.now()+30000;
-    await fetch(WORKER+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-    toast(`✅ ${mergeCount} estudios fusionados y guardados`);
-  }catch(e){ toast('Error al guardar: '+e.message,'❌'); }
-}
-
-// ── SHARED SIMILARITY HELPERS ──
-function nameSimilarity(a, b){
-  // Bigram similarity — fast and effective for name matching
-  if(!a || !b) return 0;
-  if(a === b) return 1;
-  const bigrams = s => { const set=[]; for(let i=0;i<s.length-1;i++) set.push(s.slice(i,i+2)); return set; };
-  const ag=bigrams(a), bg=bigrams(b);
-  if(!ag.length||!bg.length) return 0;
-  let matches=0;
-  const bCopy=[...bg];
-  ag.forEach(g=>{ const i=bCopy.indexOf(g); if(i>-1){ matches++; bCopy.splice(i,1); }});
-  return (2*matches)/(ag.length+bg.length);
-}
-function normalizePhone(p){
-  const digits=(p||'').replace(/\D/g,'');
-  // Strip country code: if 12 digits starting with 1, drop it; if 13 starting with 52, drop it
-  if(digits.length===12 && digits.startsWith('1')) return digits.slice(1);
-  if(digits.length===13 && digits.startsWith('521')) return digits.slice(3);
-  if(digits.length===12 && digits.startsWith('52')) return digits.slice(2);
-  return digits;
-}
-
-// ── DUPLICADOS CONTACTOS ──
-function findDups(by){
-  document.querySelectorAll('#dup-criteria-contacts .btn').forEach(b=>b.className='btn btn-ghost');
-  event?.target?.classList.replace('btn-ghost','btn-primary');
-  const norm = s => (s||'').toLowerCase().replace(/\s+/g,' ').trim().replace(/[^a-z0-9 ]/g,'');
-
-  const groups = [];
-
-  if(by === 'name'){
-    const scored = ALL.map((c,i)=>({ c, i, key: norm(c.name||'') })).filter(x=>x.key.length>=3);
-    const used = new Set();
-    scored.forEach((a, ai)=>{
-      if(used.has(ai)) return;
-      const group = [a.c];
-      for(let bi=ai+1; bi<scored.length; bi++){
-        if(used.has(bi)) continue;
-        if(nameSimilarity(a.key, scored[bi].key) >= 0.70){
-          group.push(scored[bi].c);
-          used.add(bi);
-        }
-      }
-      if(group.length > 1){ used.add(ai); groups.push(group); }
-    });
-  } else if(by === 'phone'){
-    const map = {};
-    ALL.forEach(c=>{
-      const key = normalizePhone(c.phone||'');
-      if(key.length < 7) return;
-      if(!map[key]) map[key]=[];
-      map[key].push(c);
-    });
-    Object.values(map).filter(g=>g.length>1).forEach(g=>groups.push(g));
-  } else {
-    // email
-    const map = {};
-    ALL.forEach(c=>{
-      const key = (c.email||'').toLowerCase().trim();
-      if(!key || key.length<5) return;
-      if(!map[key]) map[key]=[];
-      map[key].push(c);
-    });
-    Object.values(map).filter(g=>g.length>1).forEach(g=>groups.push(g));
-  }
-
-  groups.sort((a,b)=>b.length-a.length);
-  setText('dup-summary',`${groups.length} grupos · ${groups.reduce((s,g)=>s+g.length-1,0)} extra`);
-  const res=document.getElementById('dup-results');
-  if(!groups.length){res.innerHTML='<div style="color:var(--text3);font-size:13px;padding:20px">No se encontraron duplicados</div>';return;}
-  const gKey=`_dupG_${Date.now()}`;
-  res.innerHTML=groups.slice(0,80).map((arr,gi)=>{
-    const cbKey=`${gKey}_cb_${gi}`;
-    window[cbKey]=arr;
-    const groupLabel = by==='name' ? esc(arr[0].name||'') : by==='phone' ? normalizePhone(arr[0].phone||'') : (arr[0].email||'');
-    return `<div style="margin-bottom:10px;background:var(--surface2);border-radius:10px;padding:10px 12px" id="dupgrp-${gKey}-${gi}">
-      <div style="font-size:11px;color:var(--orange);font-weight:700;margin-bottom:6px">${arr.length} contactos · <span style="color:var(--text3)">${esc(groupLabel)}</span></div>
-      ${arr.map((c,ci)=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
-        <input type="checkbox" id="dcb-${gKey}-${gi}-${ci}" checked style="accent-color:var(--accent);flex-shrink:0">
-        <label for="dcb-${gKey}-${gi}-${ci}" style="flex:1;cursor:pointer">
-          <div style="font-size:13px;font-weight:600">${esc(c.name)}</div>
-          <div style="font-size:11px;color:var(--text3)">${esc(c.studio||'—')} · ${esc(c.type||'—')} · ${esc(c.agent||'—')} · ${esc(c.city||'—')}</div>
-        </label>
-      </div>`).join('')}
-      <div style="padding-top:8px;display:flex;gap:8px;align-items:center">
-        <button class="btn btn-primary" style="font-size:12px" onclick="openMergeFromDupGroup('${gKey}',${gi})">🔀 Fusionar seleccionados</button>
-        <span style="font-size:11px;color:var(--text3)">Desmarca los que NO quieres fusionar</span>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function openMergeFromDupGroup(gKey, gi){
-  const cbKey=`${gKey}_cb_${gi}`;
-  const allContacts=window[cbKey];
-  if(!allContacts) return;
-  // Get only checked ones
-  const selected=allContacts.filter((_,ci)=>{
-    const cb=document.getElementById(`dcb-${gKey}-${gi}-${ci}`);
-    return cb&&cb.checked;
-  });
-  if(selected.length<2){toast('Selecciona al menos 2 contactos para fusionar','⚠️');return;}
-  _mergeContacts=selected;
-  _mergeStudios=[];
-  renderMergeFields();
-  document.getElementById('merge-modal-title').textContent='🔀 Fusionar contactos';
-  document.getElementById('merge-confirm-btn').onclick=confirmMerge;
-  document.getElementById('modal-merge').classList.remove('hidden');
-}
-
-function findDupsForContact(contact){
-  if(!contact||!contact.name) return [];
-  const norm=s=>(s||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-  const key=norm(contact.name);
-  if(key.length<4) return [];
-  return ALL.filter(c=>c._crmId!==contact._crmId && nameSimilarity(norm(c.name||''), key) >= 0.70);
-}
-
-function openMergeFromDup(wk){
-  const ids=window[wk];
-  if(!ids||ids.length<2) return;
-  const a=ALL[ids[0]],b=ALL[ids[1]];
-  if(!a||!b) return;
-  MERGE={a,b,chosen:{}};
-  MERGE_FIELDS.forEach(f=>{
-    const va=a[f.k],vb=b[f.k];
-    MERGE.chosen[f.k]=(!va||va==='')?'B':'A';
-  });
-  renderMergeFields();
-  document.getElementById('modal-merge').classList.remove('hidden');
+  const allItems=window[cbKey];
+  if(!allItems) return;
+  const checked=allItems.filter((_,ci)=>{ const cb=document.getElementById(`dcb-${gKey}-${gi}-${ci}`); return cb&&cb.checked; });
+  if(checked.length<2){toast('Selecciona al menos 2 para fusionar','⚠️');return;}
+  // Classify
+  const contacts=checked.filter(x=>x._kind==='contact');
+  const studios=checked.filter(x=>x._kind==='studio');
+  selected.clear(); selectedStudios.clear();
+  contacts.forEach(c=>selected.add(c._i));
+  studios.forEach(s=>selectedStudios.add(String(s.id)));
+  updateSelUI();
+  closeModal('modal-dup');
+  openFusionar();
 }
 
 // ── MERGE ──
 // ── MERGE STATE (multi-contact) ──
 let _mergeContacts = [];
+let _mergeStudios = [];
 
 function openMergeFromSelection(){
   const indices=[...selected];
@@ -1636,6 +1490,7 @@ function confirmMerge(){
   ALL.forEach((c,i)=>c._i=i);
   selected.clear(); updateSelUI(); applyFilters();
   closeModal('modal-merge');
+  document.getElementById('mcs-saveas-wrap')?.remove();
   // Leer agente del autocomplete
   const agentInput = document.getElementById('mr-agent');
   const agentIdInput = document.getElementById('mr-agent-id');
@@ -1650,6 +1505,134 @@ function confirmMerge(){
   saveToSheets('merge').then(ok=>ok&&toast(`✅ ${mergeCount} contactos combinados y guardados`));
 }
 
+
+
+
+// ══════════════════════════════════════════════════════════════════
+//  FUSIONAR CONTACTO CON ESTUDIO
+// ══════════════════════════════════════════════════════════════════
+let _mcsContact=null, _mcsStudio=null, _mcsContactIdx=null;
+
+function openMergeContactWithStudio(){
+  const contactIndices=[...selected];
+  const studioIds=[...selectedStudios];
+  if(contactIndices.length!==1||studioIds.length!==1){toast('Selecciona exactamente 1 contacto y 1 estudio','⚠️');return;}
+  _mcsContact=ALL[contactIndices[0]];
+  _mcsContactIdx=contactIndices[0];
+  _mcsStudio=ALL_STUDIOS.find(s=>String(s.id)===String(studioIds[0]));
+  if(!_mcsContact||!_mcsStudio){toast('No se encontraron los registros','⚠️');return;}
+
+  // Map studio to contact schema so renderMergeFields works as-is
+  const studioAsContact={
+    _isStudio: true,
+    _studioRef: _mcsStudio,
+    name: _mcsStudio.name||'',
+    mailingName: _mcsStudio.name||'',
+    phone: _mcsStudio.phone||'',
+    whatsapp: '',
+    email: _mcsStudio.email||'',
+    email2: '',
+    instagram: _mcsStudio.instagram||'',
+    linkedin: _mcsStudio.linkedin||'',
+    web: _mcsStudio.web||'',
+    studio: '',
+    type: 'Estudio',
+    city: _mcsStudio.city||'',
+    state: _mcsStudio.state||'',
+    priceList: '',
+    segment: '',
+    agent: _mcsStudio.agent ? (Object.entries(typeof users!=='undefined'?users:{}).find(([id])=>String(id)===String(_mcsStudio.agent))||[])[1]||'' : '',
+    origin: '',
+    stage: '',
+    notes: _mcsStudio.notes||'',
+    notesList: [],
+    _i: -1,
+  };
+
+  _mergeContacts = [_mcsContact, studioAsContact];
+  _mergeStudios = [];
+  renderMergeFields();
+  document.getElementById('merge-modal-title').textContent='🔀 Fusionar contacto + estudio';
+
+  // Inject save-as selector into the modal footer
+  const footer=document.querySelector('#modal-merge .modal-ft') || document.querySelector('#modal-merge [style*="justify-content"]');
+  const saveAsHtml=`<div id="mcs-saveas-wrap" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--border);margin-top:8px;font-size:13px">
+    <span style="font-size:11px;font-weight:700;color:var(--text3)">GUARDAR COMO:</span>
+    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="mcs-saveas" value="studio" checked style="accent-color:var(--accent)"> 🏛 Solo estudio <span style="font-size:11px;color:var(--text3)">(elimina el contacto)</span></label>
+    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="mcs-saveas" value="contact" style="accent-color:var(--accent)"> 👤 Solo contacto <span style="font-size:11px;color:var(--text3)">(elimina el estudio)</span></label>
+    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="mcs-saveas" value="both" style="accent-color:var(--accent)"> ✅ Ambos <span style="font-size:11px;color:var(--text3)">(vincula contacto al estudio)</span></label>
+  </div>`;
+  document.getElementById('merge-fields').insertAdjacentHTML('afterend', saveAsHtml);
+
+  document.getElementById('merge-confirm-btn').onclick=confirmMergeContactStudio;
+  document.getElementById('modal-merge').classList.remove('hidden');
+}
+
+function confirmMergeContactStudio(){
+  if(!_mergeContacts.length) return;
+  const saveAs=document.querySelector('input[name="mcs-saveas"]:checked')?.value||'studio';
+  const master={..._mergeContacts[0]};
+  const allEmails=[...new Set(_mergeContacts.map(c=>c.email||'').filter(Boolean))];
+  MERGE_FIELDS.forEach(f=>{ const inp=document.getElementById('mr-'+f.k); if(inp) master[f.k]=inp.value.trim(); });
+  const studioInput=document.getElementById('mr-studio');
+  const studioIdInput=document.getElementById('mr-studio-id');
+  if(studioInput){ master.studio=studioInput.value.trim(); const sid=studioIdInput?.value||''; master.studioId=sid?(parseInt(sid)||sid):null; }
+  const stageSelect=document.getElementById('mr-stage'); if(stageSelect) master.stage=stageSelect.value;
+  const agentInput=document.getElementById('mr-agent'); const agentIdInput=document.getElementById('mr-agent-id');
+  if(agentInput){ master.agent=agentInput.value.trim(); const aid=agentIdInput?.value||''; master._agentId=aid?(parseInt(aid)||aid):null; }
+  if(!master.email2){ const extra=allEmails.find(e=>e&&e!==master.email); if(extra) master.email2=extra; }
+  const allNotes=window._mergeAllNotes||[]; const checkedNotes=[];
+  document.querySelectorAll('.merge-note-cb').forEach((cb,i)=>{ if(cb.checked&&allNotes[i]) checkedNotes.push(allNotes[i]); });
+  const extraNote=(document.getElementById('merge-notes-extra')?.value||'').trim();
+  if(extraNote) checkedNotes.push({id:Date.now()+'_extra',text:extraNote,date:new Date().toISOString().slice(0,10),authorName:'Admin',_srcName:'Fusión'});
+  master.notesList=checkedNotes.map(({_srcName,_ci,...n})=>n);
+  master.notes=master.notesList.map(n=>n.text).join(' | ');
+
+  const s=_mcsStudio;
+
+  if(saveAs==='studio'||saveAs==='both'){
+    // Write merged fields back to studio
+    s.name=master.name||s.name;
+    s.email=master.email||s.email;
+    s.phone=master.phone||s.phone;
+    s.web=master.web||s.web;
+    s.instagram=master.instagram||s.instagram;
+    s.linkedin=master.linkedin||s.linkedin;
+    s.city=master.city||s.city;
+    s.state=master.state||s.state;
+    s.notes=master.notes||s.notes;
+    s._updatedAt=Date.now();
+  }
+
+  if(saveAs==='studio'){
+    // Delete contact
+    markDeleted(_mcsContact._crmId);
+    ALL.splice(_mcsContactIdx,1);
+    ALL.forEach((c,i)=>c._i=i);
+  } else if(saveAs==='contact'){
+    // Delete studio, unlink contacts
+    const si=ALL_STUDIOS.findIndex(x=>String(x.id)===String(s.id));
+    if(si>=0) ALL_STUDIOS.splice(si,1);
+    ALL.forEach(c=>{ if(String(c.studioId)===String(s.id)){ c.studioId=null; c.studio=''; c._updatedAt=Date.now(); }});
+    // Update contact with merged fields
+    Object.assign(_mcsContact, master);
+    _mcsContact._updatedAt=Date.now();
+    ALL[_mcsContactIdx]=_mcsContact;
+  } else { // both
+    // Update contact, link to studio
+    Object.assign(_mcsContact, master);
+    _mcsContact.studio=s.name; _mcsContact.studioId=s.id; _mcsContact._updatedAt=Date.now();
+    ALL[_mcsContactIdx]=_mcsContact;
+  }
+
+  // Cleanup
+  document.getElementById('mcs-saveas-wrap')?.remove();
+  selected.clear(); selectedStudios.clear(); updateSelUI(); applyFilters();
+  _mergeContacts=[]; _mcsContact=null; _mcsStudio=null;
+  closeModal('modal-merge');
+  const label=saveAs==='studio'?'estudio':saveAs==='contact'?'contacto':'contacto y estudio';
+  saveToSheets('merge').then(ok=>ok&&toast(`✅ Fusión guardada como ${label}`));
+}
 
 // ══════════════════════════════════════════════════════════════════
 //  STUDIO EDIT
@@ -1807,6 +1790,7 @@ function toggleStudioSel(id, checked){
   if(checked) selectedStudios.add(String(id));
   else selectedStudios.delete(String(id));
   updateStudioSelUI();
+  updateSelUI();
 }
 function toggleAllStudios(checked){
   document.querySelectorAll('.studio-cb').forEach(cb=>{
@@ -1814,12 +1798,84 @@ function toggleAllStudios(checked){
     toggleStudioSel(cb.dataset.id, checked);
   });
 }
-function updateStudioSelUI(){
-  const n=selectedStudios.size;
-  const btn=document.getElementById('btn-merge-studios');
-  if(btn) btn.style.display = n>=2 ? '' : 'none';
-  if(btn) btn.textContent = `🔀 Fusionar ${n} seleccionados`;
+function updateStudioSelUI(){ updateSelUI(); }
+function renderMergeFieldsStudios(){
+  const studios=_mergeStudios;
+  const nCols=studios.length;
+  const gridCols=`140px ${Array(nCols).fill('1fr').join(' ')} minmax(170px,1.2fr)`;
+  const STUDIO_FIELDS=[
+    {k:'name',label:'Nombre'},{k:'city',label:'Ciudad'},{k:'state',label:'Estado'},
+    {k:'email',label:'Email'},{k:'phone',label:'Teléfono'},{k:'web',label:'Web'},
+    {k:'instagram',label:'Instagram'},{k:'linkedin',label:'LinkedIn'},
+    {k:'agent',label:'Vendedor'},{k:'notes',label:'Notas'},
+  ];
+  let html=`<div style="display:grid;grid-template-columns:${gridCols};gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;font-size:13px">`;
+  html+=`<div style="background:var(--surface2);padding:9px 12px;font-weight:700;color:var(--text3);border-bottom:1px solid var(--border);font-size:11px">CAMPO</div>`;
+  studios.forEach(s=>{
+    const cnt=ALL.filter(c=>String(c.studioId)===String(s.id)).length;
+    html+=`<div style="background:var(--surface2);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border)">
+      <div style="font-weight:700;font-size:13px">${esc(s.name||'Sin nombre')}</div>
+      <div style="font-size:10px;color:var(--text3)">${esc(s.city||'—')} · ${cnt} contacto${cnt!==1?'s':''}</div>
+    </div>`;
+  });
+  html+=`<div style="background:rgba(230,51,41,.08);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent);font-weight:700;color:var(--accent);font-size:11px">RESULTADO</div>`;
+  STUDIO_FIELDS.forEach(f=>{
+    const vals=studios.map(s=>s[f.k]||'');
+    html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">${f.label}</div>`;
+    vals.forEach((v,si)=>{
+      const isEmpty=!v;
+      html+=`<div onclick="studioPick('${f.k}',${si})" style="padding:7px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--surface);cursor:${isEmpty?'default':'pointer'};color:${isEmpty?'var(--text3)':'var(--text)'};transition:background .12s;word-break:break-word" onmouseover="if(${!isEmpty})this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">${esc(v||'—')}</div>`;
+    });
+    const bestVal=vals.find(v=>v)||'';
+    if(f.k==='notes'){
+      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04)"><textarea id="msr-${f.k}" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box;resize:vertical;min-height:54px">${esc(bestVal)}</textarea></div>`;
+    } else {
+      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04)"><input id="msr-${f.k}" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="${f.label}..."></div>`;
+    }
+  });
+  html+='</div>';
+  const allAffected=[];
+  studios.forEach(s=>{ ALL.filter(c=>String(c.studioId)===String(s.id)).forEach(c=>allAffected.push(c)); });
+  if(allAffected.length){
+    html+=`<div style="margin-top:14px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <div style="background:var(--surface2);padding:9px 14px;font-weight:700;font-size:11px;color:var(--text3);border-bottom:1px solid var(--border)">${allAffected.length} CONTACTO${allAffected.length!==1?'S':''} QUE SE REASIGNARÁN AL ESTUDIO RESULTANTE</div>
+      <div style="padding:8px 14px;display:flex;flex-wrap:wrap;gap:6px">${allAffected.map(c=>`<span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:3px 8px;color:var(--text2)">${esc(c.name)}</span>`).join('')}</div>
+    </div>`;
+  }
+  window._studioMergeFields=STUDIO_FIELDS;
+  document.getElementById('merge-fields').innerHTML=html;
 }
+
+function studioPick(k,si){
+  const v=_mergeStudios[si][k];
+  if(!v) return;
+  const inp=document.getElementById('msr-'+k);
+  if(!inp) return;
+  inp.value=v;
+  inp.style.background='rgba(230,51,41,.25)';
+  setTimeout(()=>inp.style.background='',500);
+}
+
+async function confirmMergeStudios(){
+  if(!_mergeStudios.length) return;
+  const fields=window._studioMergeFields||[];
+  const master={..._mergeStudios[0]};
+  fields.forEach(f=>{ const inp=document.getElementById('msr-'+f.k); if(inp) master[f.k]=inp.value.trim(); });
+  master._updatedAt=Date.now();
+  const masterId=master.id;
+  const dupeIds=_mergeStudios.slice(1).map(s=>s.id);
+  ALL.forEach(c=>{ if(dupeIds.some(did=>String(c.studioId)===String(did))){ c.studioId=masterId; c.studio=master.name; c._updatedAt=Date.now(); }});
+  const masterIdx=ALL_STUDIOS.findIndex(s=>String(s.id)===String(masterId));
+  if(masterIdx>-1) ALL_STUDIOS[masterIdx]=master;
+  ALL_STUDIOS=ALL_STUDIOS.filter(s=>!dupeIds.some(did=>String(s.id)===String(did)));
+  const mergeCount=_mergeStudios.length;
+  _mergeStudios=[];
+  selectedStudios.clear(); updateSelUI();
+  closeModal('modal-merge');
+  renderStudios(); applyFilters();
+  saveToSheets('merge-studios').then(ok=>ok&&toast(`✅ ${mergeCount} estudios fusionados y guardados`));
+}
+
 function openMergeStudiosFromSelection(){
   const ids=[...selectedStudios];
   if(ids.length<2){toast('Selecciona al menos 2 estudios','⚠️');return;}
@@ -1935,60 +1991,68 @@ function markDeleted(crmId){ if(crmId) _pendingSave.deletedCrmIds.add(crmId); }
 function markUpdated(crmId){ if(crmId) _pendingSave.updatedCrmIds.add(crmId); }
 
 async function saveToSheets(action=''){
+  _isSaving = true;
   setSyncDot('loading'); setText('sync-lbl','Guardando...');
   const WORKER = 'https://flowcrm-api.luis-castroman-fraga.workers.dev';
   try{
-    // Leer datos actuales del Worker
-    const res = await fetch(WORKER+'/data?t='+Date.now(), {cache:'no-store'});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const data = await res.json();
-
     const deleteIds=[..._pendingSave.deletedCrmIds].filter(Boolean);
     const updatedIds=[..._pendingSave.updatedCrmIds].filter(Boolean);
 
-    // Aplicar eliminaciones
-    if(deleteIds.length){
-      data.contacts = (data.contacts||[]).filter(c => !deleteIds.map(String).includes(String(c.id)));
+    // Enviar DELETEs individuales al worker (que los borra en Supabase)
+    await Promise.all(deleteIds.map(id =>
+      fetch(`${WORKER}/contact/${encodeURIComponent(String(id))}`, { method: 'DELETE' })
+        .catch(e => console.warn('DELETE error', id, e))
+    ));
+
+    // Enviar actualizaciones: solo los contactos modificados
+    if(updatedIds.length){
+      const contacts = updatedIds.map(crmId => {
+        const local = ALL.find(a => a._crmId === crmId);
+        if(!local) return null;
+        return {
+          id: crmId,
+          name: local.name, mailingName: local.mailingName,
+          phone: local.phone, email: local.email, email2: local.email2||'',
+          studio: local.studio, studioId: local.studioId?(parseInt(local.studioId)||local.studioId):null,
+          type: local.type, priceList: local.priceList,
+          city: local.city, state: local.state, origin: local.origin,
+          instagram: local.instagram||'', linkedin: local.linkedin||'',
+          whatsapp: local.whatsapp||'', web: local.web||'',
+          segment: local.segment||'', notes: local.notes||'',
+          stage: local.stage||'', tags: local.tags||[],
+          notesList: local.notesList||[],
+          agent: local._agentId ?? local.agent,
+          _updatedAt: Date.now(),
+        };
+      }).filter(Boolean);
+
+      // También incluir estudios modificados
+      const studios = ALL_STUDIOS
+        .filter(s => s._updatedAt && s._updatedAt > (Date.now() - 60000))
+        .map(s => ({...s, _updatedAt: s._updatedAt || Date.now()}));
+
+      const saveRes = await fetch(WORKER+'/data', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          contacts,
+          studios,
+          projects: [],
+          _savedAt: Date.now(),
+        }),
+      });
+      if(!saveRes.ok) throw new Error('HTTP '+saveRes.status);
     }
 
-    // Aplicar ediciones
-    updatedIds.forEach(crmId => {
-      const local = ALL.find(a => a._crmId === crmId);
-      if(!local) return;
-      const idx = (data.contacts||[]).findIndex(c => c.id === crmId);
-      if(idx === -1) return;
-      Object.assign(data.contacts[idx], {
-        name: local.name, mailingName: local.mailingName,
-        phone: local.phone, email: local.email, email2: local.email2||'',
-        studio: local.studio, studioId: local.studioId?(parseInt(local.studioId)||local.studioId):null, type: local.type, priceList: local.priceList,
-        city: local.city, state: local.state, origin: local.origin,
-        instagram: local.instagram||'', linkedin: local.linkedin||'',
-        whatsapp: local.whatsapp||'', web: local.web||'',
-        segment: local.segment||'', notes: local.notes||'',
-        stage: local.stage||'', tags: local.tags||[],
-        notesList: local.notesList||[],
-        agent: local._agentId ?? local.agent,
-        _updatedAt: Date.now(),
-      });
-    });
-
-    data._savedAt = Date.now() + 30000; // +30s para ganar sobre cualquier sync del CRM local
-
-    // Guardar al Worker
-    const saveRes = await fetch(WORKER+'/data', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(data),
-    });
-    if(!saveRes.ok) throw new Error('HTTP '+saveRes.status);
-
     _pendingSave={deletedCrmIds:new Set(), updatedCrmIds:new Set()};
-    setSyncDot('ok'); setText('sync-lbl','Guardado en Worker ✓');
+    setSyncDot('ok'); setText('sync-lbl','Guardado ✓');
     setTimeout(()=>setText('sync-lbl','Datos cargados · '+ALL.length.toLocaleString('es')+' contactos'),3000);
+    _isSaving = false;
     return true;
   } catch(e){
     setSyncDot('err'); setText('sync-lbl','Error: '+e.message);
     toast('Error guardando: '+e.message,'❌');
+    _isSaving = false;
     return false;
   }
 }
