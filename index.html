@@ -1368,7 +1368,6 @@ function showSyncDot(status){
   }
   dot.title=status==='ok'?'Sincronizado ✓':status==='syncing'?'Subiendo...':'Sin conexión';
   dot.style.background=status==='ok'?'var(--green)':status==='syncing'?'var(--yellow)':'var(--red)';
-  if(status==='ok')setTimeout(()=>{dot.style.background='var(--border)';},4000);
 }
 
 // ── Guardar: siempre local primero, con timestamp, luego sube a Sheets ──
@@ -2044,6 +2043,9 @@ function closeM(id){$(id).classList.add('hidden');}
 function toast(msg,icon='✅'){$('t-msg').textContent=msg;$('t-icon').textContent=icon;const t=$('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3000);}
 let _nidCounter=0;
 function nid(){return Date.now()*1000+((_nidCounter++)%1000);}
+
+// Escape HTML special characters
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 // Normalize string: lowercase + remove accents — for accent-insensitive comparison
 function norm(s){
