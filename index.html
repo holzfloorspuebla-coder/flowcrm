@@ -5463,7 +5463,7 @@ function saveStudio(){
   if(S.editStudioId){
     const existing=D.studios.find(x=>x.id===S.editStudioId);
     if(!existing){toast('Error: estudio no encontrado','⚠️');return;}
-    Object.assign(existing,obj);
+    Object.assign(existing, obj, {_updatedAt: Date.now()});
     saveData();closeM('modal-studio');
     if(S.currentStudioId===S.editStudioId)openStudioProfile(S.editStudioId);
     else renderStudios();
