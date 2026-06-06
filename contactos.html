@@ -2175,31 +2175,54 @@ async function deleteContact(id, name, localIdx) {
 
 async function bulkDelete(){
   const ids=[...selected];
-  if(!ids.length){toast('Selecciona al menos un contacto','⚠️');return;}
-  const names=ids.map(i=>ALL[i]?.name).filter(Boolean);
-  const preview=names.slice(0,5).join(', ')+(names.length>5?` y ${names.length-5} más`:'');
-  if(!confirm(`¿Eliminar ${ids.length} contacto${ids.length>1?'s':''}?\n\n${preview}\n\nEsta acción no se puede deshacer.`)) return;
+  const studioIds=[...selectedStudios];
+  if(!ids.length && !studioIds.length){toast('Selecciona al menos un elemento','⚠️');return;}
   const WORKER='https://flowcrm-api.luis-castroman-fraga.workers.dev';
+
+  // Confirmar
+  const contactNames=ids.map(i=>ALL[i]?.name).filter(Boolean);
+  const studioNames=studioIds.map(id=>ALL_STUDIOS.find(s=>String(s.id)===String(id))?.name).filter(Boolean);
+  const allNames=[...contactNames,...studioNames];
+  const preview=allNames.slice(0,5).join(', ')+(allNames.length>5?` y ${allNames.length-5} más`:'');
+  const totalCount=ids.length+studioIds.length;
+  if(!confirm(`¿Eliminar ${totalCount} elemento${totalCount>1?'s':''}?\n\n${preview}\n\nEsta acción no se puede deshacer.`)) return;
+
   setSyncDot('loading'); setText('sync-lbl','Eliminando...');
   let ok=0, fail=0;
+
+  // Eliminar contactos
   for(const i of ids){
     const c=ALL[i];
     if(!c) continue;
     try{
-      const res=await fetch(`${WORKER}/contact/${c._crmId||c.id}`,{method:'DELETE'});
+      const res=await fetch(`${WORKER}/contact/${encodeURIComponent(String(c._crmId||c.id))}`,{method:'DELETE'});
       if(res.ok) ok++;
       else fail++;
     }catch(e){ fail++; }
   }
-  const crmIds=new Set(ids.map(i=>ALL[i]?._crmId||ALL[i]?.id).filter(Boolean));
-  ALL=ALL.filter(c=>!crmIds.has(c._crmId||c.id));
+  const crmIds=new Set(ids.map(i=>ALL[i]?._crmId||ALL[i]?.id).filter(Boolean).map(String));
+  ALL=ALL.filter(c=>!crmIds.has(String(c._crmId||c.id)));
+
+  // Eliminar estudios
+  for(const sid of studioIds){
+    try{
+      const res=await fetch(`${WORKER}/studio/${sid}`,{method:'DELETE'});
+      if(res.ok){
+        ALL_STUDIOS=ALL_STUDIOS.filter(s=>String(s.id)!==String(sid));
+        ALL.forEach(c=>{ if(String(c.studioId)===String(sid)){ c.studioId=null; c.studio=''; }});
+        ok++;
+      } else fail++;
+    }catch(e){ fail++; }
+  }
+
   ALL.forEach((c,i)=>c._i=i);
-  selected.clear();
-  applyFilters();
+  selected.clear(); selectedStudios.clear();
+  applyFilters(); renderStudios();
   setText('count-total',ALL.length.toLocaleString('es'));
+  updateSelUI();
   setSyncDot('ok');
   setTimeout(()=>setText('sync-lbl','Datos cargados · '+ALL.length.toLocaleString('es')+' contactos'),3000);
-  toast(`${ok} contacto${ok>1?'s':''} eliminado${ok>1?'s':''}${fail?` · ${fail} errores`:''}`,ok>0?'🗑️':'❌',ok>0?'success':'error');
+  toast(`${ok} elemento${ok>1?'s':''} eliminado${ok>1?'s':''}${fail?` · ${fail} errores`:''}`,ok>0?'🗑️':'❌');
 }
 
 // ── Studio autocomplete ──────────────────────────────────────────
