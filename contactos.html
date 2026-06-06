@@ -153,7 +153,7 @@ tr.selected td{background:var(--accentDim);}
   <div class="login-box">
     <div class="login-logo">hølz</div>
     <div class="login-sub">Gestor de contactos · Acceso restringido</div>
-    <input class="login-inp" id="login-pass" type="password" placeholder="Contraseña" onkeydown="if(event.key==='Enter')doLogin()">
+    <input autocomplete="off" class="login-inp" id="login-pass" type="password" placeholder="Contraseña" onkeydown="if(event.key==='Enter')doLogin()">
     <button class="login-btn" onclick="doLogin()">Entrar</button>
     <div class="login-err" id="login-err"></div>
   </div>
@@ -217,20 +217,20 @@ tr.selected td{background:var(--accentDim);}
       <button class="modal-close" onclick="closeModal('modal-edit-studio')">✕</button>
     </div>
     <div style="flex:1;overflow-y:auto;padding:16px 20px;display:grid;gap:10px">
-      <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE DEL ESTUDIO</label><input id="es-name" class="inp" style="width:100%;margin-top:4px"></div>
+      <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE DEL ESTUDIO</label><input autocomplete="off" id="es-name" class="inp" style="width:100%;margin-top:4px"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">CIUDAD</label><input id="es-city" class="inp" style="width:100%;margin-top:4px"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">ESTADO</label><input id="es-state" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">CIUDAD</label><input autocomplete="off" id="es-city" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">ESTADO</label><input autocomplete="off" id="es-state" class="inp" style="width:100%;margin-top:4px"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL</label><input id="es-email" class="inp" style="width:100%;margin-top:4px"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">TELÉFONO</label><input id="es-phone" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL</label><input autocomplete="off" id="es-email" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">TELÉFONO</label><input autocomplete="off" id="es-phone" class="inp" style="width:100%;margin-top:4px"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">WEB</label><input id="es-web" class="inp" style="width:100%;margin-top:4px"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">INSTAGRAM</label><input id="es-instagram" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">WEB</label><input autocomplete="off" id="es-web" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">INSTAGRAM</label><input autocomplete="off" id="es-instagram" class="inp" style="width:100%;margin-top:4px"></div>
       </div>
-      <div><label style="font-size:11px;color:var(--text3);font-weight:600">LINKEDIN</label><input id="es-linkedin" class="inp" style="width:100%;margin-top:4px"></div>
+      <div><label style="font-size:11px;color:var(--text3);font-weight:600">LINKEDIN</label><input autocomplete="off" id="es-linkedin" class="inp" style="width:100%;margin-top:4px"></div>
       <div><label style="font-size:11px;color:var(--text3);font-weight:600">VENDEDOR</label>
         <select id="es-agent" class="inp" style="width:100%;margin-top:4px" id="es-agent-sel"></select>
       </div>
@@ -254,18 +254,18 @@ tr.selected td{background:var(--accentDim);}
     </div>
     <div style="flex:1;overflow-y:auto;padding:16px 20px;display:grid;gap:10px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE</label><input id="ec-name" class="inp" style="width:100%;margin-top:4px"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE CORRESPONDENCIA</label><input id="ec-mailing" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE</label><input autocomplete="off" id="ec-name" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE CORRESPONDENCIA</label><input autocomplete="off" id="ec-mailing" class="inp" style="width:100%;margin-top:4px"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">TELÉFONO</label><input id="ec-phone" class="inp" style="width:100%;margin-top:4px"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL</label><input id="ec-email" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">TELÉFONO</label><input autocomplete="off" id="ec-phone" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL</label><input autocomplete="off" id="ec-email" class="inp" style="width:100%;margin-top:4px"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL 2</label><input id="ec-email2" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL 2</label><input autocomplete="off" id="ec-email2" class="inp" style="width:100%;margin-top:4px"></div>
         <div style="position:relative"><label style="font-size:11px;color:var(--text3);font-weight:600">ESTUDIO</label>
-        <input id="ec-studio" class="inp" style="width:100%;margin-top:4px" placeholder="Buscar estudio..." autocomplete="off" oninput="studioAutocomplete(this.value)" onblur="setTimeout(()=>document.getElementById('studio-ac-list').style.display='none',200)">
-        <input type="hidden" id="ec-studioId">
+        <input autocomplete="off" id="ec-studio" class="inp" style="width:100%;margin-top:4px" placeholder="Buscar estudio..." autocomplete="off" oninput="studioAutocomplete(this.value)" onblur="setTimeout(()=>document.getElementById('studio-ac-list').style.display='none',200)">
+        <input autocomplete="off" type="hidden" id="ec-studioId">
         <div id="studio-ac-list" style="display:none;position:absolute;z-index:999;background:var(--surface2);border:1px solid var(--border);border-radius:8px;width:100%;max-height:200px;overflow-y:auto;top:100%;left:0;margin-top:2px;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
       </div>
       </div>
@@ -287,23 +287,23 @@ tr.selected td{background:var(--accentDim);}
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">CIUDAD</label><input id="ec-city" class="inp" style="width:100%;margin-top:4px"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">ESTADO</label><input id="ec-state" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">CIUDAD</label><input autocomplete="off" id="ec-city" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">ESTADO</label><input autocomplete="off" id="ec-state" class="inp" style="width:100%;margin-top:4px"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">VENDEDOR</label><input id="ec-agent" class="inp" style="width:100%;margin-top:4px"></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">ORIGEN</label><input id="ec-origin" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">VENDEDOR</label><input autocomplete="off" id="ec-agent" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">ORIGEN</label><input autocomplete="off" id="ec-origin" class="inp" style="width:100%;margin-top:4px"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">INSTAGRAM</label><input id="ec-instagram" class="inp" style="width:100%;margin-top:4px" placeholder="@..."></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">LINKEDIN</label><input id="ec-linkedin" class="inp" style="width:100%;margin-top:4px" placeholder="https://..."></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">INSTAGRAM</label><input autocomplete="off" id="ec-instagram" class="inp" style="width:100%;margin-top:4px" placeholder="@..."></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">LINKEDIN</label><input autocomplete="off" id="ec-linkedin" class="inp" style="width:100%;margin-top:4px" placeholder="https://..."></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">WHATSAPP</label><input id="ec-whatsapp" class="inp" style="width:100%;margin-top:4px" placeholder="+52..."></div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">WEB</label><input id="ec-web" class="inp" style="width:100%;margin-top:4px" placeholder="https://..."></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">WHATSAPP</label><input autocomplete="off" id="ec-whatsapp" class="inp" style="width:100%;margin-top:4px" placeholder="+52..."></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">WEB</label><input autocomplete="off" id="ec-web" class="inp" style="width:100%;margin-top:4px" placeholder="https://..."></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">SEGMENTO</label><input id="ec-segment" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">SEGMENTO</label><input autocomplete="off" id="ec-segment" class="inp" style="width:100%;margin-top:4px"></div>
         <div></div>
       </div>
       <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOTAS</label><textarea id="ec-notes" class="inp" style="width:100%;margin-top:4px;min-height:60px;resize:vertical"></textarea></div>
@@ -329,7 +329,7 @@ tr.selected td{background:var(--accentDim);}
   <!-- CRM URL CONFIG -->
   <div id="crm-config" style="display:none;padding:8px 20px;background:var(--surface);border-bottom:1px solid var(--border);align-items:center;gap:8px">
     <span style="font-size:11px;color:var(--text3);white-space:nowrap">URL Apps Script:</span>
-    <input class="inp" id="crm-url-inp" placeholder="https://script.google.com/macros/s/..." style="flex:1;font-size:11px;font-family:var(--mono)">
+    <input autocomplete="off" class="inp" id="crm-url-inp" placeholder="https://script.google.com/macros/s/..." style="flex:1;font-size:11px;font-family:var(--mono)">
     <button class="btn btn-primary" style="font-size:11px" onclick="saveCRMUrl()">Guardar</button>
     <button class="btn btn-ghost" style="font-size:11px" onclick="testCRMUrl()">Probar</button>
   </div>
@@ -347,7 +347,7 @@ tr.selected td{background:var(--accentDim);}
     <!-- TOOLBAR -->
     <div class="toolbar">
       <div style="position:relative;flex:1;max-width:380px">
-        <input class="inp search-inp" id="search-inp" placeholder="🔍 Nombre, estudio, email, ciudad..." oninput="applyFilters();document.getElementById('clear-search').style.display=this.value?'flex':'none'" style="width:100%;padding-right:28px">
+        <input autocomplete="off" class="inp search-inp" id="search-inp" placeholder="🔍 Nombre, estudio, email, ciudad..." oninput="applyFilters();document.getElementById('clear-search').style.display=this.value?'flex':'none'" style="width:100%;padding-right:28px">
         <button id="clear-search" onclick="document.getElementById('search-inp').value='';document.getElementById('clear-search').style.display='none';applyFilters()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1">✕</button>
       </div>
       <select class="filter-sel" id="f-agent" onchange="applyFilters()">
@@ -376,13 +376,13 @@ tr.selected td{background:var(--accentDim);}
         <button class="btn btn-primary" onclick="openNewContactModal()">+ Nuevo</button>
         <button class="btn btn-ghost" onclick="openDups()">🔍 Duplicados</button>
         <button class="btn btn-ghost" onclick="document.getElementById('xlsx-inp').click()">📊 Importar Excel</button>
-        <input type="file" id="xlsx-inp" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
+        <input autocomplete="off" type="file" id="xlsx-inp" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
       </div>
     </div>
 
     <!-- BULK BAR -->
     <div class="bulk-bar" id="bulk-bar">
-      <input type="checkbox" id="sel-all-cb" onchange="toggleAllVisible(this.checked)" style="accent-color:var(--accent)">
+      <input autocomplete="off" type="checkbox" id="sel-all-cb" onchange="toggleAllVisible(this.checked)" style="accent-color:var(--accent)">
       <span class="bulk-count"><span id="sel-count">0</span> seleccionados</span>
       <button class="btn btn-green" onclick="openSendCRM()">⚡ Enviar al CRM</button>
       <button class="btn btn-ghost" id="btn-fusionar" onclick="openFusionar()" style="display:none">🔀 Fusionar</button>
@@ -394,7 +394,7 @@ tr.selected td{background:var(--accentDim);}
     <div class="statusbar">
       <span class="stat-txt">Mostrando <strong id="count-vis">0</strong> de <strong id="count-total">0</strong> contactos</span>
       <div style="margin-left:auto;display:flex;align-items:center;gap:6px">
-        <input type="checkbox" id="header-cb" onchange="toggleAllVisible(this.checked)" style="accent-color:var(--accent)">
+        <input autocomplete="off" type="checkbox" id="header-cb" onchange="toggleAllVisible(this.checked)" style="accent-color:var(--accent)">
         <label for="header-cb" style="font-size:11px;color:var(--text3);cursor:pointer">Seleccionar página</label>
       </div>
     </div>
@@ -433,7 +433,7 @@ tr.selected td{background:var(--accentDim);}
   <div class="tab-panel" id="panel-studios">
     <div class="toolbar" style="gap:8px">
       <div style="position:relative">
-        <input class="inp search-inp" id="studio-search" placeholder="🔍 Nombre, ciudad..." oninput="renderStudios();document.getElementById('clear-studio-search').style.display=this.value?'flex':'none'" style="max-width:320px;padding-right:28px">
+        <input autocomplete="off" class="inp search-inp" id="studio-search" placeholder="🔍 Nombre, ciudad..." oninput="renderStudios();document.getElementById('clear-studio-search').style.display=this.value?'flex':'none'" style="max-width:320px;padding-right:28px">
         <button id="clear-studio-search" onclick="document.getElementById('studio-search').value='';document.getElementById('clear-studio-search').style.display='none';renderStudios()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px;line-height:1">✕</button>
       </div>
       <span style="font-size:13px;color:var(--text2);margin-left:8px" id="studio-count"></span>
@@ -443,7 +443,7 @@ tr.selected td{background:var(--accentDim);}
     <div class="table-wrap">
       <table>
         <thead><tr>
-          <th style="width:28px"><input type="checkbox" id="studio-check-all" onchange="toggleAllStudios(this.checked)" style="accent-color:var(--accent)"></th>
+          <th style="width:28px"><input autocomplete="off" type="checkbox" id="studio-check-all" onchange="toggleAllStudios(this.checked)" style="accent-color:var(--accent)"></th>
           <th>Estudio</th><th>Ciudad</th><th>Estado</th><th>Contactos</th><th>Vendedor</th><th>Email</th><th>Teléfono</th><th>Web</th><th>Instagram</th><th>LinkedIn</th><th>Notas</th><th></th>
         </tr></thead>
         <tbody id="studios-tbody"></tbody>
@@ -455,7 +455,7 @@ tr.selected td{background:var(--accentDim);}
   <div class="tab-panel" id="panel-providers">
     <div class="toolbar" style="gap:8px">
       <div style="position:relative">
-        <input class="inp search-inp" id="prov-search" placeholder="🔍 Nombre, RFC, categoría..." oninput="renderProviders()" style="max-width:340px;padding-right:28px">
+        <input autocomplete="off" class="inp search-inp" id="prov-search" placeholder="🔍 Nombre, RFC, categoría..." oninput="renderProviders()" style="max-width:340px;padding-right:28px">
         <button onclick="document.getElementById('prov-search').value='';renderProviders()" style="display:none;position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px 4px" id="clear-prov-search">✕</button>
       </div>
       <span style="font-size:13px;color:var(--text2);margin-left:8px" id="prov-count"></span>
@@ -808,7 +808,7 @@ function buildApprovalCard(p){
         <div style="display:grid;grid-template-columns:140px 1fr 1fr;gap:6px;align-items:center;margin-bottom:6px">
           <span style="font-size:12px;font-weight:600;color:var(--text2)">${FIELD_LABELS[k]||k}</span>
           <span style="font-size:12px;color:var(--text3);text-decoration:line-through">${esc(String(p.oldFields?.[k]||'—'))}</span>
-          <input class="approval-edit-field" data-change-id="${p.id}" data-field="${k}"
+          <input autocomplete="off" class="approval-edit-field" data-change-id="${p.id}" data-field="${k}"
             value="${esc(String(p.newFields[k]||''))}"
             style="background:#1d1f22;border:1px solid #363b44;border-radius:5px;padding:4px 7px;font-size:12px;color:#f0f1f3;outline:none;width:100%;box-sizing:border-box">
         </div>`).join('')}
@@ -816,7 +816,7 @@ function buildApprovalCard(p){
     `<div style="display:grid;grid-template-columns:140px 1fr 1fr;gap:6px;align-items:center">
         <span style="font-size:12px;font-weight:600">${esc(p.field||'')}</span>
         <span style="font-size:12px;color:var(--text3);text-decoration:line-through">${esc(String(p.oldValue||'—'))}</span>
-        <input class="approval-edit-field" data-change-id="${p.id}" data-field="${p.field||''}"
+        <input autocomplete="off" class="approval-edit-field" data-change-id="${p.id}" data-field="${p.field||''}"
           value="${esc(String(p.newValue||''))}"
           style="background:#1d1f22;border:1px solid #363b44;border-radius:5px;padding:4px 7px;font-size:12px;color:#f0f1f3;outline:none;width:100%;box-sizing:border-box">
       </div>`);
@@ -989,7 +989,7 @@ function applyFilters(){
         const tr=document.createElement('tr');
         tr.style.background='var(--bg2)';
         tr.innerHTML=`
-          <td><input type="checkbox" ${selectedStudios.has(String(s.id))?'checked':''} style="accent-color:var(--accent)" onchange="toggleStudioSel('${s.id}',this.checked);updateStudioSelUI()"></td>
+          <td><input autocomplete="off" type="checkbox" ${selectedStudios.has(String(s.id))?'checked':''} style="accent-color:var(--accent)" onchange="toggleStudioSel('${s.id}',this.checked);updateStudioSelUI()"></td>
           <td class="name-cell" colspan="2"><span onclick="openStudioEdit(${s.id})" style="cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px">${esc(s.name||'—')}</span><div style="font-size:11px;color:var(--text3)">Estudio</div></td>
           <td>${typeBadge('Estudio')}</td>
           <td>${esc(s.city||'—')}</td>
@@ -1039,7 +1039,7 @@ function renderBatch(){
     tr.dataset.i=c._i;
     if(selected.has(c._i)) tr.classList.add('selected');
     tr.innerHTML=`
-      <td><input type="checkbox" ${selected.has(c._i)?'checked':''} style="accent-color:var(--accent)" onchange="toggleSel(${c._i},this.checked)" onclick="e=>e.stopPropagation()"></td>
+      <td><input autocomplete="off" type="checkbox" ${selected.has(c._i)?'checked':''} style="accent-color:var(--accent)" onchange="toggleSel(${c._i},this.checked)" onclick="e=>e.stopPropagation()"></td>
       <td class="name-cell"><span onclick="openContactEdit(${c._i})" style="cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${esc(c.name||'—')}</span><div style="font-size:11px;color:var(--text3);font-weight:400">${esc(c.mailingName||'')}</div></td>
       <td style="color:var(--text3);font-size:12px">${c.studioId ? `<span onclick="openStudioEdit(${c.studioId})" style="cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${esc(c.studio||'—')}</span>` : esc(c.studio||'—')}</td>
       <td>${typeBadge(c.type)}</td>
@@ -1249,7 +1249,7 @@ function findDupsAll(by){
       const isS=x._kind==='studio';
       const fn=isS?'openStudioEdit('+x.id+')':'openContactEdit('+x._i+')';
       return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">'
-        +'<input type="checkbox" id="dcb-'+gKey+'-'+gi+'-'+ci+'" checked style="accent-color:var(--accent);flex-shrink:0">'
+        +'<input autocomplete="off" type="checkbox" id="dcb-'+gKey+'-'+gi+'-'+ci+'" checked style="accent-color:var(--accent);flex-shrink:0">'
         +'<span style="font-size:10px;padding:2px 6px;border-radius:3px;flex-shrink:0;background:'+(isS?'var(--accentDim)':'rgba(100,100,200,.15)')+';color:'+(isS?'var(--accent)':'#8888ff')+'">'+(isS?'🏛':'👤')+'</span>'
         +'<label for="dcb-'+gKey+'-'+gi+'-'+ci+'" style="flex:1;cursor:pointer;min-width:0">'
         +'<div style="font-size:13px;font-weight:600;color:var(--accent);text-decoration:underline;text-underline-offset:2px;cursor:pointer" onclick="event.stopPropagation();'+fn+'">'+esc(x.name||'—')+'</div>'
@@ -1383,19 +1383,19 @@ function renderMergeFields(){
       const bestStudio = _mergeContacts.find(c=>c.studio===bestVal);
       const bestStudioId = bestStudio?.studioId||'';
       html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04);position:relative">
-        <input id="mr-studio" autocomplete="off" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="Buscar estudio..."
+        <input autocomplete="off" id="mr-studio" autocomplete="off" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="Buscar estudio..."
           oninput="mergeStudioAC(this.value)"
           onblur="setTimeout(()=>{const d=document.getElementById('mr-studio-ac');if(d)d.style.display='none'},200)">
-        <input type="hidden" id="mr-studio-id" value="${esc(String(bestStudioId))}">
+        <input autocomplete="off" type="hidden" id="mr-studio-id" value="${esc(String(bestStudioId))}">
         <div id="mr-studio-ac" style="display:none;position:absolute;z-index:9999;background:var(--surface2);border:1px solid var(--border);border-radius:8px;width:calc(100% - 16px);max-height:180px;overflow-y:auto;top:100%;left:8px;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
       </div>`;
     } else if(f.k === 'agent'){
       const bestAgentId = _mergeContacts.find(c=>c.agent===bestVal)?._agentId || null;
       html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04);position:relative">
-        <input id="mr-agent" autocomplete="off" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="Buscar vendedor..."
+        <input autocomplete="off" id="mr-agent" autocomplete="off" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="Buscar vendedor..."
           oninput="mergeAgentAC(this.value)"
           onblur="setTimeout(()=>{const d=document.getElementById('mr-agent-ac');if(d)d.style.display='none'},200)">
-        <input type="hidden" id="mr-agent-id" value="${esc(String(bestAgentId||''))}">
+        <input autocomplete="off" type="hidden" id="mr-agent-id" value="${esc(String(bestAgentId||''))}">
         <div id="mr-agent-ac" style="display:none;position:absolute;z-index:9999;background:var(--surface2);border:1px solid var(--border);border-radius:8px;width:calc(100% - 16px);max-height:160px;overflow-y:auto;top:100%;left:8px;box-shadow:0 4px 16px rgba(0,0,0,.4)"></div>
       </div>`;
     } else if(f.k === 'stage'){
@@ -1413,7 +1413,7 @@ function renderMergeFields(){
       </div>`;
     } else {
       html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04)">
-        <input id="mr-${f.k}" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="${f.label}...">
+        <input autocomplete="off" id="mr-${f.k}" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="${f.label}...">
       </div>`;
     }
   });
@@ -1437,7 +1437,7 @@ function renderMergeFields(){
       <div id="merge-notes-list" style="padding:10px 14px;display:flex;flex-direction:column;gap:6px">`;
     allNotesList.forEach((n,i)=>{
       html+=`<label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;padding:8px;border-radius:7px;background:var(--surface);border:1px solid var(--border)">
-        <input type="checkbox" class="merge-note-cb" data-idx="${i}" checked style="margin-top:3px;accent-color:var(--accent)">
+        <input autocomplete="off" type="checkbox" class="merge-note-cb" data-idx="${i}" checked style="margin-top:3px;accent-color:var(--accent)">
         <div style="flex:1">
           <div style="font-size:12px;color:var(--text);white-space:pre-wrap">${esc(n.text||'')}</div>
           <div style="font-size:10px;color:var(--text3);margin-top:2px">${esc(n._srcName)} · ${esc(n.authorName||'')} · ${esc(n.date||'')}</div>
@@ -1592,9 +1592,9 @@ function openMergeContactWithStudio(){
   const footer=document.querySelector('#modal-merge .modal-ft') || document.querySelector('#modal-merge [style*="justify-content"]');
   const saveAsHtml=`<div id="mcs-saveas-wrap" style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--border);margin-top:8px;font-size:13px">
     <span style="font-size:11px;font-weight:700;color:var(--text3)">GUARDAR COMO:</span>
-    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="mcs-saveas" value="studio" checked style="accent-color:var(--accent)"> 🏛 Solo estudio <span style="font-size:11px;color:var(--text3)">(elimina el contacto)</span></label>
-    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="mcs-saveas" value="contact" style="accent-color:var(--accent)"> 👤 Solo contacto <span style="font-size:11px;color:var(--text3)">(elimina el estudio)</span></label>
-    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="mcs-saveas" value="both" style="accent-color:var(--accent)"> ✅ Ambos <span style="font-size:11px;color:var(--text3)">(vincula contacto al estudio)</span></label>
+    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input autocomplete="off" type="radio" name="mcs-saveas" value="studio" checked style="accent-color:var(--accent)"> 🏛 Solo estudio <span style="font-size:11px;color:var(--text3)">(elimina el contacto)</span></label>
+    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input autocomplete="off" type="radio" name="mcs-saveas" value="contact" style="accent-color:var(--accent)"> 👤 Solo contacto <span style="font-size:11px;color:var(--text3)">(elimina el estudio)</span></label>
+    <label style="display:flex;align-items:center;gap:5px;cursor:pointer"><input autocomplete="off" type="radio" name="mcs-saveas" value="both" style="accent-color:var(--accent)"> ✅ Ambos <span style="font-size:11px;color:var(--text3)">(vincula contacto al estudio)</span></label>
   </div>`;
   document.getElementById('merge-fields').insertAdjacentHTML('afterend', saveAsHtml);
 
@@ -1863,7 +1863,7 @@ function renderMergeFieldsStudios(){
     if(f.k==='notes'){
       html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04)"><textarea id="msr-${f.k}" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box;resize:vertical;min-height:54px">${esc(bestVal)}</textarea></div>`;
     } else {
-      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04)"><input id="msr-${f.k}" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="${f.label}..."></div>`;
+      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04)"><input autocomplete="off" id="msr-${f.k}" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="${f.label}..."></div>`;
     }
   });
   html+='</div>';
@@ -1941,7 +1941,7 @@ function renderStudios(){
     const cnt=countMap[String(s.id)]||0;
     const agentName=users[s.agent]||s.agent||'—';
     return `<tr id="strow-${s.id}">
-      <td><input type="checkbox" class="studio-cb" data-id="${s.id}" onchange="toggleStudioSel('${s.id}',this.checked)" style="accent-color:var(--accent)"></td>
+      <td><input autocomplete="off" type="checkbox" class="studio-cb" data-id="${s.id}" onchange="toggleStudioSel('${s.id}',this.checked)" style="accent-color:var(--accent)"></td>
       <td class="name-cell"><span onclick="openStudioEdit(${s.id})" style="cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${esc(s.name||'—')}</span></td>
       <td>${esc(s.city||'—')}</td><td>${esc(s.state||'—')}</td>
       <td style="color:var(--text3);font-size:12px">${cnt} contacto${cnt!==1?'s':''}</td>
@@ -2439,7 +2439,7 @@ function renderProvCatsList(){
   if(!el) return;
   el.innerHTML=PROV_CATS.map((c,i)=>`
     <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
-      <input class="inp" value="${esc(c)}" id="pcat-inp-${i}" style="flex:1;font-size:13px" onkeydown="if(event.key==='Enter')saveProvCat(${i})">
+      <input autocomplete="off" class="inp" value="${esc(c)}" id="pcat-inp-${i}" style="flex:1;font-size:13px" onkeydown="if(event.key==='Enter')saveProvCat(${i})">
       <button class="btn btn-ghost" onclick="saveProvCat(${i})" style="font-size:11px;padding:4px 10px" title="Guardar">✓</button>
       <button class="btn" onclick="deleteProvCat(${i})" style="font-size:11px;padding:4px 8px;background:rgba(255,92,92,.15);color:#ff5c5c;border:1px solid rgba(255,92,92,.3)" title="Eliminar">✕</button>
     </div>`).join('');
@@ -2528,24 +2528,24 @@ function _doConvertStudio(s){
     <div class="modal-hd"><h2 id="prov-edit-title">Nuevo proveedor</h2><button class="modal-close" onclick="closeModal('modal-prov-edit')">✕</button></div>
     <div class="modal-body" style="display:grid;gap:10px">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="fg"><label class="lbl">Razón social *</label><input class="inp" id="pe-name" placeholder="Grupo Constructor Pérez SA de CV"></div>
-        <div class="fg"><label class="lbl">RFC</label><input class="inp" id="pe-rfc" placeholder="GCP850101XXX" style="font-family:var(--mono);text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+        <div class="fg"><label class="lbl">Razón social *</label><input autocomplete="off" class="inp" id="pe-name" placeholder="Grupo Constructor Pérez SA de CV"></div>
+        <div class="fg"><label class="lbl">RFC</label><input autocomplete="off" class="inp" id="pe-rfc" placeholder="GCP850101XXX" style="font-family:var(--mono);text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
       </div>
       <div class="fg"><label class="lbl">Categoría</label><select class="inp" id="pe-cat"><option value="">Sin categoría</option></select></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="fg"><label class="lbl">Teléfono</label><input class="inp" id="pe-phone" placeholder="55 1234 5678"></div>
-        <div class="fg"><label class="lbl">Email</label><input class="inp" id="pe-email" type="email" placeholder="contacto@proveedor.com"></div>
+        <div class="fg"><label class="lbl">Teléfono</label><input autocomplete="off" class="inp" id="pe-phone" placeholder="55 1234 5678"></div>
+        <div class="fg"><label class="lbl">Email</label><input autocomplete="off" class="inp" id="pe-email" type="email" placeholder="contacto@proveedor.com"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div class="fg"><label class="lbl">Web</label><input class="inp" id="pe-web" placeholder="https://proveedor.com"></div>
-        <div class="fg"><label class="lbl">Instagram</label><input class="inp" id="pe-instagram" placeholder="@proveedor"></div>
+        <div class="fg"><label class="lbl">Web</label><input autocomplete="off" class="inp" id="pe-web" placeholder="https://proveedor.com"></div>
+        <div class="fg"><label class="lbl">Instagram</label><input autocomplete="off" class="inp" id="pe-instagram" placeholder="@proveedor"></div>
       </div>
       <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:8px">Datos de pago</div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
-          <div class="fg"><label class="lbl">Banco</label><input class="inp" id="pe-bank" placeholder="BBVA"></div>
-          <div class="fg"><label class="lbl">CLABE</label><input class="inp" id="pe-clabe" placeholder="012345678901234567" style="font-family:var(--mono)" maxlength="18"></div>
-          <div class="fg"><label class="lbl">N° Cuenta</label><input class="inp" id="pe-account" placeholder="0123456789" style="font-family:var(--mono)"></div>
+          <div class="fg"><label class="lbl">Banco</label><input autocomplete="off" class="inp" id="pe-bank" placeholder="BBVA"></div>
+          <div class="fg"><label class="lbl">CLABE</label><input autocomplete="off" class="inp" id="pe-clabe" placeholder="012345678901234567" style="font-family:var(--mono)" maxlength="18"></div>
+          <div class="fg"><label class="lbl">N° Cuenta</label><input autocomplete="off" class="inp" id="pe-account" placeholder="0123456789" style="font-family:var(--mono)"></div>
         </div>
       </div>
       <div class="fg"><label class="lbl">Notas</label><textarea class="inp" id="pe-notes" rows="2" placeholder="Notas internas..."></textarea></div>
@@ -2564,7 +2564,7 @@ function _doConvertStudio(s){
     <div class="modal-hd"><h2>⚙️ Categorías de proveedores</h2><button class="modal-close" onclick="closeModal('modal-prov-cats')">✕</button></div>
     <div class="modal-body">
       <div style="display:flex;gap:8px;margin-bottom:12px">
-        <input class="inp" id="new-prov-cat" placeholder="Nueva categoría..." style="flex:1" onkeydown="if(event.key==='Enter')addProvCat()">
+        <input autocomplete="off" class="inp" id="new-prov-cat" placeholder="Nueva categoría..." style="flex:1" onkeydown="if(event.key==='Enter')addProvCat()">
         <button class="btn btn-primary" onclick="addProvCat()">+ Añadir</button>
       </div>
       <div id="prov-cats-list" style="max-height:340px;overflow-y:auto"></div>
@@ -2601,7 +2601,7 @@ function _doConvertStudio(s){
         <!-- Search existing -->
         <div style="position:relative">
           <label style="font-size:11px;color:var(--text3);font-weight:600">BUSCAR ESTUDIO EXISTENTE</label>
-          <input id="nc-studio-search" class="inp" style="width:100%;margin-top:4px" placeholder="Escribe para buscar..." autocomplete="off"
+          <input autocomplete="off" id="nc-studio-search" class="inp" style="width:100%;margin-top:4px" placeholder="Escribe para buscar..." autocomplete="off"
             oninput="ncStudioSearch()" onblur="setTimeout(()=>{const l=document.getElementById('nc-studio-ac');if(l)l.style.display='none'},200)">
           <div id="nc-studio-ac" style="display:none;position:absolute;z-index:99;background:var(--surface);border:1px solid var(--border2);border-radius:8px;width:100%;max-height:180px;overflow-y:auto;top:100%;left:0;margin-top:2px;box-shadow:0 4px 16px rgba(0,0,0,.5)"></div>
         </div>
@@ -2619,7 +2619,7 @@ function _doConvertStudio(s){
         <div id="nc-studio-form">
           <div style="display:grid;gap:10px">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE DEL ESTUDIO *</label><input id="nc-s-name" class="inp" style="width:100%;margin-top:4px" placeholder="Taller de Arquitectura XYZ"></div>
+              <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE DEL ESTUDIO *</label><input autocomplete="off" id="nc-s-name" class="inp" style="width:100%;margin-top:4px" placeholder="Taller de Arquitectura XYZ"></div>
               <div><label style="font-size:11px;color:var(--text3);font-weight:600">VENDEDOR</label>
                 <select id="nc-s-agent" class="inp" style="width:100%;margin-top:4px">
                   <option value="">— Sin vendedor —</option>
@@ -2627,16 +2627,16 @@ function _doConvertStudio(s){
               </div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div><label style="font-size:11px;color:var(--text3);font-weight:600">CIUDAD</label><input id="nc-s-city" class="inp" style="width:100%;margin-top:4px"></div>
-              <div><label style="font-size:11px;color:var(--text3);font-weight:600">ESTADO</label><input id="nc-s-state" class="inp" style="width:100%;margin-top:4px"></div>
+              <div><label style="font-size:11px;color:var(--text3);font-weight:600">CIUDAD</label><input autocomplete="off" id="nc-s-city" class="inp" style="width:100%;margin-top:4px"></div>
+              <div><label style="font-size:11px;color:var(--text3);font-weight:600">ESTADO</label><input autocomplete="off" id="nc-s-state" class="inp" style="width:100%;margin-top:4px"></div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL</label><input id="nc-s-email" class="inp" style="width:100%;margin-top:4px" type="email"></div>
-              <div><label style="font-size:11px;color:var(--text3);font-weight:600">TELÉFONO</label><input id="nc-s-phone" class="inp" style="width:100%;margin-top:4px"></div>
+              <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL</label><input autocomplete="off" id="nc-s-email" class="inp" style="width:100%;margin-top:4px" type="email"></div>
+              <div><label style="font-size:11px;color:var(--text3);font-weight:600">TELÉFONO</label><input autocomplete="off" id="nc-s-phone" class="inp" style="width:100%;margin-top:4px"></div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-              <div><label style="font-size:11px;color:var(--text3);font-weight:600">WEB</label><input id="nc-s-web" class="inp" style="width:100%;margin-top:4px" placeholder="https://..."></div>
-              <div><label style="font-size:11px;color:var(--text3);font-weight:600">INSTAGRAM</label><input id="nc-s-instagram" class="inp" style="width:100%;margin-top:4px" placeholder="@..."></div>
+              <div><label style="font-size:11px;color:var(--text3);font-weight:600">WEB</label><input autocomplete="off" id="nc-s-web" class="inp" style="width:100%;margin-top:4px" placeholder="https://..."></div>
+              <div><label style="font-size:11px;color:var(--text3);font-weight:600">INSTAGRAM</label><input autocomplete="off" id="nc-s-instagram" class="inp" style="width:100%;margin-top:4px" placeholder="@..."></div>
             </div>
             <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOTAS</label><textarea id="nc-s-notes" class="inp" style="width:100%;margin-top:4px;min-height:50px;resize:vertical"></textarea></div>
           </div>
@@ -2646,8 +2646,8 @@ function _doConvertStudio(s){
       <!-- TAB 1: CONTACTO -->
       <div id="nc-panel-1" style="padding:16px 20px;display:none;gap:10px;flex-direction:column">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE *</label><input id="nc-c-name" class="inp" style="width:100%;margin-top:4px"></div>
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE CORRESPONDENCIA</label><input id="nc-c-mailing" class="inp" style="width:100%;margin-top:4px"></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE *</label><input autocomplete="off" id="nc-c-name" class="inp" style="width:100%;margin-top:4px"></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE CORRESPONDENCIA</label><input autocomplete="off" id="nc-c-mailing" class="inp" style="width:100%;margin-top:4px"></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div><label style="font-size:11px;color:var(--text3);font-weight:600">FUNCIÓN</label>
@@ -2667,20 +2667,20 @@ function _doConvertStudio(s){
           </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600">TELÉFONO</label><input id="nc-c-phone" class="inp" style="width:100%;margin-top:4px"></div>
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL</label><input id="nc-c-email" class="inp" style="width:100%;margin-top:4px" type="email"></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">TELÉFONO</label><input autocomplete="off" id="nc-c-phone" class="inp" style="width:100%;margin-top:4px"></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL</label><input autocomplete="off" id="nc-c-email" class="inp" style="width:100%;margin-top:4px" type="email"></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL 2</label><input id="nc-c-email2" class="inp" style="width:100%;margin-top:4px" type="email"></div>
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600">WHATSAPP</label><input id="nc-c-whatsapp" class="inp" style="width:100%;margin-top:4px" placeholder="+52..."></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL 2</label><input autocomplete="off" id="nc-c-email2" class="inp" style="width:100%;margin-top:4px" type="email"></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">WHATSAPP</label><input autocomplete="off" id="nc-c-whatsapp" class="inp" style="width:100%;margin-top:4px" placeholder="+52..."></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600">CIUDAD</label><input id="nc-c-city" class="inp" style="width:100%;margin-top:4px"></div>
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600">ESTADO</label><input id="nc-c-state" class="inp" style="width:100%;margin-top:4px"></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">CIUDAD</label><input autocomplete="off" id="nc-c-city" class="inp" style="width:100%;margin-top:4px"></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">ESTADO</label><input autocomplete="off" id="nc-c-state" class="inp" style="width:100%;margin-top:4px"></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600">INSTAGRAM</label><input id="nc-c-instagram" class="inp" style="width:100%;margin-top:4px" placeholder="@..."></div>
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600">LINKEDIN</label><input id="nc-c-linkedin" class="inp" style="width:100%;margin-top:4px" placeholder="https://..."></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">INSTAGRAM</label><input autocomplete="off" id="nc-c-instagram" class="inp" style="width:100%;margin-top:4px" placeholder="@..."></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">LINKEDIN</label><input autocomplete="off" id="nc-c-linkedin" class="inp" style="width:100%;margin-top:4px" placeholder="https://..."></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div><label style="font-size:11px;color:var(--text3);font-weight:600">VENDEDOR</label>
@@ -2689,7 +2689,7 @@ function _doConvertStudio(s){
               <option>Luis</option><option>Abril</option><option>Karina</option>
             </select>
           </div>
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600">ORIGEN</label><input id="nc-c-origin" class="inp" style="width:100%;margin-top:4px"></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">ORIGEN</label><input autocomplete="off" id="nc-c-origin" class="inp" style="width:100%;margin-top:4px"></div>
         </div>
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOTAS</label><textarea id="nc-c-notes" class="inp" style="width:100%;margin-top:4px;min-height:60px;resize:vertical"></textarea></div>
       </div>
@@ -2699,7 +2699,7 @@ function _doConvertStudio(s){
         <div style="font-size:11px;color:var(--text3);padding:6px 10px;background:var(--surface2);border-radius:6px;border-left:3px solid var(--blue,#60a5fa)">
           Opcional. Crea una oportunidad en el pipeline asociada a este contacto.
         </div>
-        <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE DEL PROYECTO</label><input id="nc-p-name" class="inp" style="width:100%;margin-top:4px" placeholder="Ej. P046 — Remodelación oficinas CDMX"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOMBRE DEL PROYECTO</label><input autocomplete="off" id="nc-p-name" class="inp" style="width:100%;margin-top:4px" placeholder="Ej. P046 — Remodelación oficinas CDMX"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div><label style="font-size:11px;color:var(--text3);font-weight:600">ETAPA</label>
             <select id="nc-p-stage" class="inp" style="width:100%;margin-top:4px">
@@ -2711,7 +2711,7 @@ function _doConvertStudio(s){
               <option value="postventa">Seguimiento post-venta</option>
             </select>
           </div>
-          <div><label style="font-size:11px;color:var(--text3);font-weight:600">VALOR ESTIMADO (MXN)</label><input id="nc-p-value" class="inp" style="width:100%;margin-top:4px;font-family:var(--mono)" type="number" placeholder="0"></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">VALOR ESTIMADO (MXN)</label><input autocomplete="off" id="nc-p-value" class="inp" style="width:100%;margin-top:4px;font-family:var(--mono)" type="number" placeholder="0"></div>
         </div>
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOTAS DE LA OPORTUNIDAD</label><textarea id="nc-p-notes" class="inp" style="width:100%;margin-top:4px;min-height:60px;resize:vertical"></textarea></div>
       </div>
