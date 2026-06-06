@@ -696,6 +696,18 @@ async function pollWorker(){
       }
     });
 
+    // Detectar contactos borrados via deletedIds de crm_meta
+    const deletedIds = data.deletedIds || [];
+    if(deletedIds.length > 0){
+      const deletedSet = new Set(deletedIds.filter(d=>d.type==='contact').map(d=>String(d.id)));
+      for(let i = ALL.length - 1; i >= 0; i--){
+        if(deletedSet.has(String(ALL[i]._crmId||ALL[i].id))){
+          ALL.splice(i, 1);
+          contactsUpdated++;
+        }
+      }
+    }
+
     if(contactsUpdated > 0 || studiosUpdated > 0){
       applyFilters();
       renderStudios();
