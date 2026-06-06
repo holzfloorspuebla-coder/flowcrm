@@ -709,6 +709,7 @@ async function pollWorker(){
     }
 
     if(contactsUpdated > 0 || studiosUpdated > 0){
+      ALL.forEach((c,i) => c._i = i); // recalcular índices tras cambios del polling
       applyFilters();
       renderStudios();
       setText('count-total', ALL.length.toLocaleString('es'));
