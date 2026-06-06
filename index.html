@@ -3500,8 +3500,10 @@ function deleteContact(id){
   D.contacts=D.contacts.filter(x=>x.id!==id);
   D.projects.forEach(p=>{p.contactIds=(p.contactIds||[]).filter(x=>x!==id);});
   saveData();
-  // Propagar borrado a Supabase
-  if(DRIVE_SYNC_URL) fetch(DRIVE_SYNC_URL+'/contact/'+encodeURIComponent(String(id)),{method:'DELETE'}).catch(()=>{});
+  if(DRIVE_SYNC_URL){
+    fetch(DRIVE_SYNC_URL+'/contact/'+encodeURIComponent(String(id)),{method:'DELETE'}).catch(()=>{});
+    fetch(DRIVE_SYNC_URL+'/deleted',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'contact',id:String(id),deletedAt:Date.now()})}).catch(()=>{});
+  }
   goView(S.prevView||'contacts-view');
   toast('Contacto eliminado ✓');
 }
