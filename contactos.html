@@ -1014,7 +1014,8 @@ function applyFilters(){
 function sortFiltered(){
   filtered.sort((a,b)=>{
     let va=a[sortField]||'',vb=b[sortField]||'';
-    return sortAsc?(va<vb?-1:va>vb?1:0):(va<vb?1:va>vb?-1:0);
+    const cmp = String(va).localeCompare(String(vb),'es',{sensitivity:'base'});
+    return sortAsc ? cmp : -cmp;
   });
 }
 
@@ -1927,7 +1928,7 @@ function renderStudios(){
   const countMap={};
   ALL.forEach(c=>{ if(c.studioId!=null) countMap[String(c.studioId)]=(countMap[String(c.studioId)]||0)+1; });
   const users = window._gestorUsers || {};
-  let studios=[...ALL_STUDIOS].sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  let studios=[...ALL_STUDIOS].sort((a,b)=>(a.name||'').localeCompare(b.name||'','es',{sensitivity:'base'}));
   if(q) studios=studios.filter(s=>norm(s.name).includes(q)||norm(s.city).includes(q)||norm(s.state).includes(q));
   const el=document.getElementById('studios-tbody');
   const cel=document.getElementById('studio-count');
@@ -2245,7 +2246,7 @@ function studioAutocomplete(q) {
       const key = c.studio.toLowerCase().trim();
       if(!byName.has(key)) byName.set(key, {id: c.studioId||null, name: c.studio});
     });
-    _studios = [...byName.values()].sort((a,b)=>a.name.localeCompare(b.name));
+    _studios = [...byName.values()].sort((a,b)=>a.name.localeCompare(b.name,'es',{sensitivity:'base'}));
   }
   const ql = q.toLowerCase();
   const matches = _studios.filter(s => s.name.toLowerCase().includes(ql)).slice(0, 10);
