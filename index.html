@@ -1412,6 +1412,7 @@ function showSaveIndicator(){
 // ── Subir a Google Sheets (debounce 4s) ──
 let _syncTimer=null;
 let _isSyncing=false;
+const _localDeletedIds=new Set(); // IDs borrados localmente — ignorar en merge remoto
 function scheduleSyncToDrive(){
   if(!_serverDataLoaded){ return; } // No sync hasta que Supabase haya cargado
   clearTimeout(_syncTimer);
@@ -1621,6 +1622,7 @@ async function loadFromDrive(silent=false){
           const remoteMap=new Map(remote.contacts.map(c=>[c.id,c]));
           // Update existing contacts if remote version is newer
           remoteMap.forEach((rc,id)=>{
+            if(_localDeletedIds.has(String(id))) return; // ignorar contactos borrados localmente
             const lc=localMap.get(id);
             if(!lc){
               // New contact in remote → add it
@@ -3497,6 +3499,7 @@ function deleteContact(id){
   }
 
   if(!confirm(`¿Eliminar "${c.name}"? Esta acción no se puede deshacer.`))return;
+  _localDeletedIds.add(String(id));
   D.contacts=D.contacts.filter(x=>x.id!==id);
   D.projects.forEach(p=>{p.contactIds=(p.contactIds||[]).filter(x=>x!==id);});
   saveData();
