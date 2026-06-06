@@ -625,7 +625,11 @@ async function init(){
 // ══════════════════════════════════════════════════════════════════
 let _lastPollAt = 0;
 let _pollInterval = null;
-let _isSaving = false; // se pone true cuando el gestor está guardando
+let _isSaving = false;
+
+const SB_URL = 'https://umrdjgmtxvgjxzirypkg.supabase.co';
+const SB_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcmRqZ210eHZnanh6aXJ5cGtnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwNDMyMjgsImV4cCI6MjA5MjYxOTIyOH0.qeHYgKYkaTHRVHKJGearvmQ4OjWHv_nbT9rOCY3XtKs';
+const SB_HDR = { 'apikey': SB_ANON, 'Authorization': 'Bearer ' + SB_ANON };
 
 function startPolling(){
   if(_pollInterval) clearInterval(_pollInterval);
@@ -633,92 +637,109 @@ function startPolling(){
 }
 
 async function pollWorker(){
-  // No hacer polling si hay un modal abierto o el gestor está guardando
   if(_isSaving) return;
   if(document.querySelector('.overlay:not(.hidden)')) return;
-  const WORKER = 'https://flowcrm-api.luis-castroman-fraga.workers.dev';
   try{
-    const res = await fetch(WORKER+'/data?t='+Date.now(), {cache:'no-store'});
-    if(!res.ok) return;
-    const data = await res.json();
-    if(!data.contacts) return;
+    // Solo leer estudios y contactos modificados desde el último poll — directo de Supabase
+    const since = _lastPollAt ? _lastPollAt - 5000 : Date.now() - 30000;
+    const sinceTs = Math.floor(since); // bigint en Supabase
+
+    const [studioRes, contactRes, metaRes] = await Promise.all([
+      fetch(`${SB_URL}/rest/v1/crm_studios?updated_at=gte.${sinceTs}&select=data`, {headers: SB_HDR}),
+      fetch(`${SB_URL}/rest/v1/crm_contacts?updated_at=gte.${sinceTs}&select=data`, {headers: SB_HDR}),
+      fetch(`${SB_URL}/rest/v1/crm_meta?key=eq.deletedIds&select=value`, {headers: SB_HDR}),
+    ]);
+
+    if(!studioRes.ok && !contactRes.ok) return;
 
     let contactsUpdated = 0, studiosUpdated = 0;
 
-    // Actualizar contactos que cambiaron
-    (data.contacts || []).forEach(c => {
-      const idx = ALL.findIndex(x => String(x.id) === String(c.id));
-      if(idx === -1) {
-        // Contacto nuevo — agregar
-        ALL.push({
-          _i: ALL.length, id: c.id, name: c.name||'', mailingName: c.mailingName||c.name||'',
-          phone: c.phone||'', email: c.email||'', email2: c.email2||'',
-          instagram: c.instagram||'', linkedin: c.linkedin||'', whatsapp: c.whatsapp||'',
-          web: c.web||'', segment: c.segment||'', notes: c.notes||'',
-          studio: (data.studios||[]).find(s=>s.id===c.studioId)?.name||c.studio||'',
-          studioId: c.studioId||null, type: c.type||'', city: c.city||'', state: c.state||'',
-          priceList: c.priceList||'', agent: (data.users||[]).find(u=>u.id===c.agent)?.name||c.agent||'',
-          _agentId: c.agent||null, origin: c.origin||'', stage: c.stage||'',
-          tags: c.tags||[], notesList: c.notesList||[], date: c.date||'', code: c.code||'',
-          _crmId: c.id, _updatedAt: c._updatedAt||0,
-        });
-        contactsUpdated++;
-      } else if((c._updatedAt||0) > (ALL[idx]._updatedAt||0)) {
-        // Contacto modificado — actualizar campos
-        const existing = ALL[idx];
-        ALL[idx] = { ...existing,
-          name: c.name||existing.name, mailingName: c.mailingName||existing.mailingName,
-          phone: c.phone||'', email: c.email||'', email2: c.email2||'',
-          instagram: c.instagram||'', linkedin: c.linkedin||'', whatsapp: c.whatsapp||'',
-          web: c.web||'', segment: c.segment||existing.segment, notes: c.notes||existing.notes,
-          studio: (data.studios||[]).find(s=>s.id===c.studioId)?.name||c.studio||existing.studio,
-          studioId: c.studioId||existing.studioId, type: c.type||existing.type,
-          city: c.city||'', state: c.state||'', priceList: c.priceList||'',
-          agent: (data.users||[]).find(u=>u.id===c.agent)?.name||c.agent||existing.agent,
-          _agentId: c.agent||existing._agentId, origin: c.origin||existing.origin,
-          stage: c.stage||'', tags: c.tags||[], notesList: c.notesList||existing.notesList,
-          date: c.date||existing.date, code: c.code||existing.code,
-          _updatedAt: c._updatedAt||0,
-        };
-        contactsUpdated++;
-      }
-    });
+    // Actualizar estudios modificados
+    if(studioRes.ok){
+      const studioRows = await studioRes.json();
+      (studioRows || []).forEach(row => {
+        const s = row.data;
+        if(!s) return;
+        const idx = ALL_STUDIOS.findIndex(x => String(x.id) === String(s.id));
+        if(idx === -1){
+          ALL_STUDIOS.push({...s});
+          studiosUpdated++;
+        } else if((s._updatedAt||0) > (ALL_STUDIOS[idx]._updatedAt||0)){
+          ALL_STUDIOS[idx] = {...ALL_STUDIOS[idx], ...s};
+          // Actualizar nombre del estudio en contactos vinculados
+          ALL.forEach(c => { if(String(c.studioId)===String(s.id)) c.studio = s.name; });
+          studiosUpdated++;
+        }
+      });
+    }
 
-    // Actualizar estudios que cambiaron
-    (data.studios || []).forEach(s => {
-      const idx = ALL_STUDIOS.findIndex(x => String(x.id) === String(s.id));
-      if(idx === -1){
-        ALL_STUDIOS.push({...s});
-        studiosUpdated++;
-      } else if((s._updatedAt||0) > (ALL_STUDIOS[idx]._updatedAt||0)){
-        ALL_STUDIOS[idx] = {...ALL_STUDIOS[idx], ...s};
-        studiosUpdated++;
-      }
-    });
-
-    // Detectar contactos borrados via deletedIds de crm_meta
-    const deletedIds = data.deletedIds || [];
-    if(deletedIds.length > 0){
-      const deletedSet = new Set(deletedIds.filter(d=>d.type==='contact').map(d=>String(d.id)));
-      for(let i = ALL.length - 1; i >= 0; i--){
-        if(deletedSet.has(String(ALL[i]._crmId||ALL[i].id))){
-          ALL.splice(i, 1);
+    // Actualizar contactos modificados
+    if(contactRes.ok){
+      const contactRows = await contactRes.json();
+      (contactRows || []).forEach(row => {
+        const c = row.data;
+        if(!c) return;
+        const idx = ALL.findIndex(x => String(x.id) === String(c.id));
+        if(idx === -1){
+          ALL.push({
+            _i: ALL.length, id: c.id, name: c.name||'', mailingName: c.mailingName||c.name||'',
+            phone: c.phone||'', email: c.email||'', email2: c.email2||'',
+            instagram: c.instagram||'', linkedin: c.linkedin||'', whatsapp: c.whatsapp||'',
+            web: c.web||'', segment: c.segment||'', notes: c.notes||'',
+            studio: ALL_STUDIOS.find(s=>String(s.id)===String(c.studioId))?.name||c.studio||'',
+            studioId: c.studioId||null, type: c.type||'', city: c.city||'', state: c.state||'',
+            priceList: c.priceList||'', agent: c.agent||'', _agentId: c.agent||null,
+            origin: c.origin||'', stage: c.stage||'',
+            tags: c.tags||[], notesList: c.notesList||[], date: c.date||'', code: c.code||'',
+            _crmId: c.id, _updatedAt: c._updatedAt||0,
+          });
           contactsUpdated++;
+        } else if((c._updatedAt||0) > (ALL[idx]._updatedAt||0)){
+          const existing = ALL[idx];
+          ALL[idx] = { ...existing,
+            name: c.name||existing.name, mailingName: c.mailingName||existing.mailingName,
+            phone: c.phone||'', email: c.email||'', email2: c.email2||'',
+            instagram: c.instagram||'', linkedin: c.linkedin||'', whatsapp: c.whatsapp||'',
+            web: c.web||'', segment: c.segment||existing.segment, notes: c.notes||existing.notes,
+            studio: ALL_STUDIOS.find(s=>String(s.id)===String(c.studioId))?.name||c.studio||existing.studio,
+            studioId: c.studioId||existing.studioId, type: c.type||existing.type,
+            city: c.city||'', state: c.state||'', priceList: c.priceList||'',
+            agent: c.agent||existing.agent, _agentId: c.agent||existing._agentId,
+            origin: c.origin||existing.origin, stage: c.stage||'',
+            tags: c.tags||[], notesList: c.notesList||existing.notesList,
+            date: c.date||existing.date, code: c.code||existing.code,
+            _updatedAt: c._updatedAt||0,
+          };
+          contactsUpdated++;
+        }
+      });
+    }
+
+    // Detectar contactos borrados via deletedIds en crm_meta
+    if(metaRes.ok){
+      const metaRows = await metaRes.json();
+      const deletedIds = metaRows[0]?.value || [];
+      const deletedSet = new Set(deletedIds.filter(d=>d.type==='contact').map(d=>String(d.id)));
+      if(deletedSet.size > 0){
+        for(let i = ALL.length - 1; i >= 0; i--){
+          if(deletedSet.has(String(ALL[i]._crmId||ALL[i].id))){
+            ALL.splice(i, 1);
+            contactsUpdated++;
+          }
         }
       }
     }
 
     if(contactsUpdated > 0 || studiosUpdated > 0){
-      ALL.forEach((c,i) => c._i = i); // recalcular índices tras cambios del polling
+      ALL.forEach((c,i) => c._i = i);
       applyFilters();
       renderStudios();
       setText('count-total', ALL.length.toLocaleString('es'));
-      const t = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
       setSyncDot('ok'); setText('sync-lbl','Datos cargados · '+ALL.length.toLocaleString('es')+' contactos');
     }
     _lastPollAt = Date.now();
   } catch(e){
-    // Silencioso — no interrumpir al usuario
+    // Silencioso
   }
 }
 
@@ -1700,16 +1721,15 @@ function saveStudioEdit(){
 async function saveStudioToWorker(){
   const WORKER='https://flowcrm-api.luis-castroman-fraga.workers.dev';
   try{
-    const res=await fetch(WORKER+'/data?t='+Date.now(),{cache:'no-store'});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const data=await res.json();
-    // Asegurar que todos los estudios tienen _updatedAt para que el merge del CRM los recoja
-    data.studios=ALL_STUDIOS.map(s=>({...s, _updatedAt: s._updatedAt||Date.now()}));
-    data.studios.forEach(s=>{
-      (data.contacts||[]).forEach(c=>{ if(String(c.studioId)===String(s.id)) c.studio=s.name; });
-    });
-    data._savedAt=Date.now()+30000;
-    const saveRes=await fetch(WORKER+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    // Mandar solo los estudios modificados — no descargar todos los datos primero
+    const now = Date.now();
+    const payload = {
+      contacts: [],
+      studios: ALL_STUDIOS.map(s => ({...s, _updatedAt: s._updatedAt||now})),
+      projects: [],
+      _savedAt: now
+    };
+    const saveRes=await fetch(WORKER+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!saveRes.ok) throw new Error('HTTP '+saveRes.status);
     return true;
   }catch(e){ toast('Error guardando: '+e.message,'❌'); return false; }
