@@ -979,7 +979,7 @@ function applyFilters(){
   document.getElementById('tbody').innerHTML='';
   // Show studios inline if search query matches any studio
   if(q && typeof ALL_STUDIOS!=='undefined'){
-    const studioHits=ALL_STUDIOS.filter(s=>norm(s.name).includes(q)||norm(s.city).includes(q)||norm(s.email||'').includes(q)).slice(0,10);
+    const studioHits=ALL_STUDIOS.filter(s=>norm(s.name).includes(q)||norm(s.city).includes(q)||norm(s.email||'').includes(q)).sort((a,b)=>(a.name||'').localeCompare(b.name||'','es',{sensitivity:'base'})).slice(0,10);
     if(studioHits.length){
       const frag=document.createDocumentFragment();
       const hdr=document.createElement('tr');
@@ -1907,7 +1907,11 @@ async function confirmMergeStudios(){
   selectedStudios.clear(); updateSelUI();
   closeModal('modal-merge');
   renderStudios(); applyFilters();
-  saveToSheets('merge-studios').then(ok=>ok&&toast(`✅ ${mergeCount} estudios fusionados y guardados`));
+  // Eliminar estudios duplicados de Supabase
+  const WORKER='https://flowcrm-api.luis-castroman-fraga.workers.dev';
+  Promise.all(dupeIds.map(id=>fetch(`${WORKER}/studio/${id}`,{method:'DELETE'}).catch(()=>{}))).then(()=>{
+    saveToSheets('merge-studios').then(ok=>ok&&toast(`✅ ${mergeCount} estudios fusionados y guardados`));
+  });
 }
 
 function openMergeStudiosFromSelection(){
