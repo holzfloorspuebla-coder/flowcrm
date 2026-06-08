@@ -1076,13 +1076,13 @@ function renderBatch(){
       <td style="font-family:var(--mono);font-size:11px">${esc(c.whatsapp||'—')}</td>
       <td style="font-size:12px">${esc(c.email||'—')}</td>
       <td style="font-size:12px">${esc(c.email2||'—')}</td>
-      <td style="font-size:12px">${esc(c.instagram||'—')}</td>
+      <td style="font-size:12px">${c.instagram?`<a href="https://instagram.com/${esc(c.instagram.replace(/^@/,'').replace(/.*instagram\.com\//,''))}" target="_blank" style="color:var(--accent)">${esc(c.instagram)}</a>`:'—'}</td>
       <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.linkedin?`<a href="${esc(c.linkedin)}" target="_blank" style="color:var(--accent)">${esc(c.linkedin)}</a>`:'—'}</td>
       <td style="font-size:12px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.web?`<a href="${esc(c.web)}" target="_blank" style="color:var(--accent)">${esc(c.web)}</a>`:'—'}</td>
       <td style="font-size:11px;color:var(--text3)">${esc(c.priceList||'—')}</td>
       <td style="font-size:12px">${esc(c.segment||'—')}</td>
       <td style="font-size:12px">${esc(c.origin||'—')}</td>
-      <td style="font-size:12px">${esc(c.stage||'—')}</td>
+      <td style="font-size:12px">${STAGE_NAMES[c.stage]||c.stage||'—'}</td>
       <td style="font-size:12px">${esc(c.agent||'—')}</td>
       <td style="font-size:11px;color:var(--text3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.notes||'—')}</td>
       <td style="white-space:nowrap;display:flex;gap:4px">
@@ -2343,6 +2343,8 @@ function mergeStudioAC(q){
 }
 
 // Normaliza texto eliminando acentos para búsquedas
+const STAGE_NAMES={'c-lead':'Lead captado','c-contactado':'Contactado','c-respuesta':'Respuesta recibida','c-agendado':'Visita agendada','c-showroom':'Visitó showroom','c-activado':'Activado'};
+
 function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 
 function mergeAgentAC(q){
