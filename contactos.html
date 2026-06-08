@@ -2933,10 +2933,9 @@ async function saveNewContact(){
   setSyncDot('loading'); setText('sync-lbl','Guardando...');
 
   try{
-    const data=await fetch(WORKER+'/data?t='+Date.now(),{cache:'no-store'}).then(r=>r.json());
-
     // ── 1. STUDIO ──
     let studioId=null, studioName='';
+    const newStudios=[];
     if(_ncSelectedStudio){
       studioId=_ncSelectedStudio.id;
       studioName=_ncSelectedStudio.name;
@@ -2956,8 +2955,7 @@ async function saveNewContact(){
           agent: document.getElementById('nc-s-agent').value||'',
           _updatedAt: Date.now()
         };
-        data.studios=data.studios||[];
-        data.studios.push(newStudio);
+        newStudios.push(newStudio);
         ALL_STUDIOS.push(newStudio);
         studioId=newStudio.id;
         studioName=sName;
@@ -3007,12 +3005,14 @@ async function saveNewContact(){
       }
     }
 
-    data.contacts=data.contacts||[];
-    data.contacts.push(newContact);
-    data._savedAt=Date.now()+30000;
-
-    // ── SAVE ──
-    await fetch(WORKER+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    // ── SAVE — mandar solo el contacto nuevo (y estudio si aplica) ──
+    const payload={
+      contacts: [newContact],
+      studios: newStudios,
+      projects: [],
+      _savedAt: Date.now()+30000
+    };
+    await fetch(WORKER+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
 
     // ── UPDATE LOCAL STATE ──
     const localContact={
