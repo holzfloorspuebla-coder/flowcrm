@@ -6,7 +6,7 @@
 <title>hølz — Gestor de Contactos</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0d0e10;--surface:#161719;--surface2:#1d1f22;--surface3:#25282d;--border:#2a2d34;--border2:#363b44;--accent:#e63329;--accentDim:rgba(230,51,41,.13);--accentGlow:rgba(230,51,41,.25);--green:#4ade80;--greenDim:rgba(74,222,128,.12);--blue:#60a5fa;--blueDim:rgba(96,165,250,.12);--orange:#fb923c;--text:#f0f1f3;--text2:#8b9099;--text3:#4a5060;--r:8px;--rlg:14px;--shadow:0 8px 32px rgba(0,0,0,.5);--font:'DM Sans',sans-serif;--mono:'JetBrains Mono',monospace;}
+:root{--bg:#f5f3ee;--surface:#ffffff;--surface2:#f5f3ee;--surface3:#eceae4;--border:#e0ddd6;--border2:#d4d1c8;--accent:#1a1a1a;--accentDim:rgba(26,26,26,.06);--accentGlow:rgba(26,26,26,.12);--green:#3B6D11;--greenDim:rgba(59,109,17,.1);--blue:#185FA5;--blueDim:rgba(24,95,165,.1);--orange:#854F0B;--text:#1a1a1a;--text2:#555555;--text3:#999999;--r:8px;--rlg:14px;--shadow:0 4px 16px rgba(0,0,0,.08);--font:'DM Sans',sans-serif;--mono:'JetBrains Mono',monospace;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);}
 /* LOGIN */
@@ -122,13 +122,13 @@ tr.selected td{background:var(--accentDim);}
 .approval-field-row{display:grid;grid-template-columns:140px 1fr 1fr;gap:8px;align-items:start;font-size:13px;}
 .approval-field-row .label{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;}
 .approval-val{padding:6px 10px;border-radius:6px;font-size:13px;}
-.approval-val.old{background:rgba(255,92,92,.1);color:var(--text2);text-decoration:line-through;}
+.approval-val.old{background:rgba(163,45,45,.08);color:var(--text2);text-decoration:line-through;}
 .approval-val.new{background:rgba(74,222,128,.1);color:var(--green);}
 .approval-edit{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 10px;font-family:var(--font);font-size:13px;color:var(--text);outline:none;}
 .approval-edit:focus{border-color:var(--accent);}
 .approval-actions{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;min-height:48px;}
 .chip-type{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600;}
-.chip-delete{background:rgba(255,92,92,.15);color:#ff5c5c;}
+.chip-delete{background:rgba(163,45,45,.1);color:#A32D2D;}
 .chip-field{background:rgba(96,165,250,.15);color:var(--blue);}
 /* ── APPROVAL FILTER ── */
 .approval-toolbar{padding:10px 20px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-shrink:0;}
@@ -376,7 +376,7 @@ tr.selected td{background:var(--accentDim);}
       <span id="sel-count-lbl" style="font-size:12px;color:var(--text3);display:none"></span>
       <button class="btn btn-green" id="tb-send-crm" onclick="openSendCRM()" style="display:none">⚡ Enviar al CRM</button>
       <button class="btn btn-ghost" id="btn-fusionar" onclick="openFusionar()" style="display:none">🔀 Fusionar</button>
-      <button class="btn" id="tb-eliminar" onclick="bulkDelete()" style="display:none;background:rgba(255,92,92,.15);color:#ff5c5c;border:1px solid rgba(255,92,92,.3)">🗑 Eliminar</button>
+      <button class="btn" id="tb-eliminar" onclick="bulkDelete()" style="display:none;background:rgba(163,45,45,.1);color:#A32D2D;border:1px solid rgba(163,45,45,.25)">🗑 Eliminar</button>
       <button class="btn btn-primary" id="tb-nuevo" onclick="openNewContactModal()">+ Nuevo</button>
       <button class="btn btn-ghost" id="tb-dups" onclick="openDups()">🔍 Duplicados</button>
       <button class="btn btn-ghost" id="tb-excel" onclick="document.getElementById('xlsx-inp').click()">📊 Importar Excel</button>
@@ -1391,7 +1391,7 @@ function renderMergeFields(){
       <div style="font-size:10px;color:var(--text3)">${esc(c.agent||'—')} · ${esc(c.studio||'—')}</div>
     </div>`;
   });
-  html+=`<div style="background:rgba(230,51,41,.08);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent);font-weight:700;color:var(--accent);font-size:11px">RESULTADO</div>`;
+  html+=`<div style="background:rgba(26,26,26,.05);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent);font-weight:700;color:var(--accent);font-size:11px">RESULTADO</div>`;
 
   // Field rows
   MERGE_FIELDS.forEach(f=>{
@@ -1430,8 +1430,8 @@ function renderMergeFields(){
       // Autocomplete de estudios
       const bestStudio = _mergeContacts.find(c=>c.studio===bestVal);
       const bestStudioId = bestStudio?.studioId||'';
-      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04);position:relative">
-        <input autocomplete="off" id="mr-studio" autocomplete="off" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="Buscar estudio..."
+      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02);position:relative">
+        <input autocomplete="off" id="mr-studio" autocomplete="off" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="Buscar estudio..."
           oninput="mergeStudioAC(this.value)"
           onblur="setTimeout(()=>{const d=document.getElementById('mr-studio-ac');if(d)d.style.display='none'},200)">
         <input autocomplete="off" type="hidden" id="mr-studio-id" value="${esc(String(bestStudioId))}">
@@ -1439,8 +1439,8 @@ function renderMergeFields(){
       </div>`;
     } else if(f.k === 'agent'){
       const bestAgentId = _mergeContacts.find(c=>c.agent===bestVal)?._agentId || null;
-      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04);position:relative">
-        <input autocomplete="off" id="mr-agent" autocomplete="off" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="Buscar vendedor..."
+      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02);position:relative">
+        <input autocomplete="off" id="mr-agent" autocomplete="off" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="Buscar vendedor..."
           oninput="mergeAgentAC(this.value)"
           onblur="setTimeout(()=>{const d=document.getElementById('mr-agent-ac');if(d)d.style.display='none'},200)">
         <input autocomplete="off" type="hidden" id="mr-agent-id" value="${esc(String(bestAgentId||''))}">
@@ -1453,15 +1453,15 @@ function renderMergeFields(){
         {id:'c-showroom',name:'Visitó el showroom'},{id:'c-activado',name:'Activado'},
         {id:'c-nopriority',name:'No prioritario'},{id:'c-descartado',name:'Descartado'},
       ];
-      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04)">
-        <select id="mr-stage" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box">
+      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)">
+        <select id="mr-stage" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box">
           <option value="">— Sin etapa —</option>
           ${C_STAGES_MERGE.map(s=>`<option value="${s.id}" ${s.id===bestVal?'selected':''}>${s.name}</option>`).join('')}
         </select>
       </div>`;
     } else {
-      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04)">
-        <input autocomplete="off" id="mr-${f.k}" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="${f.label}...">
+      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)">
+        <input autocomplete="off" id="mr-${f.k}" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="${f.label}...">
       </div>`;
     }
   });
@@ -1899,7 +1899,7 @@ function renderMergeFieldsStudios(){
       <div style="font-size:10px;color:var(--text3)">${esc(s.city||'—')} · ${cnt} contacto${cnt!==1?'s':''}</div>
     </div>`;
   });
-  html+=`<div style="background:rgba(230,51,41,.08);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent);font-weight:700;color:var(--accent);font-size:11px">RESULTADO</div>`;
+  html+=`<div style="background:rgba(26,26,26,.05);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent);font-weight:700;color:var(--accent);font-size:11px">RESULTADO</div>`;
   STUDIO_FIELDS.forEach(f=>{
     const vals=studios.map(s=>s[f.k]||'');
     html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">${f.label}</div>`;
@@ -1909,9 +1909,9 @@ function renderMergeFieldsStudios(){
     });
     const bestVal=vals.find(v=>v)||'';
     if(f.k==='notes'){
-      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04)"><textarea id="msr-${f.k}" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box;resize:vertical;min-height:54px">${esc(bestVal)}</textarea></div>`;
+      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)"><textarea id="msr-${f.k}" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box;resize:vertical;min-height:54px">${esc(bestVal)}</textarea></div>`;
     } else {
-      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(230,51,41,.04)"><input autocomplete="off" id="msr-${f.k}" style="width:100%;background:#1d1f22;border:1px solid #363b44;border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:#f0f1f3;outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="${f.label}..."></div>`;
+      html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)"><input autocomplete="off" id="msr-${f.k}" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box" value="${esc(bestVal)}" placeholder="${f.label}..."></div>`;
     }
   });
   html+='</div>';
@@ -2007,7 +2007,7 @@ function renderStudios(){
       <td style="white-space:nowrap;display:flex;gap:4px">
         <button class="btn btn-ghost" onclick="openStudioEdit(${s.id})" style="font-size:11px;padding:3px 8px" title="Editar">✏️</button>
         <button class="btn btn-ghost" onclick="convertStudioToProviderById('${s.id}')" style="font-size:11px;padding:3px 8px;color:var(--blue,#60a5fa);border-color:rgba(96,165,250,.25)" title="Convertir en proveedor">🏢</button>
-        <button class="btn" onclick="deleteStudio(${s.id},'${esc(s.name||'')}')" style="font-size:11px;padding:3px 8px;background:rgba(255,92,92,.15);color:#ff5c5c;border:1px solid rgba(255,92,92,.3)" title="Eliminar">🗑</button>
+        <button class="btn" onclick="deleteStudio(${s.id},'${esc(s.name||'')}')" style="font-size:11px;padding:3px 8px;background:rgba(163,45,45,.1);color:#A32D2D;border:1px solid rgba(163,45,45,.25)" title="Eliminar">🗑</button>
       </td>
     </tr>`;
   }).join('');
@@ -2492,7 +2492,7 @@ function renderProvCatsList(){
     <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
       <input autocomplete="off" class="inp" value="${esc(c)}" id="pcat-inp-${i}" style="flex:1;font-size:13px" onkeydown="if(event.key==='Enter')saveProvCat(${i})">
       <button class="btn btn-ghost" onclick="saveProvCat(${i})" style="font-size:11px;padding:4px 10px" title="Guardar">✓</button>
-      <button class="btn" onclick="deleteProvCat(${i})" style="font-size:11px;padding:4px 8px;background:rgba(255,92,92,.15);color:#ff5c5c;border:1px solid rgba(255,92,92,.3)" title="Eliminar">✕</button>
+      <button class="btn" onclick="deleteProvCat(${i})" style="font-size:11px;padding:4px 8px;background:rgba(163,45,45,.1);color:#A32D2D;border:1px solid rgba(163,45,45,.25)" title="Eliminar">✕</button>
     </div>`).join('');
 }
 async function addProvCat(){
