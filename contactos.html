@@ -1220,25 +1220,33 @@ async function confirmSendCRM(){
     document.getElementById('crm-prog').style.width='40%';
     // Use add_contacts action — Apps Script handles dedup server-side
     const newContacts=contacts.map(c=>({
+      id: c._crmId || c.id,
       name:c.name||'', mailingName:c.mailingName||c.name||'',
       phone:c.phone||'', email:c.email||'', email2:c.email2||'',
       city:c.city||'', state:c.state||'', type:c.type||'',
       priceList:c.priceList||'', origin:c.origin||'',
-      agentName:c.agent||'',
+      agent: c._agentId || c.agent || '',
       instagram:c.instagram||'', linkedin:c.linkedin||'',
       whatsapp:c.whatsapp||'', web:c.web||'',
-      tags:[], notes:'', date:today(), notesList:[],
+      studioId: c.studioId||null, studio: c.studio||'',
+      tags:c.tags||[], notes:c.notes||'', date:c.date||today(), notesList:c.notesList||[],
       stage:'c-lead', inPipeline:true, stageDate:today(),
       _updatedAt:Date.now(),
     }));
     document.getElementById('crm-prog').style.width='70%';
     setText('crm-status',`Enviando ${contacts.length} contactos...`);
-    fetch(CRM_URL,{
+    const WORKER = 'https://flowcrm-api.luis-castroman-fraga.workers.dev';
+    const res = await fetch(WORKER+'/data',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'add_contacts', contacts:newContacts}),
-      mode:'no-cors',
+      body:JSON.stringify({
+        contacts: newContacts.map(c=>({...c, id: c.id||Date.now()+Math.random()})),
+        studios: [],
+        projects: [],
+        _savedAt: Date.now()+30000 // forzar que pasen el filtro de 15min
+      }),
     });
+    if(!res.ok) throw new Error('HTTP '+res.status);
     document.getElementById('crm-prog').style.width='100%';
     setText('crm-status',`✅ ${contacts.length} contacto${contacts.length!==1?'s':''} enviado${contacts.length!==1?'s':''} al CRM`);
     setSyncDot('ok');
