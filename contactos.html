@@ -224,13 +224,21 @@ tr.selected td{background:var(--accentDim);}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL</label><input autocomplete="off" id="es-email" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL 2</label><input autocomplete="off" id="es-email2" class="inp" style="width:100%;margin-top:4px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">TELÉFONO</label><input autocomplete="off" id="es-phone" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">WHATSAPP</label><input autocomplete="off" id="es-whatsapp" class="inp" style="width:100%;margin-top:4px" placeholder="+52..."></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">WEB</label><input autocomplete="off" id="es-web" class="inp" style="width:100%;margin-top:4px"></div>
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">INSTAGRAM</label><input autocomplete="off" id="es-instagram" class="inp" style="width:100%;margin-top:4px"></div>
       </div>
       <div><label style="font-size:11px;color:var(--text3);font-weight:600">LINKEDIN</label><input autocomplete="off" id="es-linkedin" class="inp" style="width:100%;margin-top:4px"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">ORIGEN</label><input autocomplete="off" id="es-origin" class="inp" style="width:100%;margin-top:4px"></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">SEGMENTO</label><input autocomplete="off" id="es-segment" class="inp" style="width:100%;margin-top:4px"></div>
+      </div>
       <div><label style="font-size:11px;color:var(--text3);font-weight:600">VENDEDOR</label>
         <select id="es-agent" class="inp" style="width:100%;margin-top:4px" id="es-agent-sel"></select>
       </div>
@@ -452,7 +460,7 @@ tr.selected td{background:var(--accentDim);}
       <table>
         <thead><tr>
           <th style="width:28px"></th>
-          <th>Estudio</th><th>Ciudad</th><th>Estado</th><th>Contactos</th><th>Vendedor</th><th>Email</th><th>Teléfono</th><th>Web</th><th>Instagram</th><th>LinkedIn</th><th>Notas</th><th></th>
+          <th>Estudio</th><th>Ciudad</th><th>Estado</th><th>Contactos</th><th>Vendedor</th><th>Email</th><th>Email 2</th><th>Teléfono</th><th>WhatsApp</th><th>Web</th><th>Instagram</th><th>LinkedIn</th><th>Origen</th><th>Segmento</th><th>Notas</th><th></th>
         </tr></thead>
         <tbody id="studios-tbody"></tbody>
       </table>
@@ -1021,9 +1029,19 @@ function applyFilters(){
           <td>${esc(s.city||'—')}</td>
           <td>${esc(s.state||'—')}</td>
           <td style="font-family:var(--mono);font-size:11px">${esc(s.phone||'—')}</td>
-          <td>—</td>
+          <td style="font-family:var(--mono);font-size:11px">${esc(s.whatsapp||'—')}</td>
           <td style="font-size:12px">${esc(s.email||'—')}</td>
-          <td colspan="11" style="font-size:11px;color:var(--text3)">${s.instagram?`<a href="${esc(s.instagram)}" target="_blank" style="color:var(--accent)">${esc(s.instagram)}</a>`:'—'}</td>`;
+          <td style="font-size:12px">${esc(s.email2||'—')}</td>
+          <td style="font-size:12px">${s.instagram?`<a href="https://instagram.com/${esc(s.instagram.replace(/^@/,'').replace(/.*instagram\.com\//,''))}" target="_blank" style="color:var(--accent)">${esc(s.instagram)}</a>`:'—'}</td>
+          <td style="font-size:12px;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.linkedin?`<a href="${esc(s.linkedin)}" target="_blank" style="color:var(--accent)">${esc(s.linkedin)}</a>`:'—'}</td>
+          <td style="font-size:12px">${s.web?`<a href="${esc(s.web)}" target="_blank" style="color:var(--accent)">${esc(s.web)}</a>`:'—'}</td>
+          <td>—</td>
+          <td style="font-size:12px">${esc(s.segment||'—')}</td>
+          <td style="font-size:12px">${esc(s.origin||'—')}</td>
+          <td>—</td>
+          <td style="font-size:12px">${esc(s.agent||'—')}</td>
+          <td style="font-size:11px;color:var(--text3)">${esc(s.notes||'—')}</td>
+          <td></td>`;
         frag.appendChild(tr);
       });
       const div=document.createElement('tr');
@@ -1730,10 +1748,14 @@ function openStudioEdit(studioId){
   document.getElementById('es-city').value=s.city||'';
   document.getElementById('es-state').value=s.state||'';
   document.getElementById('es-email').value=s.email||'';
+  document.getElementById('es-email2').value=s.email2||'';
   document.getElementById('es-phone').value=s.phone||'';
+  document.getElementById('es-whatsapp').value=s.whatsapp||'';
   document.getElementById('es-web').value=s.web||'';
   document.getElementById('es-instagram').value=s.instagram||'';
   document.getElementById('es-linkedin').value=s.linkedin||'';
+  document.getElementById('es-origin').value=s.origin||'';
+  document.getElementById('es-segment').value=s.segment||'';
   document.getElementById('es-notes').value=s.notes||'';
   // Poblar vendedor select
   const agentSel=document.getElementById('es-agent');
@@ -1752,14 +1774,18 @@ function saveStudioEdit(){
   const city=document.getElementById('es-city').value.trim();
   const state=document.getElementById('es-state').value.trim();
   const email=document.getElementById('es-email').value.trim();
+  const email2=document.getElementById('es-email2').value.trim();
   const phone=document.getElementById('es-phone').value.trim();
+  const whatsapp=document.getElementById('es-whatsapp').value.trim();
   const web=document.getElementById('es-web').value.trim();
   const instagram=document.getElementById('es-instagram').value.trim();
   const linkedin=document.getElementById('es-linkedin').value.trim();
+  const origin=document.getElementById('es-origin').value.trim();
+  const segment=document.getElementById('es-segment').value.trim();
   const notes=document.getElementById('es-notes').value.trim();
   const agentSel=document.getElementById('es-agent');
   const agent=agentSel.value||'';
-  Object.assign(s, {name:newName, city, state, email, phone, web, instagram, linkedin, notes, agent, _updatedAt:Date.now()});
+  Object.assign(s, {name:newName, city, state, email, email2, phone, whatsapp, web, instagram, linkedin, origin, segment, notes, agent, _updatedAt:Date.now()});
   ALL.forEach(c=>{ if(String(c.studioId)===String(s.id)) c.studio=newName; });
   closeModal('modal-edit-studio');
   renderStudios(); applyFilters();
@@ -1999,10 +2025,14 @@ function renderStudios(){
       <td style="color:var(--text3);font-size:12px">${cnt} contacto${cnt!==1?'s':''}</td>
       <td style="font-size:12px">${esc(agentName)}</td>
       <td style="font-size:12px">${esc(s.email||'—')}</td>
+      <td style="font-size:12px">${esc(s.email2||'—')}</td>
       <td style="font-family:var(--mono);font-size:11px">${esc(s.phone||'—')}</td>
+      <td style="font-family:var(--mono);font-size:11px">${esc(s.whatsapp||'—')}</td>
       <td style="font-size:12px">${s.web?`<a href="${esc(s.web)}" target="_blank" style="color:var(--accent)">${esc(s.web)}</a>`:'—'}</td>
-      <td style="font-size:12px">${esc(s.instagram||'—')}</td>
+      <td style="font-size:12px">${s.instagram?`<a href="https://instagram.com/${esc(s.instagram.replace(/^@/,'').replace(/.*instagram\.com\//,''))}" target="_blank" style="color:var(--accent)">${esc(s.instagram)}</a>`:'—'}</td>
       <td style="font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.linkedin?`<a href="${esc(s.linkedin)}" target="_blank" style="color:var(--accent)">${esc(s.linkedin)}</a>`:'—'}</td>
+      <td style="font-size:12px">${esc(s.origin||'—')}</td>
+      <td style="font-size:12px">${esc(s.segment||'—')}</td>
       <td style="font-size:12px;color:var(--text3);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.notes||'—')}</td>
       <td style="white-space:nowrap;display:flex;gap:4px">
         <button class="btn btn-ghost" onclick="openStudioEdit(${s.id})" style="font-size:11px;padding:3px 8px" title="Editar">✏️</button>
