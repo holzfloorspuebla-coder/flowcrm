@@ -3017,6 +3017,7 @@ async function saveNewContact(){
     // ── UPDATE LOCAL STATE ──
     const localContact={
       _i: ALL.length,
+      id: newCrmId,
       _crmId: newCrmId,
       _updatedAt: newContact._updatedAt,
       name: newContact.name,
