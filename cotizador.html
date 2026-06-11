@@ -1028,7 +1028,11 @@ async function saveProdEdit(){
   // pvpCajaMXN es el PVP en saleUnit tal como lo introdujo el usuario
   obj.pvpCajaMXN=pvpUnit;
   // Calcular precios por m² para cotización
-  if(unit==='m2'){
+  if(priceUnit==='m2'){
+    // Precio introducido ya en m²
+    obj.pvpM2MXN=pvpUnit;
+    obj.costoM2MXN=costoNetoRaw||null;
+  } else if(unit==='m2'){
     obj.pvpM2MXN=pvpUnit;
     obj.costoM2MXN=costoNetoSaleUnit||null;
   } else if(m2perUnit&&pvpUnit){
@@ -1084,7 +1088,11 @@ function calcPEPrices(){
 
   // Convertir PVP a m² para el preview
   let pvpM2=0, costoM2=0;
-  if(saleUnit==='m2'){
+  if(priceUnit==='m2'){
+    // El precio ya está en m² — no hay que convertir
+    pvpM2=pvpSale;
+    costoM2=costoNeto; // costo también en m² (sin convertir a saleUnit)
+  } else if(saleUnit==='m2'){
     pvpM2=pvpSale;
     costoM2=costoNetoSale;
   } else if(m2perSaleUnit&&pvpSale){
