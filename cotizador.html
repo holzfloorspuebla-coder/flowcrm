@@ -125,6 +125,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .save-ind{font-size:10px;font-family:var(--mono);color:var(--text3);}
 .save-ind.dirty{color:var(--orange);}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -209,8 +210,20 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-        <div class="fg"><label class="lbl" id="pe-pvp-lbl">Precio lista (MXN/caja)</label><input class="inp" id="pe-pvp" type="number" placeholder="4799.00" oninput="calcPEPrices()"></div>
-        <div class="fg"><label class="lbl" id="pe-cost-lbl">Costo (MXN/caja) — solo Luis</label><input class="inp" id="pe-cost" type="number" placeholder="3599.00" oninput="calcPEPrices()"></div>
+        <div class="fg"><label class="lbl" id="pe-pvp-lbl">Precio lista (MXN/caja)</label><input class="inp" id="pe-pvp" type="number" placeholder="4799.00" data-auto="1" oninput="this.removeAttribute('data-auto');calcPEPrices()"></div>
+        <div class="fg" id="pe-cost-wrap-cur">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <label class="lbl" id="pe-cost-lbl" style="margin-bottom:0">Costo (MXN/caja) — solo Luis</label>
+            <select class="inp" id="pe-currency" style="width:80px;padding:2px 4px;font-size:11px" onchange="onPECurrencyChange()">
+              <option value="MXN">MXN</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
+          <input class="inp" id="pe-cost" type="number" placeholder="3599.00" oninput="calcPEPrices()">
+        </div>
+      </div>
+      <div id="pe-tc-wrap" style="display:none;margin-top:8px">
+        <div class="fg"><label class="lbl">Tipo de cambio USD → MXN</label><input class="inp" id="pe-tc" type="number" placeholder="17.50" step="0.01" oninput="calcPEPrices()"></div>
       </div>
       <div id="pe-disc-wrap" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
         <div class="fg"><label class="lbl">Desc. 1 proveedor %</label><input class="inp" id="pe-d1" type="number" placeholder="30" min="0" max="100" oninput="calcPEPrices()"></div>
@@ -266,12 +279,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <div class="modal-body">
       <div style="display:grid;gap:8px">
         <div class="fg"><label class="lbl">Descripción</label><textarea class="inp" id="man-desc" rows="3" placeholder="Suministro de..."></textarea></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 80px;gap:8px">
           <div class="fg"><label class="lbl">Volumen</label><input class="inp" id="man-vol" type="number"></div>
           <div class="fg"><label class="lbl">Unidad</label>
             <select class="inp" id="man-unit"><option>m2</option><option>m.l.</option><option>Pieza</option><option>caja</option><option>Cartucho</option><option>ud</option></select>
           </div>
           <div class="fg"><label class="lbl">PVP unit.</label><input class="inp" id="man-pvp" type="number"></div>
+          <div class="fg"><label class="lbl">Moneda</label>
+            <select class="inp" id="man-currency"><option value="MXN">MXN</option><option value="USD">USD</option></select>
+          </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
           <div class="fg" id="man-cost-wrap"><label class="lbl">Costo unit. (solo Luis)</label><input class="inp" id="man-cost" type="number"></div>
@@ -329,7 +345,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
         <span class="save-ind" id="save-ind"></span>
         <button class="btn btn-ghost" onclick="generateText()">✨ Generar texto</button>
-        <button class="btn btn-ghost" onclick="copyTable()">📋 Copiar tabla</button>
+        <button class="btn btn-ghost" onclick="exportExcel()">📥 Descargar Excel</button>
         <button class="btn btn-primary" onclick="saveQuote()">💾 Guardar</button>
       </div>
     </div>
@@ -457,6 +473,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
               <div class="tot-lbl" style="font-size:15px;font-weight:800;color:var(--text)">TOTAL PROYECTO</div><div></div>
               <div class="tot-val" style="font-size:17px;font-weight:800;color:var(--accent)" id="gt-total">$0.00</div>
             </div>
+            <!-- Totales por moneda — solo se muestran si hay items en USD -->
+            <div id="gt-multicur" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+              <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:8px">Desglose por moneda</div>
+              <div class="totals-grid" style="max-width:400px;margin-left:auto">
+                <div class="tot-lbl" style="color:var(--accent)">Total en USD</div><div></div><div class="tot-val" style="color:var(--accent)" id="gt-usd">USD $0.00</div>
+                <div class="tot-lbl" style="font-size:10px;color:var(--text3)" id="gt-usd-ref-lbl">Referencia MXN</div><div></div><div class="tot-val" style="font-size:11px;color:var(--text3)" id="gt-usd-ref">$0.00</div>
+                <div class="tot-lbl">Total en MXN</div><div></div><div class="tot-val" id="gt-mxn">$0.00</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -569,6 +594,19 @@ let CAT_ACTIVE_CAT   = '';
 let PA_PRODUCT = null;
 let PE_PRODUCT = null;
 let IS_SAVING = false;
+let _TC = 0; // Tipo de cambio USD/MXN — se carga de Banxico al abrir modal con USD
+
+async function fetchTC(){
+  if(_TC > 0) return _TC;
+  try{
+    const r = await fetch('https://www.banxico.org.mx/SieAPIRest/service/v1/series/SF43718/datos/oportuno?token=0ab37a8618cf78ff2d4f4a4fb3a4e5dae9c0d8c1b2e7f3a9d6b5c0e8f1a4b7c',{cache:'no-store'});
+    const j = await r.json();
+    const dato = j?.bmx?.series?.[0]?.datos?.[0]?.dato;
+    if(dato) _TC = parseFloat(dato.replace(',','.'));
+  } catch(e){}
+  if(!_TC) _TC = 17.5; // fallback
+  return _TC;
+}
 
 const DEFAULT_CAT_DEFS = {
   'SPC': { fields: [
@@ -903,6 +941,9 @@ function openAddProduct(){
   const _peUnitA=document.getElementById('pe-unit'); if(_peUnitA) _peUnitA.value='caja';
   const _peConvA=document.getElementById('pe-conversion'); if(_peConvA) _peConvA.value='';
   const _peSpecA=document.getElementById('pe-spec'); if(_peSpecA) _peSpecA.value='';
+  const _peCurA=document.getElementById('pe-currency'); if(_peCurA) _peCurA.value='MXN';
+  const _peTcWrapA=document.getElementById('pe-tc-wrap'); if(_peTcWrapA) _peTcWrapA.style.display='none';
+  const _pePvpA=document.getElementById('pe-pvp'); if(_pePvpA) _pePvpA.setAttribute('data-auto','1');
   onPEUnitChange();
   document.getElementById('pe-calc-preview').style.display='none';
   if(!IS_ADMIN) document.getElementById('pe-cost').closest('.fg').style.display='none';
@@ -926,6 +967,10 @@ function openEditProduct(id){
   const _pEdit=PE_PRODUCT;
   const _peUnitE=document.getElementById('pe-unit'); if(_peUnitE) _peUnitE.value=_pEdit.unit||(_pEdit.m2perBox?'caja':(_pEdit.pvpM2MXN?'m2':'caja'));
   const _peConvE=document.getElementById('pe-conversion'); if(_peConvE) _peConvE.value=_pEdit.m2perUnit||_pEdit.m2perBox||'';
+  const _peCurE=document.getElementById('pe-currency'); if(_peCurE) _peCurE.value=_pEdit.currency||'MXN';
+  const _peTcE=document.getElementById('pe-tc'); if(_peTcE) _peTcE.value=_pEdit.tcUsado||'';
+  const _peTcWrapE=document.getElementById('pe-tc-wrap'); if(_peTcWrapE) _peTcWrapE.style.display=(_pEdit.currency==='USD'?'':'none');
+  const _pePvpE=document.getElementById('pe-pvp'); if(_pePvpE) _pePvpE.removeAttribute('data-auto');
   onPEUnitChange();
   if(!IS_ADMIN){
     document.getElementById('pe-cost').closest('.fg').style.display='none';
@@ -948,17 +993,23 @@ async function saveProdEdit(){
   const d2=(parseFloat(document.getElementById('pe-d2').value)||0)/100;
   const unit=document.getElementById('pe-unit')?.value||'caja';
   const m2perUnit=unit==='m2'?1:(parseFloat(document.getElementById('pe-conversion')?.value)||0);
+  const currency=document.getElementById('pe-currency')?.value||'MXN';
+  const tcUsado=parseFloat(document.getElementById('pe-tc')?.value)||_TC||17.5;
+  const costoMXN=currency==='USD'&&costoUnit?round(costoUnit*tcUsado,2):costoUnit;
   obj.unit=unit;
   obj.m2perUnit=m2perUnit;
-  obj.m2perBox=unit==='caja'?m2perUnit:(obj.m2perBox||null); // compatibilidad
+  obj.m2perBox=unit==='caja'?m2perUnit:(obj.m2perBox||null);
+  obj.currency=currency;
+  obj.costoUSD=currency==='USD'?costoUnit:null;
+  obj.tcUsado=currency==='USD'?tcUsado:null;
   obj.pvpCajaMXN=pvpUnit;
-  obj.costoMXN=costoUnit;
+  obj.costoMXN=costoMXN;
   obj.descD1=parseFloat(document.getElementById('pe-d1').value)||0;
   obj.descD2=parseFloat(document.getElementById('pe-d2').value)||0;
   obj.spec=(document.getElementById('pe-spec').value||'').trim();
-  // Calcular costo neto aplicando descuentos
-  if(costoUnit!==null){
-    obj.costoNetoMXN=round(costoUnit*(1-d1)*(1-d2),2);
+  // Calcular costo neto aplicando descuentos (siempre en MXN)
+  if(costoMXN!==null){
+    obj.costoNetoMXN=round(costoMXN*(1-d1)*(1-d2),2);
   }
   // Calcular precios por m²
   if(unit==='m2'){
@@ -980,33 +1031,60 @@ async function saveProdEdit(){
   toast(PE_PRODUCT?'Producto actualizado':'Producto añadido','✅','success');
 }
 function calcPEPrices(){
-  const pvpCaja=parseFloat(document.getElementById('pe-pvp').value)||0;
-  const costoCaja=parseFloat(document.getElementById('pe-cost').value)||0;
+  const pvpEl=document.getElementById('pe-pvp');
+  const pvpCaja=parseFloat(pvpEl?.value)||0;
+  const costoRaw=parseFloat(document.getElementById('pe-cost').value)||0;
   const d1=(parseFloat(document.getElementById('pe-d1').value)||0)/100;
   const d2=(parseFloat(document.getElementById('pe-d2').value)||0)/100;
+  const cur=document.getElementById('pe-currency')?.value||'MXN';
+  const tc=parseFloat(document.getElementById('pe-tc')?.value)||_TC||17.5;
+  const costoMXN=cur==='USD'?costoRaw*tc:costoRaw;
   const preview=document.getElementById('pe-calc-preview');
-  if(!pvpCaja){preview.style.display='none';return;}
-  const costoNeto=costoCaja?(costoCaja*(1-d1)*(1-d2)):0;
-  // Leer conversión a m² según unidad seleccionada
+  const costoNeto=costoMXN?(costoMXN*(1-d1)*(1-d2)):0;
+  // PVP automático = costo neto × 2 si el campo está en modo auto
+  if(costoNeto && pvpEl && pvpEl.hasAttribute('data-auto')){
+    pvpEl.value=round(costoNeto*2,2);
+  }
+  const pvpFinal=parseFloat(pvpEl?.value)||0;
+  if(!pvpFinal&&!costoNeto){preview.style.display='none';return;}
+  // Leer conversión a m²
   const unit=document.getElementById('pe-unit')?.value||'caja';
   const convEl=document.getElementById('pe-conversion');
   const m2pb=unit==='m2'?1:(convEl?parseFloat(convEl.value)||0:0);
   let html=`<div style="display:flex;gap:18px;flex-wrap:wrap">`;
-  if(costoNeto) html+=`<div><div class="lbl">Costo neto/caja</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(costoNeto)}</div></div>`;
-  if(m2pb&&pvpCaja){
-    const pvpM2=round(pvpCaja/m2pb,2);
+  if(costoNeto){
+    const lbl=cur==='USD'?`Costo neto (${costoRaw*(1-d1)*(1-d2)<costoNeto?'':''}USD ${round(costoRaw*(1-d1)*(1-d2),2).toFixed(2)} → MXN)`:'Costo neto';
+    html+=`<div><div class="lbl">${lbl}</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(costoNeto)}</div></div>`;
+    if(cur==='USD') html+=`<div><div class="lbl">TC usado</div><div style="font-family:var(--mono)">$${tc.toFixed(2)}</div></div>`;
+  }
+  if(m2pb&&pvpFinal){
+    const pvpM2=round(pvpFinal/m2pb,2);
     const costoM2=costoNeto?round(costoNeto/m2pb,2):0;
     const margen=pvpM2-costoM2, pct=pvpM2?margen/pvpM2:0;
     html+=`<div><div class="lbl">PVP/m²</div><div style="font-family:var(--mono)">${mxn(pvpM2)}</div></div>`;
     if(costoM2) html+=`<div><div class="lbl">Costo/m²</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(costoM2)}</div></div>`;
     if(costoM2) html+=`<div><div class="lbl">Margen</div>${mbadge(pct)}</div>`;
-  } else if(costoNeto){
-    const margen=pvpCaja-costoNeto, pct=pvpCaja?margen/pvpCaja:0;
+  } else if(costoNeto&&pvpFinal){
+    const margen=pvpFinal-costoNeto, pct=pvpFinal?margen/pvpFinal:0;
     html+=`<div><div class="lbl">Margen</div>${mbadge(pct)}</div>`;
   }
   html+=`</div>`;
   preview.innerHTML=html;
   preview.style.display='';
+}
+
+async function onPECurrencyChange(){
+  const cur=document.getElementById('pe-currency').value;
+  const tcWrap=document.getElementById('pe-tc-wrap');
+  if(cur==='USD'){
+    tcWrap.style.display='';
+    const tc=await fetchTC();
+    const tcEl=document.getElementById('pe-tc');
+    if(tcEl&&!tcEl.value) tcEl.value=tc.toFixed(2);
+  } else {
+    tcWrap.style.display='none';
+  }
+  calcPEPrices();
 }
 
 function onPEUnitChange(){
@@ -1049,14 +1127,12 @@ function buildDesc(p,fields){
   const cat=CAT_ACTIVE_CAT||p.category||'';
   // Si hay especificación manual, tiene prioridad
   if(p.spec) return p.spec;
-  if(cat==='Instalación'||cat==='Servicios') return p.model||p.brand||'';
-  let d=`Suministro ${cat} marca ${p.brand||''} colección ${p.collection||''}, modelo ${p.model||''}, formato ${p.format||''}`;
-  if(p.largo&&p.ancho) d+=`, de ${p.largo} cm de largo, ${p.ancho} cm de ancho`;
-  if(p.espesor) d+=`, ${p.espesor} mm de espesor total`;
-  if(p.capa) d+=`, ${p.capa} mm de capa de uso`;
-  if(p.species) d+=`, especie ${p.species}`;
-  if(p.m2perBox) d+=`. Caja con ${p.m2perBox} m2`;
-  return d;
+  // Generar texto dinámico con todos los campos que tengan valor
+  const partes=fields
+    .filter(f=>p[f.key]!==undefined&&p[f.key]!==''&&p[f.key]!==0&&p[f.key]!==null)
+    .map(f=>`${f.label}: ${p[f.key]}`);
+  if(!partes.length) return cat||'';
+  return `Suministro ${cat} — ${partes.join(', ')}`;
 }
 async function deleteProduct(id){
   if(!confirm('¿Eliminar este producto?')) return;
@@ -1159,7 +1235,7 @@ function confirmAddToQuote(){
   }
   if(!vol||!pvpM2){toast('Ingresa volumen y PVP','⚠️');return;}
   // pvp y cost se guardan por m² — la tabla los multiplica por volumen directamente
-  CURRENT_Q[table].push({id:uid(),desc:p.description||p.model,vol,unit,pvp:pvpM2,cost:costM2});
+  CURRENT_Q[table].push({id:uid(),desc:p.description||p.model,vol,unit,pvp:pvpM2,cost:costM2,currency:p.currency||'MXN',tcRef:p.tcUsado||_TC||0});
   closeModal('modal-prod-add');
   renderQuoteTables(); recalcAll(); markDirty();
   toast('Producto añadido','✅','success');
@@ -1180,7 +1256,8 @@ function addManualProduct(){
   const cost=parseFloat(document.getElementById('man-cost').value)||0;
   const table=document.getElementById('man-table').value;
   if(!desc||!vol||!pvp){toast('Completa descripción, volumen y PVP','⚠️');return;}
-  CURRENT_Q[table].push({id:uid(),desc,vol,unit,pvp,cost});
+  const manCur=document.getElementById('man-currency')?.value||'MXN';
+  CURRENT_Q[table].push({id:uid(),desc,vol,unit,pvp,cost,currency:manCur,tcRef:_TC||0});
   closeModal('modal-manual');
   renderQuoteTables(); recalcAll(); markDirty();
   toast('Partida añadida','✅','success');
@@ -1282,8 +1359,11 @@ function renderQTable(tbodyId,items,table){
       <td><textarea class="desc-inp" rows="2" onchange="CURRENT_Q['${table}'][${i}].desc=this.value;markDirty()">${esc(x.desc)}</textarea></td>
       <td><input class="mini-inp" type="number" value="${x.vol}" style="width:65px" onchange="CURRENT_Q['${table}'][${i}].vol=parseFloat(this.value)||0;recalcAll();markDirty()"></td>
       <td style="font-size:11px;color:var(--text3);white-space:nowrap">${esc(x.unit)}</td>
-      <td><input class="mini-inp" type="number" value="${x.pvp}" style="width:80px" onchange="CURRENT_Q['${table}'][${i}].pvp=parseFloat(this.value)||0;recalcAll();markDirty()"></td>
-      <td class="num">${mxn(x.vol*x.pvp)}</td>
+      <td style="white-space:nowrap">
+        <input class="mini-inp" type="number" value="${x.pvp}" style="width:72px" onchange="CURRENT_Q['${table}'][${i}].pvp=parseFloat(this.value)||0;recalcAll();markDirty()">
+        ${x.currency==='USD'?'<span style="font-size:9px;font-weight:700;background:#2563eb22;color:#60a5fa;border-radius:3px;padding:1px 4px;margin-left:2px">USD</span>':''}
+      </td>
+      <td class="num">${x.currency==='USD'?'<span style="color:#60a5fa">USD '+fmtUSD(x.vol*x.pvp)+'</span>':mxn(x.vol*x.pvp)}</td>
       <td><button class="btn-icon" onclick="removeItem('${table}',${i})">✕</button></td>
     </tr>`).join('');
 }
@@ -1298,16 +1378,43 @@ function recalcAll(){
   const d2=(parseFloat(val('cost-d2'))||0)/100;
   const d3=(parseFloat(val('cost-d3'))||0)/100;
   const flete=parseFloat(val('cost-flete'))||0;
-  const supRaw=CURRENT_Q.supply.reduce((s,x)=>s+x.vol*x.pvp,0);
-  const dVolAmt=supRaw*discVol, afterVol=supRaw-dVolAmt;
-  const dPPAmt=afterVol*discPP, supNet=afterVol-dPPAmt;
-  setText('sup-sub',mxn(supRaw));
+  // Separar items por moneda
+  const supMXN=CURRENT_Q.supply.filter(x=>(x.currency||'MXN')==='MXN');
+  const supUSD=CURRENT_Q.supply.filter(x=>x.currency==='USD');
+  const labMXN=CURRENT_Q.labor.filter(x=>(x.currency||'MXN')==='MXN');
+  const labUSD=CURRENT_Q.labor.filter(x=>x.currency==='USD');
+  const hasUSD=supUSD.length>0||labUSD.length>0;
+
+  // Totales MXN
+  const supRawMXN=supMXN.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const dVolAmt=supRawMXN*discVol, afterVol=supRawMXN-dVolAmt;
+  const dPPAmt=afterVol*discPP, supNetMXN=afterVol-dPPAmt;
+  // Totales USD
+  const supRawUSD=supUSD.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const labRawUSD=labUSD.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const totalUSD=supRawUSD+labRawUSD;
+  // TC de referencia: promedio de tcRef de items USD, o _TC
+  const tcItems=[...supUSD,...labUSD].map(x=>x.tcRef||_TC||17.5);
+  const tcRef=tcItems.length?tcItems.reduce((a,b)=>a+b,0)/tcItems.length:(_TC||17.5);
+
+  const supRaw=supRawMXN; // para compatibilidad con recalcRent
+  setText('sup-sub',mxn(supRawMXN));
   setText('dv-pct',(discVol*100).toFixed(1)+'%'); setText('dv-amt','−'+mxn(dVolAmt));
   setText('dp-pct',(discPP*100).toFixed(1)+'%'); setText('dp-amt','−'+mxn(dPPAmt));
-  setText('sup-net',mxn(supNet)); setText('sup-iva',mxn(supNet*0.16)); setText('sup-total',mxn(supNet*1.16));
-  const labRaw=CURRENT_Q.labor.reduce((s,x)=>s+x.vol*x.pvp,0);
+  setText('sup-net',mxn(supNetMXN)); setText('sup-iva',mxn(supNetMXN*0.16)); setText('sup-total',mxn(supNetMXN*1.16));
+  const labRaw=CURRENT_Q.labor.reduce((s,x)=>s+(x.currency==='USD'?0:x.vol*x.pvp),0);
   setText('lab-sub',mxn(labRaw)); setText('lab-iva',mxn(labRaw*0.16)); setText('lab-total',mxn(labRaw*1.16));
-  setText('gt-sup',mxn(supNet*1.16)); setText('gt-lab',mxn(labRaw*1.16)); setText('gt-total',mxn(supNet*1.16+labRaw*1.16));
+  setText('gt-sup',mxn(supNetMXN*1.16)); setText('gt-lab',mxn(labRaw*1.16)); setText('gt-total',mxn(supNetMXN*1.16+labRaw*1.16));
+  // Desglose por moneda
+  const mcEl=document.getElementById('gt-multicur');
+  if(mcEl){
+    mcEl.style.display=hasUSD?'':'none';
+    if(hasUSD){
+      setText('gt-usd','USD $'+fmtUSD(totalUSD*1.16));
+      setText('gt-usd-ref',mxn(totalUSD*1.16*tcRef)+' (TC: $'+tcRef.toFixed(2)+')');
+      setText('gt-mxn',mxn((supNetMXN+labRaw)*1.16));
+    }
+  }
   if(IS_ADMIN) recalcRent(supNet,labRaw,d1,d2,d3,flete);
 }
 function recalcRent(supNet,labRaw,d1,d2,d3,flete){
@@ -1363,30 +1470,89 @@ async function generateText(){
 }
 
 // ── COPY TABLE ──
-function copyTable(){
+function exportExcel(){
   if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
   const dv=(parseFloat(val('q-disc-vol'))||0)/100;
   const dp=(parseFloat(val('q-disc-pp'))||0)/100;
-  const supRaw=CURRENT_Q.supply.reduce((s,x)=>s+x.vol*x.pvp,0);
-  const afterVol=supRaw*(1-dv), supNet=afterVol*(1-dp);
-  const labRaw=CURRENT_Q.labor.reduce((s,x)=>s+x.vol*x.pvp,0);
-  const W=55;
-  let t=`COTIZACIÓN: ${val('q-num')}   FECHA: ${val('q-date')}   CLIENTE: ${val('q-client')}\nPROYECTO: ${val('q-project')}\n\n`;
-  t+=`SUMINISTRO\n${'─'.repeat(100)}\n`;
-  t+=`${'PARTIDA'.padEnd(W)} ${'VOLUMEN'.padStart(9)} ${'UD'.padStart(7)} ${'PVP'.padStart(12)} ${'SUBTOTAL'.padStart(14)}\n`;
-  CURRENT_Q.supply.forEach(x=>{ t+=`${x.desc.substring(0,W-1).padEnd(W)} ${String(x.vol).padStart(9)} ${x.unit.padStart(7)} ${fmt(x.pvp).padStart(12)} ${fmt(x.vol*x.pvp).padStart(14)}\n`; });
-  t+=`\n${' '.repeat(76)} SUBTOTAL  ${fmt(supRaw).padStart(14)}\n`;
-  if(dv>0) t+=`${' '.repeat(60)} DESCUENTO POR VOLUMEN ${(dv*100).toFixed(0)+'%'}  ${fmt(supRaw*dv).padStart(10)}\n`;
-  if(dp>0) t+=`${' '.repeat(56)} DESCUENTO PRONTO PAGO ${(dp*100).toFixed(0)+'%'}  ${fmt(afterVol*dp).padStart(10)}\n`;
-  t+=`\n${' '.repeat(76)} SUBTOTAL  ${fmt(supNet).padStart(14)}\n`;
-  t+=`${' '.repeat(80)} IVA 16%  ${fmt(supNet*0.16).padStart(13)}\n`;
-  t+=`${' '.repeat(74)} TOTAL A PAGAR  ${fmt(supNet*1.16).padStart(8)}\n\n`;
-  t+=`MANO DE OBRA\n${'─'.repeat(100)}\n`;
-  CURRENT_Q.labor.forEach(x=>{ t+=`${x.desc.substring(0,W-1).padEnd(W)} ${String(x.vol).padStart(9)} ${x.unit.padStart(7)} ${fmt(x.pvp).padStart(12)} ${fmt(x.vol*x.pvp).padStart(14)}\n`; });
-  t+=`\n${' '.repeat(76)} SUBTOTAL  ${fmt(labRaw).padStart(14)}\n`;
-  t+=`${' '.repeat(80)} IVA 16%  ${fmt(labRaw*0.16).padStart(13)}\n`;
-  t+=`${' '.repeat(74)} TOTAL A PAGAR  ${fmt(labRaw*1.16).padStart(8)}\n`;
-  navigator.clipboard.writeText(t).then(()=>toast('Tabla copiada','📋','success')).catch(()=>toast('Error copiando','❌','error'));
+  // Separar por moneda
+  const supMXN=CURRENT_Q.supply.filter(x=>(x.currency||'MXN')==='MXN');
+  const supUSD=CURRENT_Q.supply.filter(x=>x.currency==='USD');
+  const labMXN=CURRENT_Q.labor.filter(x=>(x.currency||'MXN')==='MXN');
+  const labUSD=CURRENT_Q.labor.filter(x=>x.currency==='USD');
+  const hasUSD=supUSD.length>0||labUSD.length>0;
+  const supRawMXN=supMXN.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const afterVol=supRawMXN*(1-dv), supNetMXN=afterVol*(1-dp);
+  const labRawMXN=labMXN.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const supRawUSD=supUSD.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const labRawUSD=labUSD.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const totalUSD=supRawUSD+labRawUSD;
+  const tcItems=[...supUSD,...labUSD].map(x=>x.tcRef||_TC||17.5);
+  const tcRef=tcItems.length?tcItems.reduce((a,b)=>a+b,0)/tcItems.length:(_TC||17.5);
+
+  const rows=[];
+  rows.push([`COTIZACIÓN: ${val('q-num')}`,`FECHA: ${val('q-date')}`,`CLIENTE: ${val('q-client')}`,'','']);
+  rows.push([`PROYECTO: ${val('q-project')}`,'','','','']);
+  rows.push(['','','','','']);
+
+  // SUMINISTRO — líneas MXN
+  rows.push(['SUMINISTRO','','','','']);
+  rows.push(['PARTIDA','VOLUMEN','UD','MONEDA','PVP','SUBTOTAL']);
+  supMXN.forEach(x=>{ rows.push([x.desc, x.vol, x.unit, 'MXN', x.pvp, x.vol*x.pvp]); });
+  supUSD.forEach(x=>{ rows.push([x.desc, x.vol, x.unit, 'USD', x.pvp, x.vol*x.pvp]); });
+  rows.push(['','','','','','']);
+
+  // Totales suministro MXN
+  if(supMXN.length){
+    rows.push(['','','','SUBTOTAL MXN','', supRawMXN]);
+    if(dv>0) rows.push(['','','',`DESC. VOLUMEN ${(dv*100).toFixed(0)}%`,'', -(supRawMXN*dv)]);
+    if(dp>0) rows.push(['','','',`DESC. PRONTO PAGO ${(dp*100).toFixed(0)}%`,'', -(afterVol*dp)]);
+    rows.push(['','','','SUBTOTAL NETO MXN','', supNetMXN]);
+    rows.push(['','','','IVA 16%','', supNetMXN*0.16]);
+    rows.push(['','','','TOTAL SUMINISTRO MXN','', supNetMXN*1.16]);
+  }
+  // Totales suministro USD
+  if(supUSD.length){
+    rows.push(['','','','TOTAL SUMINISTRO USD','', supRawUSD]);
+    rows.push(['','','','IVA 16%','', supRawUSD*0.16]);
+    rows.push(['','','','TOTAL SUMINISTRO USD (c/IVA)','', supRawUSD*1.16]);
+    rows.push(['','','',`Referencia MXN (TC $${tcRef.toFixed(2)})`,'', supRawUSD*1.16*tcRef]);
+  }
+  rows.push(['','','','','','']);
+
+  // MANO DE OBRA
+  rows.push(['MANO DE OBRA','','','','']);
+  rows.push(['PARTIDA','VOLUMEN','UD','MONEDA','PVP','SUBTOTAL']);
+  labMXN.forEach(x=>{ rows.push([x.desc, x.vol, x.unit, 'MXN', x.pvp, x.vol*x.pvp]); });
+  labUSD.forEach(x=>{ rows.push([x.desc, x.vol, x.unit, 'USD', x.pvp, x.vol*x.pvp]); });
+  rows.push(['','','','','','']);
+  if(labMXN.length){
+    rows.push(['','','','SUBTOTAL MXN','', labRawMXN]);
+    rows.push(['','','','IVA 16%','', labRawMXN*0.16]);
+    rows.push(['','','','TOTAL MO MXN','', labRawMXN*1.16]);
+  }
+  if(labUSD.length){
+    rows.push(['','','','TOTAL MO USD','', labRawUSD]);
+    rows.push(['','','','IVA 16%','', labRawUSD*0.16]);
+    rows.push(['','','','TOTAL MO USD (c/IVA)','', labRawUSD*1.16]);
+    rows.push(['','','',`Referencia MXN (TC $${tcRef.toFixed(2)})`,'', labRawUSD*1.16*tcRef]);
+  }
+
+  // RESUMEN FINAL
+  if(hasUSD){
+    rows.push(['','','','','','']);
+    rows.push(['RESUMEN POR MONEDA','','','','','']);
+    rows.push(['','','','TOTAL EN USD (c/IVA)','', totalUSD*1.16]);
+    rows.push(['','','',`Referencia MXN (TC $${tcRef.toFixed(2)})`,'', totalUSD*1.16*tcRef]);
+    rows.push(['','','','TOTAL EN MXN (c/IVA)','', (supNetMXN+labRawMXN)*1.16]);
+  }
+
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:55},{wch:10},{wch:8},{wch:30},{wch:14},{wch:16}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Cotización');
+  const filename=`${val('q-num')||'cotizacion'}_${val('q-client')||'cliente'}.xlsx`.replace(/[/\\:*?"<>|]/g,'_');
+  XLSX.writeFile(wb, filename);
+  toast('Excel descargado','📥','success');
 }
 function copyText(){
   navigator.clipboard.writeText(document.getElementById('proposal-text').innerText)
@@ -1468,6 +1634,10 @@ function openProdEditFromCatalogTab(id){
   const specElCat=document.getElementById('pe-spec'); if(specElCat) specElCat.value=p.spec||'';
   const _peUnitC=document.getElementById('pe-unit'); if(_peUnitC) _peUnitC.value=p.unit||(_pEdit2=p,p.m2perBox?'caja':(p.pvpM2MXN?'m2':'caja'));
   const _peConvC=document.getElementById('pe-conversion'); if(_peConvC) _peConvC.value=p.m2perUnit||p.m2perBox||'';
+  const _peCurC=document.getElementById('pe-currency'); if(_peCurC) _peCurC.value=p.currency||'MXN';
+  const _peTcC=document.getElementById('pe-tc'); if(_peTcC) _peTcC.value=p.tcUsado||'';
+  const _peTcWrapC=document.getElementById('pe-tc-wrap'); if(_peTcWrapC) _peTcWrapC.style.display=(p.currency==='USD'?'':'none');
+  const _pePvpC=document.getElementById('pe-pvp'); if(_pePvpC) _pePvpC.removeAttribute('data-auto');
   onPEUnitChange();
   if(!IS_ADMIN){
     document.getElementById('pe-cost').closest('.fg').style.display='none';
@@ -1501,6 +1671,9 @@ function openNewProdCatalogTab(){
   const specEl=document.getElementById('pe-spec'); if(specEl) specEl.value='';
   const _peUnitN=document.getElementById('pe-unit'); if(_peUnitN) _peUnitN.value='caja';
   const _peConvN=document.getElementById('pe-conversion'); if(_peConvN) _peConvN.value='';
+  const _peCurN=document.getElementById('pe-currency'); if(_peCurN) _peCurN.value='MXN';
+  const _peTcWrapN=document.getElementById('pe-tc-wrap'); if(_peTcWrapN) _peTcWrapN.style.display='none';
+  const _pePvpN=document.getElementById('pe-pvp'); if(_pePvpN) _pePvpN.setAttribute('data-auto','1');
   onPEUnitChange();
   document.getElementById('pe-calc-preview').style.display='none';
   if(!IS_ADMIN){
@@ -1529,6 +1702,7 @@ function uid(){return 'q'+Date.now().toString(36)+Math.random().toString(36).sub
 function today(){return new Date().toISOString().split('T')[0];}
 function round(v,d){return Math.round(v*Math.pow(10,d))/Math.pow(10,d);}
 function mxn(v){return '$'+Number(v||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtUSD(v){return Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmt(v){return '$'+Number(v||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function val(id){return(document.getElementById(id)||{}).value||'';}
 function setValue(id,v){const el=document.getElementById(id);if(el)el.value=v;}
