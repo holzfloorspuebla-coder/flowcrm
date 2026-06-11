@@ -661,12 +661,7 @@ async function persistAll(label=''){
   IS_SAVING=true;
   setSyncDot('loading'); setSyncLbl('Guardando...');
   try{
-    const data = await cloudGet();
-    data.quotes   = QUOTES;
-    data.catalog  = CATALOG;
-    data.catDefs  = CAT_DEFS;
-    data._savedAt = Date.now();
-    await cloudSet(data);
+    await cloudSet({ quotes: QUOTES, catalog: CATALOG, catDefs: CAT_DEFS, _savedAt: Date.now() });
     const t = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
     setSyncDot('ok'); setSyncLbl('Guardado · '+t);
     if(label) markClean(t);
