@@ -4211,7 +4211,7 @@ function saveContact(){
       // Vendedor: aplicar local (optimista) + enviar a pendientes
       const oldFields={};
       const newFields={};
-      const TRACK=['name','mailingName','phone','email','instagram','linkedin','city','state','origin','priceList','web','studioId','type','segment','notes'];
+      const TRACK=['name','mailingName','phone','email','email2','whatsapp','instagram','linkedin','city','state','origin','priceList','web','studioId','studioEmail','studioEmail2','studioPhone','studioWhatsapp','studioInstagram','studioLinkedin','type','segment','notes'];
       TRACK.forEach(k=>{ if(String(_ec[k]||'')!==String(obj[k]||'')){oldFields[k]=_ec[k];newFields[k]=obj[k];} });
       if(Object.keys(newFields).length===0){closeM('modal-contact');toast('Sin cambios');return;}
       // Aplicar localmente (optimista)
