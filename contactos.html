@@ -678,10 +678,11 @@ async function pollWorker(){
     const since = _lastPollAt ? _lastPollAt - 5000 : Date.now() - 30000;
     const sinceTs = Math.floor(since); // bigint en Supabase
 
-    const [studioRes, contactRes, metaRes] = await Promise.all([
+    const [studioRes, contactRes, metaRes, pendingRes] = await Promise.all([
       fetch(`${SB_URL}/rest/v1/crm_studios?updated_at=gte.${sinceTs}&select=data`, {headers: SB_HDR}),
       fetch(`${SB_URL}/rest/v1/crm_contacts?updated_at=gte.${sinceTs}&select=data`, {headers: SB_HDR}),
       fetch(`${SB_URL}/rest/v1/crm_meta?key=eq.deletedIds&select=value`, {headers: SB_HDR}),
+      fetch(`${SB_URL}/rest/v1/crm_pending?select=data`, {headers: SB_HDR}),
     ]);
 
     if(!studioRes.ok && !contactRes.ok) return;
@@ -771,6 +772,15 @@ async function pollWorker(){
       setText('count-total', ALL.length.toLocaleString('es'));
       setSyncDot('ok'); setText('sync-lbl','Datos cargados · '+ALL.length.toLocaleString('es')+' contactos');
     }
+
+    // Refrescar pendientes en cada poll
+    if(pendingRes && pendingRes.ok){
+      const pendingRows = await pendingRes.json();
+      const fresh = (pendingRows||[]).map(r=>r.data).filter(Boolean);
+      const changed = fresh.length !== PENDING.length || fresh.some((p,i)=>p.id!==PENDING[i]?.id||p.status!==PENDING[i]?.status);
+      if(changed){ PENDING = fresh; updatePendingBadge(); }
+    }
+
     _lastPollAt = Date.now();
   } catch(e){
     // Silencioso
