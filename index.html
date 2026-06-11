@@ -873,8 +873,12 @@ select.inp{cursor:pointer;}
         <div class="fg"><label class="lbl">Teléfono arquitecto</label><input class="inp" id="c-phone" placeholder="+52 55 1234 5678"></div>
         <div class="fg"><label class="lbl">Instagram arquitecto</label><input class="inp" id="c-instagram" placeholder="@juan_arq"></div>
       </div>
-      <div class="r2">
+      <div class="r3">
+        <div class="fg"><label class="lbl">WhatsApp arquitecto</label><input class="inp" id="c-whatsapp" placeholder="+52 55 1234 5678"></div>
+        <div class="fg"><label class="lbl">Email 2 arquitecto</label><input class="inp" id="c-email2" type="email" placeholder="juan2@correo.mx"></div>
         <div class="fg"><label class="lbl">LinkedIn arquitecto</label><input class="inp" id="c-linkedin" placeholder="linkedin.com/in/juan"></div>
+      </div>
+      <div class="r2">
         <div class="fg"><label class="lbl">Segmento</label><select class="inp" id="c-segment"></select></div>
       </div>
 
@@ -896,13 +900,17 @@ select.inp{cursor:pointer;}
       </div>
       <div class="r3">
         <div class="fg"><label class="lbl">Email estudio</label><input class="inp" id="c-studio-email" type="email" placeholder="info@estudio.mx"></div>
+        <div class="fg"><label class="lbl">Email 2 estudio</label><input class="inp" id="c-studio-email2" type="email" placeholder="contacto2@estudio.mx"></div>
         <div class="fg"><label class="lbl">Teléfono estudio</label><input class="inp" id="c-studio-phone" placeholder="+52 55 9876 5432"></div>
-        <div class="fg"><label class="lbl">Web</label><input class="inp" id="c-web" placeholder="https://estudio.mx"></div>
       </div>
       <div class="r3">
+        <div class="fg"><label class="lbl">WhatsApp estudio</label><input class="inp" id="c-studio-whatsapp" placeholder="+52 55 9876 5432"></div>
+        <div class="fg"><label class="lbl">Web</label><input class="inp" id="c-web" placeholder="https://estudio.mx"></div>
+        <div class="fg"><label class="lbl">Price List</label><input class="inp" id="c-pricelist" placeholder="PL-A"></div>
+      </div>
+      <div class="r2">
         <div class="fg"><label class="lbl">Instagram estudio</label><input class="inp" id="c-studio-instagram" placeholder="@estudio_mx"></div>
         <div class="fg"><label class="lbl">LinkedIn estudio</label><input class="inp" id="c-studio-linkedin" placeholder="linkedin.com/company/estudio"></div>
-        <div class="fg"><label class="lbl">Price List</label><input class="inp" id="c-pricelist" placeholder="PL-A"></div>
       </div>
 
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">📍 Ubicación y asignación</div>
@@ -4089,8 +4097,8 @@ function openContactModal(stageId,editId){
   const segs=D.segments||DEFAULT_SEGMENTS;
   $('c-segment').innerHTML=`<option value="">— Sin segmento —</option>`+segs.map(s=>`<option value="${s.id}">${s.icon} ${s.label}</option>`).join('');
   populateStudioSelect(null);
-  const allFields=['c-name','c-mailing-name','c-phone','c-email','c-city','c-state','c-notes',
-    'c-instagram','c-linkedin','c-studio-email','c-studio-phone','c-web',
+  const allFields=['c-name','c-mailing-name','c-phone','c-email','c-email2','c-whatsapp','c-city','c-state','c-notes',
+    'c-instagram','c-linkedin','c-studio-email','c-studio-email2','c-studio-phone','c-studio-whatsapp','c-web',
     'c-studio-instagram','c-studio-linkedin','c-pricelist','c-origin'];
   if(editId){
     const c=D.contacts.find(x=>x.id===editId);
@@ -4099,6 +4107,8 @@ function openContactModal(stageId,editId){
     $('c-mailing-name').value=c.mailingName||'';
     $('c-phone').value=c.phone||'';
     $('c-email').value=c.email||'';
+    $('c-email2').value=c.email2||'';
+    $('c-whatsapp').value=c.whatsapp||'';
     $('c-instagram').value=c.instagram||'';
     $('c-linkedin').value=c.linkedin||'';
     $('c-city').value=c.city||'';
@@ -4110,7 +4120,9 @@ function openContactModal(stageId,editId){
     // Load studio fields from the studio record (source of truth)
     const linkedStudio=(D.studios||[]).find(s=>s.id===(c.studioId||null));
     $('c-studio-email').value=linkedStudio?.email||c.studioEmail||'';
+    $('c-studio-email2').value=linkedStudio?.email2||c.studioEmail2||'';
     $('c-studio-phone').value=linkedStudio?.phone||c.studioPhone||'';
+    $('c-studio-whatsapp').value=linkedStudio?.whatsapp||c.studioWhatsapp||'';
     $('c-studio-instagram').value=linkedStudio?.instagram||c.studioInstagram||'';
     $('c-studio-linkedin').value=linkedStudio?.linkedin||c.studioLinkedin||'';
     $('c-segment').value=c.segment||'';
@@ -4143,15 +4155,19 @@ function saveContact(){
     // Update studio record with any edited fields
     if(studio){
       const sEmail=$('c-studio-email').value.trim();
+      const sEmail2=$('c-studio-email2').value.trim();
       const sPhone=$('c-studio-phone').value.trim();
       const sInsta=$('c-studio-instagram').value.trim();
       const sLinked=$('c-studio-linkedin').value.trim();
       const sWeb=$('c-web').value.trim();
+      const sWhatsapp=$('c-studio-whatsapp').value.trim();
       if(sEmail) studio.email=sEmail;
+      if(sEmail2) studio.email2=sEmail2;
       if(sPhone) studio.phone=sPhone;
       if(sInsta) studio.instagram=sInsta;
       if(sLinked) studio.linkedin=sLinked;
       if(sWeb) studio.web=sWeb;
+      if(sWhatsapp) studio.whatsapp=sWhatsapp;
     }
   }
   const obj={
@@ -4159,6 +4175,8 @@ function saveContact(){
     mailingName:$('c-mailing-name').value.trim(),
     phone:$('c-phone').value.trim(),
     email:$('c-email').value.trim(),
+    email2:$('c-email2').value.trim(),
+    whatsapp:$('c-whatsapp').value.trim(),
     instagram:$('c-instagram').value.trim(),
     linkedin:$('c-linkedin').value.trim(),
     city:$('c-city').value.trim(),
@@ -4167,7 +4185,9 @@ function saveContact(){
     priceList:$('c-pricelist').value.trim(),
     web:$('c-web').value.trim(),
     studioEmail:$('c-studio-email').value.trim(),
+    studioEmail2:$('c-studio-email2').value.trim(),
     studioPhone:$('c-studio-phone').value.trim(),
+    studioWhatsapp:$('c-studio-whatsapp').value.trim(),
     studioInstagram:$('c-studio-instagram').value.trim(),
     studioLinkedin:$('c-studio-linkedin').value.trim(),
     segment:$('c-segment').value,
