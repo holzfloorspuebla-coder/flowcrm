@@ -1774,7 +1774,50 @@ function openStudioEdit(studioId){
   document.getElementById('modal-edit-studio').classList.remove('hidden');
 }
 
+function openNewStudioModal(){
+  _editStudioName = null;
+  document.getElementById('edit-studio-title').textContent='➕ Nuevo estudio';
+  ['es-name','es-city','es-state','es-email','es-email2','es-phone','es-whatsapp',
+   'es-web','es-instagram','es-linkedin','es-origin','es-segment','es-notes']
+    .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+  const agentSel=document.getElementById('es-agent');
+  const users=window._gestorUsers||{};
+  agentSel.innerHTML='<option value="">— Sin vendedor —</option>'+Object.entries(users).map(([id,name])=>`<option value="${id}">${name}</option>`).join('');
+  const el=document.getElementById('es-contacts-list');
+  if(el) el.innerHTML='';
+  document.getElementById('modal-edit-studio').classList.remove('hidden');
+}
+
 function saveStudioEdit(){
+  if(_editStudioName===null){
+    // Modo creación
+    const newName=document.getElementById('es-name').value.trim();
+    if(!newName){toast('El nombre es requerido','⚠️');return;}
+    const agentSel=document.getElementById('es-agent');
+    const newStudio={
+      id: Date.now(),
+      name: newName,
+      city: document.getElementById('es-city').value.trim(),
+      state: document.getElementById('es-state').value.trim(),
+      email: document.getElementById('es-email').value.trim(),
+      email2: document.getElementById('es-email2').value.trim(),
+      phone: document.getElementById('es-phone').value.trim(),
+      whatsapp: document.getElementById('es-whatsapp').value.trim(),
+      web: document.getElementById('es-web').value.trim(),
+      instagram: document.getElementById('es-instagram').value.trim(),
+      linkedin: document.getElementById('es-linkedin').value.trim(),
+      origin: document.getElementById('es-origin').value.trim(),
+      segment: document.getElementById('es-segment').value.trim(),
+      notes: document.getElementById('es-notes').value.trim(),
+      agent: agentSel.value||'',
+      _updatedAt: Date.now()
+    };
+    ALL_STUDIOS.push(newStudio);
+    closeModal('modal-edit-studio');
+    renderStudios();
+    saveStudioToWorker().then(ok=>ok&&toast('Estudio creado ✓'));
+    return;
+  }
   const s = ALL_STUDIOS.find(x=>String(x.id)===String(_editStudioName));
   if(!s){ toast('Estudio no encontrado','⚠️'); return; }
   const newName=document.getElementById('es-name').value.trim();
