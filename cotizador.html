@@ -976,7 +976,7 @@ function openEditProduct(id){
   const _peCurE=document.getElementById('pe-currency'); if(_peCurE) _peCurE.value=_pEdit.currency||'MXN';
   const _peTcE=document.getElementById('pe-tc'); if(_peTcE) _peTcE.value=_pEdit.tcUsado||'';
   const _peTcWrapE=document.getElementById('pe-tc-wrap'); if(_peTcWrapE) _peTcWrapE.style.display=(_pEdit.currency==='USD'?'':'none');
-  const _pePvpE=document.getElementById('pe-pvp'); if(_pePvpE) _pePvpE.removeAttribute('data-auto');
+  const _pePvpE=document.getElementById('pe-pvp'); if(_pePvpE){ if(_pEdit.pvpCajaMXN) _pePvpE.removeAttribute('data-auto'); else _pePvpE.setAttribute('data-auto','1'); }
   const _pePriceUnitE=document.getElementById('pe-price-unit'); if(_pePriceUnitE) _pePriceUnitE.value=_pEdit.priceUnit||_pEdit.unit||'caja';
   onPEUnitChange();
   if(!IS_ADMIN){
@@ -1134,6 +1134,7 @@ function peGenerateText(){
     const el=document.getElementById('pe-f-'+f.key);
     if(el) obj[f.key]=f.type==='number'?(parseFloat(el.value)||0):el.value.trim();
   });
+  delete obj.spec; // ignorar spec guardado para forzar regeneración
   const txt=buildDesc(obj,fields);
   const el=document.getElementById('pe-spec');
   if(el){ el.value=txt; el.focus(); }
@@ -1653,7 +1654,7 @@ function openProdEditFromCatalogTab(id){
   const _peCurC=document.getElementById('pe-currency'); if(_peCurC) _peCurC.value=p.currency||'MXN';
   const _peTcC=document.getElementById('pe-tc'); if(_peTcC) _peTcC.value=p.tcUsado||'';
   const _peTcWrapC=document.getElementById('pe-tc-wrap'); if(_peTcWrapC) _peTcWrapC.style.display=(p.currency==='USD'?'':'none');
-  const _pePvpC=document.getElementById('pe-pvp'); if(_pePvpC) _pePvpC.removeAttribute('data-auto');
+  const _pePvpC=document.getElementById('pe-pvp'); if(_pePvpC){ if(p.pvpCajaMXN) _pePvpC.removeAttribute('data-auto'); else _pePvpC.setAttribute('data-auto','1'); }
   const _pePriceUnitC=document.getElementById('pe-price-unit'); if(_pePriceUnitC) _pePriceUnitC.value=p.priceUnit||p.unit||'caja';
   onPEUnitChange();
   if(!IS_ADMIN){
