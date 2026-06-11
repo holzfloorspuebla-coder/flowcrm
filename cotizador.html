@@ -1431,7 +1431,7 @@ function recalcAll(){
       setText('gt-mxn',mxn((supNetMXN+labRaw)*1.16));
     }
   }
-  if(IS_ADMIN) recalcRent(supNet,labRaw,d1,d2,d3,flete);
+  if(IS_ADMIN) recalcRent(supNetMXN,labRaw,d1,d2,d3,flete);
 }
 function recalcRent(supNet,labRaw,d1,d2,d3,flete){
   const discVol=(parseFloat(val('q-disc-vol'))||0)/100;
