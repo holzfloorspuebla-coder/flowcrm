@@ -125,6 +125,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .save-ind{font-size:10px;font-family:var(--mono);color:var(--text3);}
 .save-ind.dirty{color:var(--orange);}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -312,7 +313,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
         <span class="save-ind" id="save-ind"></span>
         <button class="btn btn-ghost" onclick="generateText()">✨ Generar texto</button>
-        <button class="btn btn-ghost" onclick="copyTable()">📋 Copiar tabla</button>
+        <button class="btn btn-ghost" onclick="exportExcel()">📥 Descargar Excel</button>
         <button class="btn btn-primary" onclick="saveQuote()">💾 Guardar</button>
       </div>
     </div>
@@ -1294,30 +1295,55 @@ async function generateText(){
 }
 
 // ── COPY TABLE ──
-function copyTable(){
+function exportExcel(){
   if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
   const dv=(parseFloat(val('q-disc-vol'))||0)/100;
   const dp=(parseFloat(val('q-disc-pp'))||0)/100;
   const supRaw=CURRENT_Q.supply.reduce((s,x)=>s+x.vol*x.pvp,0);
   const afterVol=supRaw*(1-dv), supNet=afterVol*(1-dp);
   const labRaw=CURRENT_Q.labor.reduce((s,x)=>s+x.vol*x.pvp,0);
-  const W=55;
-  let t=`COTIZACIÓN: ${val('q-num')}   FECHA: ${val('q-date')}   CLIENTE: ${val('q-client')}\nPROYECTO: ${val('q-project')}\n\n`;
-  t+=`SUMINISTRO\n${'─'.repeat(100)}\n`;
-  t+=`${'PARTIDA'.padEnd(W)} ${'VOLUMEN'.padStart(9)} ${'UD'.padStart(7)} ${'PVP'.padStart(12)} ${'SUBTOTAL'.padStart(14)}\n`;
-  CURRENT_Q.supply.forEach(x=>{ t+=`${x.desc.substring(0,W-1).padEnd(W)} ${String(x.vol).padStart(9)} ${x.unit.padStart(7)} ${fmt(x.pvp).padStart(12)} ${fmt(x.vol*x.pvp).padStart(14)}\n`; });
-  t+=`\n${' '.repeat(76)} SUBTOTAL  ${fmt(supRaw).padStart(14)}\n`;
-  if(dv>0) t+=`${' '.repeat(60)} DESCUENTO POR VOLUMEN ${(dv*100).toFixed(0)+'%'}  ${fmt(supRaw*dv).padStart(10)}\n`;
-  if(dp>0) t+=`${' '.repeat(56)} DESCUENTO PRONTO PAGO ${(dp*100).toFixed(0)+'%'}  ${fmt(afterVol*dp).padStart(10)}\n`;
-  t+=`\n${' '.repeat(76)} SUBTOTAL  ${fmt(supNet).padStart(14)}\n`;
-  t+=`${' '.repeat(80)} IVA 16%  ${fmt(supNet*0.16).padStart(13)}\n`;
-  t+=`${' '.repeat(74)} TOTAL A PAGAR  ${fmt(supNet*1.16).padStart(8)}\n\n`;
-  t+=`MANO DE OBRA\n${'─'.repeat(100)}\n`;
-  CURRENT_Q.labor.forEach(x=>{ t+=`${x.desc.substring(0,W-1).padEnd(W)} ${String(x.vol).padStart(9)} ${x.unit.padStart(7)} ${fmt(x.pvp).padStart(12)} ${fmt(x.vol*x.pvp).padStart(14)}\n`; });
-  t+=`\n${' '.repeat(76)} SUBTOTAL  ${fmt(labRaw).padStart(14)}\n`;
-  t+=`${' '.repeat(80)} IVA 16%  ${fmt(labRaw*0.16).padStart(13)}\n`;
-  t+=`${' '.repeat(74)} TOTAL A PAGAR  ${fmt(labRaw*1.16).padStart(8)}\n`;
-  navigator.clipboard.writeText(t).then(()=>toast('Tabla copiada','📋','success')).catch(()=>toast('Error copiando','❌','error'));
+
+  const rows=[];
+  // Encabezado
+  rows.push([`COTIZACIÓN: ${val('q-num')}`,`FECHA: ${val('q-date')}`,`CLIENTE: ${val('q-client')}`,'']);
+  rows.push([`PROYECTO: ${val('q-project')}`,'','','']);
+  rows.push(['','','','']);
+
+  // Suministro
+  rows.push(['SUMINISTRO','','','']);
+  rows.push(['PARTIDA','VOLUMEN','UD','PVP (MXN/m²)','SUBTOTAL (MXN)']);
+  CURRENT_Q.supply.forEach(x=>{
+    rows.push([x.desc, x.vol, x.unit, x.pvp, x.vol*x.pvp]);
+  });
+  rows.push(['','','','SUBTOTAL', supRaw]);
+  if(dv>0) rows.push(['','','',`DESCUENTO VOLUMEN ${(dv*100).toFixed(0)}%`, -(supRaw*dv)]);
+  if(dp>0) rows.push(['','','',`DESCUENTO PRONTO PAGO ${(dp*100).toFixed(0)}%`, -(afterVol*dp)]);
+  rows.push(['','','','SUBTOTAL NETO', supNet]);
+  rows.push(['','','','IVA 16%', supNet*0.16]);
+  rows.push(['','','','TOTAL A PAGAR', supNet*1.16]);
+  rows.push(['','','','','']);
+
+  // Mano de obra
+  rows.push(['MANO DE OBRA','','','']);
+  rows.push(['PARTIDA','VOLUMEN','UD','PVP (MXN/m²)','SUBTOTAL (MXN)']);
+  CURRENT_Q.labor.forEach(x=>{
+    rows.push([x.desc, x.vol, x.unit, x.pvp, x.vol*x.pvp]);
+  });
+  rows.push(['','','','SUBTOTAL', labRaw]);
+  rows.push(['','','','IVA 16%', labRaw*0.16]);
+  rows.push(['','','','TOTAL A PAGAR', labRaw*1.16]);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Ancho de columnas
+  ws['!cols'] = [{wch:55},{wch:12},{wch:8},{wch:22},{wch:18}];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Cotización');
+
+  const filename = `${val('q-num')||'cotizacion'}_${val('q-client')||'cliente'}.xlsx`.replace(/[/\\:*?"<>|]/g,'_');
+  XLSX.writeFile(wb, filename);
+  toast('Excel descargado','📥','success');
 }
 function copyText(){
   navigator.clipboard.writeText(document.getElementById('proposal-text').innerText)
