@@ -125,7 +125,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .save-ind{font-size:10px;font-family:var(--mono);color:var(--text3);}
 .save-ind.dirty{color:var(--orange);}
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -196,7 +195,21 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <div class="modal-body">
       <div id="pe-fields" class="pd-fields"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-        <div class="fg"><label class="lbl">Precio lista (MXN/caja)</label><input class="inp" id="pe-pvp" type="number" placeholder="4799.00" oninput="calcPEPrices()"></div>
+        <div class="fg">
+          <label class="lbl">Unidad</label>
+          <select class="inp" id="pe-unit" onchange="onPEUnitChange()">
+            <option value="m2">m²</option>
+            <option value="caja">Caja</option>
+            <option value="pieza">Pieza</option>
+          </select>
+        </div>
+        <div class="fg" id="pe-conversion-wrap">
+          <label class="lbl" id="pe-conversion-lbl">m² por caja</label>
+          <input class="inp" id="pe-conversion" type="number" placeholder="2.16" min="0" step="0.01" oninput="calcPEPrices()">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        <div class="fg"><label class="lbl" id="pe-pvp-lbl">Precio lista (MXN/caja)</label><input class="inp" id="pe-pvp" type="number" placeholder="4799.00" oninput="calcPEPrices()"></div>
         <div class="fg"><label class="lbl" id="pe-cost-lbl">Costo (MXN/caja) — solo Luis</label><input class="inp" id="pe-cost" type="number" placeholder="3599.00" oninput="calcPEPrices()"></div>
       </div>
       <div id="pe-disc-wrap" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
@@ -204,8 +217,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         <div class="fg"><label class="lbl">Desc. 2 %</label><input class="inp" id="pe-d2" type="number" placeholder="5" min="0" max="100" oninput="calcPEPrices()"></div>
       </div>
       <div style="margin-top:8px" class="fg">
-        <label class="lbl">Especificación / Texto para cotizador</label>
-        <textarea class="inp" id="pe-spec" rows="3" placeholder="Texto que aparecerá como descripción en la cotización. Si se deja vacío, se genera automáticamente." style="font-size:12px;resize:vertical"></textarea>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <label class="lbl" style="margin-bottom:0">Especificación / Texto para cotizador</label>
+          <button type="button" class="btn btn-ghost" style="font-size:11px;padding:3px 8px" onclick="peGenerateText()">✨ Generar texto</button>
+        </div>
+        <textarea class="inp" id="pe-spec" rows="3" placeholder="Escribe o genera el texto que aparecerá en la cotización..." style="font-size:12px;resize:vertical"></textarea>
       </div>
       <div id="pe-calc-preview" style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:var(--r);font-size:11px;display:none"></div>
     </div>
@@ -313,7 +329,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
         <span class="save-ind" id="save-ind"></span>
         <button class="btn btn-ghost" onclick="generateText()">✨ Generar texto</button>
-        <button class="btn btn-ghost" onclick="exportExcel()">📥 Descargar Excel</button>
+        <button class="btn btn-ghost" onclick="copyTable()">📋 Copiar tabla</button>
         <button class="btn btn-primary" onclick="saveQuote()">💾 Guardar</button>
       </div>
     </div>
@@ -884,6 +900,10 @@ function openAddProduct(){
     <div class="fg"><label class="lbl">${esc(f.label)}</label>
     <input class="inp" id="pe-f-${f.key}" type="${f.type||'text'}" style="font-size:12px"></div>`).join('');
   ['pe-pvp','pe-cost','pe-d1','pe-d2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const _peUnitA=document.getElementById('pe-unit'); if(_peUnitA) _peUnitA.value='caja';
+  const _peConvA=document.getElementById('pe-conversion'); if(_peConvA) _peConvA.value='';
+  const _peSpecA=document.getElementById('pe-spec'); if(_peSpecA) _peSpecA.value='';
+  onPEUnitChange();
   document.getElementById('pe-calc-preview').style.display='none';
   if(!IS_ADMIN) document.getElementById('pe-cost').closest('.fg').style.display='none';
   _resetSaveBtn();
@@ -892,8 +912,9 @@ function openAddProduct(){
 function openEditProduct(id){
   PE_PRODUCT=CATALOG.find(p=>p.id===id);
   if(!PE_PRODUCT) return;
-  document.getElementById('pe-title').textContent='Editar: '+PE_PRODUCT.model;
   const fields=CAT_DEFS[CAT_ACTIVE_CAT]?.fields||[];
+  const _t1=PE_PRODUCT.model||PE_PRODUCT[fields.find(f=>['model','nombre','servicio'].includes(f.key)||['Modelo','Nombre','Servicio'].includes(f.label))?.key]||fields[0]&&PE_PRODUCT[fields[0].key]||'Producto';
+  document.getElementById('pe-title').textContent='Editar: '+_t1;
   document.getElementById('pe-fields').innerHTML=fields.map(f=>`
     <div class="fg"><label class="lbl">${esc(f.label)}</label>
     <input class="inp" id="pe-f-${f.key}" type="${f.type||'text'}" value="${esc(String(PE_PRODUCT[f.key]||''))}" style="font-size:12px"></div>`).join('');
@@ -902,6 +923,10 @@ function openEditProduct(id){
   document.getElementById('pe-d1').value=PE_PRODUCT.descD1||'';
   document.getElementById('pe-d2').value=PE_PRODUCT.descD2||'';
   const specElEdit=document.getElementById('pe-spec'); if(specElEdit) specElEdit.value=PE_PRODUCT.spec||'';
+  const _pEdit=PE_PRODUCT;
+  const _peUnitE=document.getElementById('pe-unit'); if(_peUnitE) _peUnitE.value=_pEdit.unit||(_pEdit.m2perBox?'caja':(_pEdit.pvpM2MXN?'m2':'caja'));
+  const _peConvE=document.getElementById('pe-conversion'); if(_peConvE) _peConvE.value=_pEdit.m2perUnit||_pEdit.m2perBox||'';
+  onPEUnitChange();
   if(!IS_ADMIN){
     document.getElementById('pe-cost').closest('.fg').style.display='none';
     document.getElementById('pe-disc-wrap').style.display='none';
@@ -917,26 +942,32 @@ async function saveProdEdit(){
     const el=document.getElementById('pe-f-'+f.key);
     if(el) obj[f.key]=f.type==='number'?(parseFloat(el.value)||0):el.value.trim();
   });
-  const pvpCaja=parseFloat(document.getElementById('pe-pvp').value)||null;
-  const costoCaja=parseFloat(document.getElementById('pe-cost').value)||null;
+  const pvpUnit=parseFloat(document.getElementById('pe-pvp').value)||null;
+  const costoUnit=parseFloat(document.getElementById('pe-cost').value)||null;
   const d1=(parseFloat(document.getElementById('pe-d1').value)||0)/100;
   const d2=(parseFloat(document.getElementById('pe-d2').value)||0)/100;
-  obj.pvpCajaMXN=pvpCaja;
-  obj.costoMXN=costoCaja;
+  const unit=document.getElementById('pe-unit')?.value||'caja';
+  const m2perUnit=unit==='m2'?1:(parseFloat(document.getElementById('pe-conversion')?.value)||0);
+  obj.unit=unit;
+  obj.m2perUnit=m2perUnit;
+  obj.m2perBox=unit==='caja'?m2perUnit:(obj.m2perBox||null); // compatibilidad
+  obj.pvpCajaMXN=pvpUnit;
+  obj.costoMXN=costoUnit;
   obj.descD1=parseFloat(document.getElementById('pe-d1').value)||0;
   obj.descD2=parseFloat(document.getElementById('pe-d2').value)||0;
   obj.spec=(document.getElementById('pe-spec').value||'').trim();
   // Calcular costo neto aplicando descuentos
-  if(costoCaja!==null){
-    obj.costoNetoMXN=round(costoCaja*(1-d1)*(1-d2),2);
+  if(costoUnit!==null){
+    obj.costoNetoMXN=round(costoUnit*(1-d1)*(1-d2),2);
   }
-  // Si tiene m2perBox, calcular precios por m²
-  const m2pb=parseFloat(obj.m2perBox)||0;
-  if(m2pb&&pvpCaja){
-    obj.pvpM2MXN=round(pvpCaja/m2pb,2);
-    if(obj.costoNetoMXN) obj.costoM2MXN=round(obj.costoNetoMXN/m2pb,2);
+  // Calcular precios por m²
+  if(unit==='m2'){
+    obj.pvpM2MXN=pvpUnit;
+    obj.costoM2MXN=obj.costoNetoMXN||null;
+  } else if(m2perUnit&&pvpUnit){
+    obj.pvpM2MXN=round(pvpUnit/m2perUnit,2);
+    if(obj.costoNetoMXN) obj.costoM2MXN=round(obj.costoNetoMXN/m2perUnit,2);
   } else {
-    // Sin m2perBox: precio unitario directo
     obj.pvpM2MXN=null;
     obj.costoM2MXN=null;
   }
@@ -956,9 +987,10 @@ function calcPEPrices(){
   const preview=document.getElementById('pe-calc-preview');
   if(!pvpCaja){preview.style.display='none';return;}
   const costoNeto=costoCaja?(costoCaja*(1-d1)*(1-d2)):0;
-  // Intentar leer m2perBox del campo dinámico si existe
-  const m2El=document.getElementById('pe-f-m2perBox');
-  const m2pb=m2El?parseFloat(m2El.value)||0:0;
+  // Leer conversión a m² según unidad seleccionada
+  const unit=document.getElementById('pe-unit')?.value||'caja';
+  const convEl=document.getElementById('pe-conversion');
+  const m2pb=unit==='m2'?1:(convEl?parseFloat(convEl.value)||0:0);
   let html=`<div style="display:flex;gap:18px;flex-wrap:wrap">`;
   if(costoNeto) html+=`<div><div class="lbl">Costo neto/caja</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(costoNeto)}</div></div>`;
   if(m2pb&&pvpCaja){
@@ -975,6 +1007,42 @@ function calcPEPrices(){
   html+=`</div>`;
   preview.innerHTML=html;
   preview.style.display='';
+}
+
+function onPEUnitChange(){
+  const unit=document.getElementById('pe-unit').value;
+  const convWrap=document.getElementById('pe-conversion-wrap');
+  const convLbl=document.getElementById('pe-conversion-lbl');
+  const pvpLbl=document.getElementById('pe-pvp-lbl');
+  const costLbl=document.getElementById('pe-cost-lbl');
+  if(unit==='m2'){
+    convWrap.style.display='none';
+    pvpLbl.textContent='Precio lista (MXN/m²)';
+    if(costLbl) costLbl.textContent='Costo (MXN/m²) — solo Luis';
+  } else if(unit==='caja'){
+    convWrap.style.display='';
+    convLbl.textContent='m² por caja';
+    pvpLbl.textContent='Precio lista (MXN/caja)';
+    if(costLbl) costLbl.textContent='Costo (MXN/caja) — solo Luis';
+  } else if(unit==='pieza'){
+    convWrap.style.display='';
+    convLbl.textContent='m² por pieza';
+    pvpLbl.textContent='Precio lista (MXN/pieza)';
+    if(costLbl) costLbl.textContent='Costo (MXN/pieza) — solo Luis';
+  }
+  calcPEPrices();
+}
+
+function peGenerateText(){
+  const fields=CAT_DEFS[CAT_ACTIVE_CAT]?.fields||[];
+  const obj=PE_PRODUCT?{...PE_PRODUCT}:{category:CAT_ACTIVE_CAT};
+  fields.forEach(f=>{
+    const el=document.getElementById('pe-f-'+f.key);
+    if(el) obj[f.key]=f.type==='number'?(parseFloat(el.value)||0):el.value.trim();
+  });
+  const txt=buildDesc(obj,fields);
+  const el=document.getElementById('pe-spec');
+  if(el){ el.value=txt; el.focus(); }
 }
 
 function buildDesc(p,fields){
@@ -1295,55 +1363,30 @@ async function generateText(){
 }
 
 // ── COPY TABLE ──
-function exportExcel(){
+function copyTable(){
   if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
   const dv=(parseFloat(val('q-disc-vol'))||0)/100;
   const dp=(parseFloat(val('q-disc-pp'))||0)/100;
   const supRaw=CURRENT_Q.supply.reduce((s,x)=>s+x.vol*x.pvp,0);
   const afterVol=supRaw*(1-dv), supNet=afterVol*(1-dp);
   const labRaw=CURRENT_Q.labor.reduce((s,x)=>s+x.vol*x.pvp,0);
-
-  const rows=[];
-  // Encabezado
-  rows.push([`COTIZACIÓN: ${val('q-num')}`,`FECHA: ${val('q-date')}`,`CLIENTE: ${val('q-client')}`,'']);
-  rows.push([`PROYECTO: ${val('q-project')}`,'','','']);
-  rows.push(['','','','']);
-
-  // Suministro
-  rows.push(['SUMINISTRO','','','']);
-  rows.push(['PARTIDA','VOLUMEN','UD','PVP (MXN/m²)','SUBTOTAL (MXN)']);
-  CURRENT_Q.supply.forEach(x=>{
-    rows.push([x.desc, x.vol, x.unit, x.pvp, x.vol*x.pvp]);
-  });
-  rows.push(['','','','SUBTOTAL', supRaw]);
-  if(dv>0) rows.push(['','','',`DESCUENTO VOLUMEN ${(dv*100).toFixed(0)}%`, -(supRaw*dv)]);
-  if(dp>0) rows.push(['','','',`DESCUENTO PRONTO PAGO ${(dp*100).toFixed(0)}%`, -(afterVol*dp)]);
-  rows.push(['','','','SUBTOTAL NETO', supNet]);
-  rows.push(['','','','IVA 16%', supNet*0.16]);
-  rows.push(['','','','TOTAL A PAGAR', supNet*1.16]);
-  rows.push(['','','','','']);
-
-  // Mano de obra
-  rows.push(['MANO DE OBRA','','','']);
-  rows.push(['PARTIDA','VOLUMEN','UD','PVP (MXN/m²)','SUBTOTAL (MXN)']);
-  CURRENT_Q.labor.forEach(x=>{
-    rows.push([x.desc, x.vol, x.unit, x.pvp, x.vol*x.pvp]);
-  });
-  rows.push(['','','','SUBTOTAL', labRaw]);
-  rows.push(['','','','IVA 16%', labRaw*0.16]);
-  rows.push(['','','','TOTAL A PAGAR', labRaw*1.16]);
-
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-
-  // Ancho de columnas
-  ws['!cols'] = [{wch:55},{wch:12},{wch:8},{wch:22},{wch:18}];
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Cotización');
-
-  const filename = `${val('q-num')||'cotizacion'}_${val('q-client')||'cliente'}.xlsx`.replace(/[/\\:*?"<>|]/g,'_');
-  XLSX.writeFile(wb, filename);
-  toast('Excel descargado','📥','success');
+  const W=55;
+  let t=`COTIZACIÓN: ${val('q-num')}   FECHA: ${val('q-date')}   CLIENTE: ${val('q-client')}\nPROYECTO: ${val('q-project')}\n\n`;
+  t+=`SUMINISTRO\n${'─'.repeat(100)}\n`;
+  t+=`${'PARTIDA'.padEnd(W)} ${'VOLUMEN'.padStart(9)} ${'UD'.padStart(7)} ${'PVP'.padStart(12)} ${'SUBTOTAL'.padStart(14)}\n`;
+  CURRENT_Q.supply.forEach(x=>{ t+=`${x.desc.substring(0,W-1).padEnd(W)} ${String(x.vol).padStart(9)} ${x.unit.padStart(7)} ${fmt(x.pvp).padStart(12)} ${fmt(x.vol*x.pvp).padStart(14)}\n`; });
+  t+=`\n${' '.repeat(76)} SUBTOTAL  ${fmt(supRaw).padStart(14)}\n`;
+  if(dv>0) t+=`${' '.repeat(60)} DESCUENTO POR VOLUMEN ${(dv*100).toFixed(0)+'%'}  ${fmt(supRaw*dv).padStart(10)}\n`;
+  if(dp>0) t+=`${' '.repeat(56)} DESCUENTO PRONTO PAGO ${(dp*100).toFixed(0)+'%'}  ${fmt(afterVol*dp).padStart(10)}\n`;
+  t+=`\n${' '.repeat(76)} SUBTOTAL  ${fmt(supNet).padStart(14)}\n`;
+  t+=`${' '.repeat(80)} IVA 16%  ${fmt(supNet*0.16).padStart(13)}\n`;
+  t+=`${' '.repeat(74)} TOTAL A PAGAR  ${fmt(supNet*1.16).padStart(8)}\n\n`;
+  t+=`MANO DE OBRA\n${'─'.repeat(100)}\n`;
+  CURRENT_Q.labor.forEach(x=>{ t+=`${x.desc.substring(0,W-1).padEnd(W)} ${String(x.vol).padStart(9)} ${x.unit.padStart(7)} ${fmt(x.pvp).padStart(12)} ${fmt(x.vol*x.pvp).padStart(14)}\n`; });
+  t+=`\n${' '.repeat(76)} SUBTOTAL  ${fmt(labRaw).padStart(14)}\n`;
+  t+=`${' '.repeat(80)} IVA 16%  ${fmt(labRaw*0.16).padStart(13)}\n`;
+  t+=`${' '.repeat(74)} TOTAL A PAGAR  ${fmt(labRaw*1.16).padStart(8)}\n`;
+  navigator.clipboard.writeText(t).then(()=>toast('Tabla copiada','📋','success')).catch(()=>toast('Error copiando','❌','error'));
 }
 function copyText(){
   navigator.clipboard.writeText(document.getElementById('proposal-text').innerText)
@@ -1413,7 +1456,8 @@ function openProdEditFromCatalogTab(id){
   CAT_ACTIVE_CAT=p.category||Object.keys(CAT_DEFS)[0];
   PE_PRODUCT=p;
   const fields=CAT_DEFS[CAT_ACTIVE_CAT]?.fields||[];
-  document.getElementById('pe-title').textContent='Editar: '+p.model;
+  const _t2=p.model||p[fields.find(f=>['model','nombre','servicio'].includes(f.key)||['Modelo','Nombre','Servicio'].includes(f.label))?.key]||fields[0]&&p[fields[0].key]||'Producto';
+  document.getElementById('pe-title').textContent='Editar: '+_t2;
   document.getElementById('pe-fields').innerHTML=fields.map(f=>`
     <div class="fg"><label class="lbl">${esc(f.label)}</label>
     <input class="inp" id="pe-f-${f.key}" type="${f.type||'text'}" value="${esc(String(p[f.key]||''))}" style="font-size:12px"></div>`).join('');
@@ -1422,6 +1466,9 @@ function openProdEditFromCatalogTab(id){
   document.getElementById('pe-d1').value=p.descD1||'';
   document.getElementById('pe-d2').value=p.descD2||'';
   const specElCat=document.getElementById('pe-spec'); if(specElCat) specElCat.value=p.spec||'';
+  const _peUnitC=document.getElementById('pe-unit'); if(_peUnitC) _peUnitC.value=p.unit||(_pEdit2=p,p.m2perBox?'caja':(p.pvpM2MXN?'m2':'caja'));
+  const _peConvC=document.getElementById('pe-conversion'); if(_peConvC) _peConvC.value=p.m2perUnit||p.m2perBox||'';
+  onPEUnitChange();
   if(!IS_ADMIN){
     document.getElementById('pe-cost').closest('.fg').style.display='none';
     document.getElementById('pe-disc-wrap').style.display='none';
@@ -1452,6 +1499,9 @@ function openNewProdCatalogTab(){
     <input class="inp" id="pe-f-${f.key}" type="${f.type||'text'}" style="font-size:12px"></div>`).join('');
   ['pe-pvp','pe-cost','pe-d1','pe-d2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const specEl=document.getElementById('pe-spec'); if(specEl) specEl.value='';
+  const _peUnitN=document.getElementById('pe-unit'); if(_peUnitN) _peUnitN.value='caja';
+  const _peConvN=document.getElementById('pe-conversion'); if(_peConvN) _peConvN.value='';
+  onPEUnitChange();
   document.getElementById('pe-calc-preview').style.display='none';
   if(!IS_ADMIN){
     document.getElementById('pe-cost').closest('.fg').style.display='none';
