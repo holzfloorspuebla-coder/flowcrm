@@ -210,7 +210,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-        <div class="fg"><label class="lbl" id="pe-pvp-lbl">Precio lista (MXN/caja)</label><input class="inp" id="pe-pvp" type="number" placeholder="4799.00" data-auto="1" oninput="this.removeAttribute('data-auto');calcPEPrices()"></div>
+        <div class="fg">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <label class="lbl" id="pe-pvp-lbl" style="margin-bottom:0">Precio lista (MXN/caja)</label>
+            <select class="inp" id="pe-price-unit" style="width:80px;padding:2px 4px;font-size:11px" onchange="onPEPriceUnitChange()">
+              <option value="m2">m²</option>
+              <option value="caja">Caja</option>
+              <option value="pieza">Pieza</option>
+            </select>
+          </div>
+          <input class="inp" id="pe-pvp" type="number" placeholder="4799.00" data-auto="1" oninput="this.removeAttribute('data-auto');calcPEPrices()">
+        </div>
         <div class="fg" id="pe-cost-wrap-cur">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
             <label class="lbl" id="pe-cost-lbl" style="margin-bottom:0">Costo (MXN/caja) — solo Luis</label>
@@ -939,6 +949,7 @@ function openAddProduct(){
   const _peCurA=document.getElementById('pe-currency'); if(_peCurA) _peCurA.value='MXN';
   const _peTcWrapA=document.getElementById('pe-tc-wrap'); if(_peTcWrapA) _peTcWrapA.style.display='none';
   const _pePvpA=document.getElementById('pe-pvp'); if(_pePvpA) _pePvpA.setAttribute('data-auto','1');
+  const _pePriceUnitR=document.getElementById('pe-price-unit'); if(_pePriceUnitR) _pePriceUnitR.value='caja';
   onPEUnitChange();
   document.getElementById('pe-calc-preview').style.display='none';
   if(!IS_ADMIN) document.getElementById('pe-cost').closest('.fg').style.display='none';
@@ -966,6 +977,7 @@ function openEditProduct(id){
   const _peTcE=document.getElementById('pe-tc'); if(_peTcE) _peTcE.value=_pEdit.tcUsado||'';
   const _peTcWrapE=document.getElementById('pe-tc-wrap'); if(_peTcWrapE) _peTcWrapE.style.display=(_pEdit.currency==='USD'?'':'none');
   const _pePvpE=document.getElementById('pe-pvp'); if(_pePvpE) _pePvpE.removeAttribute('data-auto');
+  const _pePriceUnitE=document.getElementById('pe-price-unit'); if(_pePriceUnitE) _pePriceUnitE.value=_pEdit.priceUnit||_pEdit.unit||'caja';
   onPEUnitChange();
   if(!IS_ADMIN){
     document.getElementById('pe-cost').closest('.fg').style.display='none';
@@ -987,6 +999,8 @@ async function saveProdEdit(){
   const d1=(parseFloat(document.getElementById('pe-d1').value)||0)/100;
   const d2=(parseFloat(document.getElementById('pe-d2').value)||0)/100;
   const unit=document.getElementById('pe-unit')?.value||'caja';
+  const priceUnit=document.getElementById('pe-price-unit')?.value||unit;
+  obj.priceUnit=priceUnit;
   const m2perUnit=unit==='m2'?1:(parseFloat(document.getElementById('pe-conversion')?.value)||0);
   const currency=document.getElementById('pe-currency')?.value||'MXN';
   const tcUsado=parseFloat(document.getElementById('pe-tc')?.value)||_TC||17.5;
@@ -1079,6 +1093,15 @@ async function onPECurrencyChange(){
   } else {
     tcWrap.style.display='none';
   }
+  onPEPriceUnitChange();
+}
+
+function onPEPriceUnitChange(){
+  const pu=document.getElementById('pe-price-unit')?.value||'caja';
+  const lbl=document.getElementById('pe-pvp-lbl');
+  const cur=document.getElementById('pe-currency')?.value||'MXN';
+  const units={'m2':'m²','caja':'caja','pieza':'pieza'};
+  if(lbl) lbl.textContent=`Precio lista (${cur}/${units[pu]||pu})`;
   calcPEPrices();
 }
 
@@ -1090,19 +1113,17 @@ function onPEUnitChange(){
   const costLbl=document.getElementById('pe-cost-lbl');
   if(unit==='m2'){
     convWrap.style.display='none';
-    pvpLbl.textContent='Precio lista (MXN/m²)';
     if(costLbl) costLbl.textContent='Costo (MXN/m²) — solo Luis';
   } else if(unit==='caja'){
     convWrap.style.display='';
     convLbl.textContent='m² por caja';
-    pvpLbl.textContent='Precio lista (MXN/caja)';
     if(costLbl) costLbl.textContent='Costo (MXN/caja) — solo Luis';
   } else if(unit==='pieza'){
     convWrap.style.display='';
     convLbl.textContent='m² por pieza';
-    pvpLbl.textContent='Precio lista (MXN/pieza)';
     if(costLbl) costLbl.textContent='Costo (MXN/pieza) — solo Luis';
   }
+  onPEPriceUnitChange();
   calcPEPrices();
 }
 
@@ -1125,9 +1146,9 @@ function buildDesc(p,fields){
   // Generar texto dinámico con todos los campos que tengan valor
   const partes=fields
     .filter(f=>p[f.key]!==undefined&&p[f.key]!==''&&p[f.key]!==0&&p[f.key]!==null)
-    .map(f=>`${f.label}: ${p[f.key]}`);
-  if(!partes.length) return cat||'';
-  return `Suministro ${cat} — ${partes.join(', ')}`;
+    .map(f=>`${f.label.toLowerCase()} ${p[f.key]}`);
+  if(!partes.length) return `Suministro de ${cat}`;
+  return `Suministro de ${cat} ${partes.join(', ')}`;
 }
 async function deleteProduct(id){
   if(!confirm('¿Eliminar este producto?')) return;
@@ -1633,6 +1654,7 @@ function openProdEditFromCatalogTab(id){
   const _peTcC=document.getElementById('pe-tc'); if(_peTcC) _peTcC.value=p.tcUsado||'';
   const _peTcWrapC=document.getElementById('pe-tc-wrap'); if(_peTcWrapC) _peTcWrapC.style.display=(p.currency==='USD'?'':'none');
   const _pePvpC=document.getElementById('pe-pvp'); if(_pePvpC) _pePvpC.removeAttribute('data-auto');
+  const _pePriceUnitC=document.getElementById('pe-price-unit'); if(_pePriceUnitC) _pePriceUnitC.value=p.priceUnit||p.unit||'caja';
   onPEUnitChange();
   if(!IS_ADMIN){
     document.getElementById('pe-cost').closest('.fg').style.display='none';
@@ -1669,6 +1691,7 @@ function openNewProdCatalogTab(){
   const _peCurN=document.getElementById('pe-currency'); if(_peCurN) _peCurN.value='MXN';
   const _peTcWrapN=document.getElementById('pe-tc-wrap'); if(_peTcWrapN) _peTcWrapN.style.display='none';
   const _pePvpN=document.getElementById('pe-pvp'); if(_pePvpN) _pePvpN.setAttribute('data-auto','1');
+  const _pePriceUnitR=document.getElementById('pe-price-unit'); if(_pePriceUnitR) _pePriceUnitR.value='caja';
   onPEUnitChange();
   document.getElementById('pe-calc-preview').style.display='none';
   if(!IS_ADMIN){
