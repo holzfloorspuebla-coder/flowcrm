@@ -197,7 +197,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <div id="pe-fields" class="pd-fields"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
         <div class="fg">
-          <label class="lbl">Unidad</label>
+          <label class="lbl">Unidad de venta</label>
           <select class="inp" id="pe-unit" onchange="onPEUnitChange()">
             <option value="m2">m²</option>
             <option value="caja">Caja</option>
@@ -1016,17 +1016,24 @@ async function saveProdEdit(){
   obj.descD1=parseFloat(document.getElementById('pe-d1').value)||0;
   obj.descD2=parseFloat(document.getElementById('pe-d2').value)||0;
   obj.spec=(document.getElementById('pe-spec').value||'').trim();
-  // Calcular costo neto aplicando descuentos (siempre en MXN)
-  if(costoMXN!==null){
-    obj.costoNetoMXN=round(costoMXN*(1-d1)*(1-d2),2);
+  // Calcular costo neto en priceUnit (antes de convertir a saleUnit)
+  const costoNetoRaw=costoMXN?round(costoMXN*(1-d1)*(1-d2),2):0;
+  // Convertir costo neto a saleUnit
+  let costoNetoSaleUnit=costoNetoRaw;
+  if(priceUnit!==unit && m2perUnit){
+    if(priceUnit==='m2' && unit!=='m2') costoNetoSaleUnit=round(costoNetoRaw*m2perUnit,4);
+    else if(priceUnit!=='m2' && unit==='m2') costoNetoSaleUnit=m2perUnit?round(costoNetoRaw/m2perUnit,4):0;
   }
-  // Calcular precios por m²
+  obj.costoNetoMXN=costoNetoSaleUnit||null;
+  // pvpCajaMXN es el PVP en saleUnit tal como lo introdujo el usuario
+  obj.pvpCajaMXN=pvpUnit;
+  // Calcular precios por m² para cotización
   if(unit==='m2'){
     obj.pvpM2MXN=pvpUnit;
-    obj.costoM2MXN=obj.costoNetoMXN||null;
+    obj.costoM2MXN=costoNetoSaleUnit||null;
   } else if(m2perUnit&&pvpUnit){
     obj.pvpM2MXN=round(pvpUnit/m2perUnit,2);
-    if(obj.costoNetoMXN) obj.costoM2MXN=round(obj.costoNetoMXN/m2perUnit,2);
+    if(costoNetoSaleUnit) obj.costoM2MXN=round(costoNetoSaleUnit/m2perUnit,2);
   } else {
     obj.pvpM2MXN=null;
     obj.costoM2MXN=null;
@@ -1041,7 +1048,6 @@ async function saveProdEdit(){
 }
 function calcPEPrices(){
   const pvpEl=document.getElementById('pe-pvp');
-  const pvpCaja=parseFloat(pvpEl?.value)||0;
   const costoRaw=parseFloat(document.getElementById('pe-cost').value)||0;
   const d1=(parseFloat(document.getElementById('pe-d1').value)||0)/100;
   const d2=(parseFloat(document.getElementById('pe-d2').value)||0)/100;
@@ -1050,31 +1056,56 @@ function calcPEPrices(){
   const costoMXN=cur==='USD'?costoRaw*tc:costoRaw;
   const preview=document.getElementById('pe-calc-preview');
   const costoNeto=costoMXN?(costoMXN*(1-d1)*(1-d2)):0;
-  // PVP automático = costo neto × 2 si el campo está en modo auto
-  if(costoNeto && pvpEl && pvpEl.hasAttribute('data-auto')){
-    pvpEl.value=round(costoNeto*2,2);
-  }
-  const pvpFinal=parseFloat(pvpEl?.value)||0;
-  if(!pvpFinal&&!costoNeto){preview.style.display='none';return;}
-  // Leer conversión a m²
-  const unit=document.getElementById('pe-unit')?.value||'caja';
+
+  // Unidades
+  const saleUnit=document.getElementById('pe-unit')?.value||'caja';
+  const priceUnit=document.getElementById('pe-price-unit')?.value||saleUnit;
   const convEl=document.getElementById('pe-conversion');
-  const m2pb=unit==='m2'?1:(convEl?parseFloat(convEl.value)||0:0);
+  const m2perSaleUnit=saleUnit==='m2'?1:(convEl?parseFloat(convEl.value)||0:0);
+
+  // Convertir costo a unidad de venta si es necesario
+  // costoRaw está expresado en priceUnit, necesitamos costoNeto en saleUnit
+  let costoNetoSale=costoNeto; // costo neto en priceUnit
+  if(priceUnit!==saleUnit && m2perSaleUnit){
+    if(priceUnit==='m2' && saleUnit!=='m2'){
+      // precio/m² → precio/unidad_venta
+      costoNetoSale=round(costoNeto*m2perSaleUnit,4);
+    } else if(priceUnit!=='m2' && saleUnit==='m2'){
+      // precio/unidad → precio/m²
+      costoNetoSale=m2perSaleUnit?round(costoNeto/m2perSaleUnit,4):0;
+    }
+  }
+
+  // PVP automático = costo neto en unidad de venta × 2
+  if(costoNetoSale && pvpEl && pvpEl.hasAttribute('data-auto')){
+    pvpEl.value=round(costoNetoSale*2,2);
+  }
+  const pvpSale=parseFloat(pvpEl?.value)||0; // PVP en saleUnit (lo que el usuario ve)
+
+  // Convertir PVP a m² para el preview
+  let pvpM2=0, costoM2=0;
+  if(saleUnit==='m2'){
+    pvpM2=pvpSale;
+    costoM2=costoNetoSale;
+  } else if(m2perSaleUnit&&pvpSale){
+    pvpM2=round(pvpSale/m2perSaleUnit,2);
+    costoM2=costoNetoSale?round(costoNetoSale/m2perSaleUnit,2):0;
+  }
+
+  if(!pvpSale&&!costoNeto){preview.style.display='none';return;}
   let html=`<div style="display:flex;gap:18px;flex-wrap:wrap">`;
   if(costoNeto){
-    const lbl=cur==='USD'?`Costo neto (${costoRaw*(1-d1)*(1-d2)<costoNeto?'':''}USD ${round(costoRaw*(1-d1)*(1-d2),2).toFixed(2)} → MXN)`:'Costo neto';
-    html+=`<div><div class="lbl">${lbl}</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(costoNeto)}</div></div>`;
+    const lbl=cur==='USD'?`Costo neto (USD ${round(costoRaw*(1-d1)*(1-d2),2).toFixed(2)} → MXN)`:'Costo neto';
+    html+=`<div><div class="lbl">${lbl}</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(costoNetoSale)}</div></div>`;
     if(cur==='USD') html+=`<div><div class="lbl">TC usado</div><div style="font-family:var(--mono)">$${tc.toFixed(2)}</div></div>`;
   }
-  if(m2pb&&pvpFinal){
-    const pvpM2=round(pvpFinal/m2pb,2);
-    const costoM2=costoNeto?round(costoNeto/m2pb,2):0;
+  if(pvpM2&&costoM2){
     const margen=pvpM2-costoM2, pct=pvpM2?margen/pvpM2:0;
     html+=`<div><div class="lbl">PVP/m²</div><div style="font-family:var(--mono)">${mxn(pvpM2)}</div></div>`;
-    if(costoM2) html+=`<div><div class="lbl">Costo/m²</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(costoM2)}</div></div>`;
-    if(costoM2) html+=`<div><div class="lbl">Margen</div>${mbadge(pct)}</div>`;
-  } else if(costoNeto&&pvpFinal){
-    const margen=pvpFinal-costoNeto, pct=pvpFinal?margen/pvpFinal:0;
+    html+=`<div><div class="lbl">Costo/m²</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(costoM2)}</div></div>`;
+    html+=`<div><div class="lbl">Margen</div>${mbadge(pct)}</div>`;
+  } else if(pvpSale&&costoNetoSale){
+    const margen=pvpSale-costoNetoSale, pct=pvpSale?margen/pvpSale:0;
     html+=`<div><div class="lbl">Margen</div>${mbadge(pct)}</div>`;
   }
   html+=`</div>`;
