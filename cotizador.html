@@ -577,7 +577,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
               <th>m²/caja</th>
               <th>PVP/m² MXN</th>
               <th>PVP/caja MXN</th>
-              <th style="color:var(--orange)">Costo neto</th>
+              <th id="cat-cost-hd" style="color:var(--orange)">Costo neto</th>
               <th>Margen</th>
               <th style="width:64px"></th>
             </tr></thead>
@@ -1220,9 +1220,11 @@ function openProductAdd(id){
   let pvpVal=0, costoVal=0, unitLabel='', costLabel='';
 
   if(p.unit==='pieza'){
-    // Venta por pieza — usar precios en MXN/pieza, m² solo informativo
-    pvpVal=round(parseFloat(p.pvpCajaMXN)||0,2);
-    costoVal=round(parseFloat(p.costoNetoMXN)||0,2);
+    // Venta por pieza — convertir precio/m² a precio/pieza usando m2perUnit
+    const pvpM2_=parseFloat(p.pvpM2MXN)||0;
+    const costoM2_=parseFloat(p.costoM2MXN)||0;
+    pvpVal=m2pu?round(pvpM2_*m2pu,2):round(parseFloat(p.pvpCajaMXN)||0,2);
+    costoVal=m2pu?round(costoM2_*m2pu,2):round(parseFloat(p.costoNetoMXN)||0,2);
     unitLabel='PVP por pieza (MXN)';
     costLabel='Costo por pieza (solo Luis)';
     if(volLbl) volLbl.textContent='Cantidad (piezas)';
