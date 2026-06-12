@@ -864,6 +864,7 @@ function renderCatalogTable(){
       ${IS_ADMIN?`<td class="num" style="color:var(--orange)">${p.costoMXN?mxn(p.costoMXN):'-'}</td>`:''}
       <td style="white-space:nowrap">
         ${IS_ADMIN?`<button class="btn-icon" onclick="event.stopPropagation();openEditProduct('${p.id}')" title="Editar">✏️</button>`:''}
+        ${IS_ADMIN?`<button class="btn-icon" onclick="event.stopPropagation();duplicateProduct('${p.id}')" title="Duplicar">⧉</button>`:''}
         ${IS_ADMIN?`<button class="btn-icon" onclick="event.stopPropagation();deleteProduct('${p.id}')" title="Eliminar" style="color:var(--accent)">✕</button>`:''}
       </td>
     </tr>`).join('');
@@ -1183,6 +1184,11 @@ function buildDesc(p,fields){
   const cat=CAT_ACTIVE_CAT||p.category||'';
   // Si hay especificación manual, tiene prioridad
   if(p.spec) return p.spec;
+  // Categoría Instalación: formato especial de mano de obra
+  if(cat==='Instalación'){
+    const servicio=p.model||'';
+    return `Mano de obra de ${servicio}. Incluye todo lo necesario para su correcta instalación`;
+  }
   // Generar texto dinámico con todos los campos que tengan valor
   const partes=fields
     .filter(f=>p[f.key]!==undefined&&p[f.key]!==''&&p[f.key]!==0&&p[f.key]!==null)
@@ -1443,10 +1449,10 @@ function renderQTable(tbodyId,items,table){
   tbody.innerHTML=items.map((x,i)=>`
     <tr>
       <td><textarea class="desc-inp" rows="2" onchange="CURRENT_Q['${table}'][${i}].desc=this.value;markDirty()">${esc(x.desc)}</textarea></td>
-      <td><input class="mini-inp" type="number" value="${x.vol}" style="width:65px" onchange="CURRENT_Q['${table}'][${i}].vol=parseFloat(this.value)||0;recalcAll();markDirty()"></td>
+      <td><input class="mini-inp" type="number" value="${x.vol}" style="width:65px" onchange="CURRENT_Q['${table}'][${i}].vol=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()"></td>
       <td style="font-size:11px;color:var(--text3);white-space:nowrap">${esc(x.unit)}</td>
       <td style="white-space:nowrap">
-        <input class="mini-inp" type="number" value="${x.pvp}" style="width:72px" onchange="CURRENT_Q['${table}'][${i}].pvp=parseFloat(this.value)||0;recalcAll();markDirty()">
+        <input class="mini-inp" type="number" value="${x.pvp}" style="width:72px" onchange="CURRENT_Q['${table}'][${i}].pvp=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()">
         ${x.currency==='USD'?'<span style="font-size:9px;font-weight:700;background:#2563eb22;color:#60a5fa;border-radius:3px;padding:1px 4px;margin-left:2px">USD</span>':''}
       </td>
       <td class="num">${x.currency==='USD'?'<span style="color:#60a5fa">USD '+fmtUSD(x.vol*x.pvp)+'</span>':mxn(x.vol*x.pvp)}</td>
@@ -1734,10 +1740,18 @@ function renderCatalogTabTable(){
       <td>${margen!==null?mbadge(margen):'—'}</td>
       <td style="display:flex;gap:4px">
         <button class="btn-icon" title="Editar" onclick="openProdEditFromCatalogTab('${p.id}')">✏️</button>
+        <button class="btn-icon" title="Duplicar" onclick="duplicateProduct('${p.id}')">⧉</button>
         <button class="btn-icon" style="color:var(--accent)" title="Eliminar" onclick="deleteProdFromCatalogTab('${p.id}')">✕</button>
       </td>
     </tr>`;
   }).join('')||`<tr><td colspan="10" style="text-align:center;color:var(--text3);padding:24px">Sin productos</td></tr>`;
+}
+function duplicateProduct(id){
+  const p=CATALOG.find(x=>x.id===id);
+  if(!p) return;
+  const copy={...p, id:'p_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)};
+  CATALOG.push(copy);
+  openProdEditFromCatalogTab(copy.id);
 }
 function openProdEditFromCatalogTab(id){
   const p=CATALOG.find(x=>x.id===id);
