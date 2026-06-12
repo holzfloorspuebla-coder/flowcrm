@@ -1081,8 +1081,8 @@ function calcPEPrices(){
     }
   }
 
-  // PVP automático = costo neto en unidad de venta × 2
-  if(costoNetoSale && pvpEl && pvpEl.hasAttribute('data-auto')){
+  // PVP automático = costo neto en unidad de venta × 2 (siempre se recalcula al cambiar costo/descuentos)
+  if(costoNetoSale && pvpEl){
     pvpEl.value=round(costoNetoSale*2,2);
   }
   const pvpSale=parseFloat(pvpEl?.value)||0; // PVP en saleUnit (lo que el usuario ve)
