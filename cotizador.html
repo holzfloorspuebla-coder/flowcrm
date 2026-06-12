@@ -1456,7 +1456,7 @@ function renderQTable(tbodyId,items,table){
 function removeItem(table,i){ CURRENT_Q[table].splice(i,1); renderQuoteTables(); recalcAll(); markDirty(); }
 
 // ── RECALC ──
-function recalcAll(){
+function recalcAll(skipExtraCostsRender){
   if(!CURRENT_Q) return;
   const discVol=(parseFloat(val('q-disc-vol'))||0)/100;
   const discPP=(parseFloat(val('q-disc-pp'))||0)/100;
@@ -1498,7 +1498,7 @@ function recalcAll(){
       setText('gt-mxn',mxn((supNetMXN+labRaw)*1.16));
     }
   }
-  renderExtraCosts();
+  if(!skipExtraCostsRender) renderExtraCosts();
   if(IS_ADMIN) recalcRent(supNetMXN,labRaw,extraCosts);
 }
 function renderExtraCosts(){
@@ -1536,7 +1536,7 @@ function removeExtraCost(i){
 function updateExtraCost(i,field,value){
   if(!CURRENT_Q?.extraCosts?.[i]) return;
   CURRENT_Q.extraCosts[i][field]=field==='amount'?(parseFloat(value)||0):value;
-  recalcAll();
+  recalcAll(true); // true = no reconstruir lista de gastos (mantiene el foco)
   markDirty();
 }
 
