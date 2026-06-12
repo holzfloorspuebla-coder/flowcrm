@@ -262,9 +262,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <div class="modal-body">
       <p id="pa-desc" style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.6"></p>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
-        <div class="fg"><label class="lbl">Volumen m²</label><input class="inp" id="pa-vol" type="number" placeholder="24.62" oninput="calcPA()"></div>
-        <div class="fg"><label class="lbl">Cajas (↑ redondeo)</label><input class="inp" id="pa-boxes" type="number" readonly style="opacity:.6"></div>
-        <div class="fg"><label class="lbl">m² reales</label><input class="inp" id="pa-m2r" type="number" readonly style="opacity:.6"></div>
+        <div class="fg"><label class="lbl" id="pa-vol-lbl">Volumen m²</label><input class="inp" id="pa-vol" type="number" placeholder="24.62" oninput="calcPA()"></div>
+        <div class="fg" id="pa-boxes-wrap"><label class="lbl" id="pa-boxes-lbl">Cajas (↑ redondeo)</label><input class="inp" id="pa-boxes" type="number" readonly style="opacity:.6"></div>
+        <div class="fg"><label class="lbl" id="pa-m2r-lbl">m² reales</label><input class="inp" id="pa-m2r" type="number" readonly style="opacity:.6"></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
         <div class="fg"><label class="lbl">PVP por m² (MXN)</label><input class="inp" id="pa-pvp" type="number" oninput="calcPA()"></div>
@@ -1209,38 +1209,57 @@ function openProductAdd(id){
   document.getElementById('pa-boxes').value='';
   document.getElementById('pa-m2r').value='';
   const m2pb=parseFloat(p.m2perBox)||0;
-  // PVP: si tiene precio/m² explícito, usarlo; si tiene m2perBox, calcular; si no, precio unitario directo
-  let pvpM2=0, costoM2=0;
-  if(p.pvpM2MXN && parseFloat(p.pvpM2MXN)){
-    pvpM2=round(parseFloat(p.pvpM2MXN),2);
-  } else if(p.pvpCajaMXN && m2pb){
-    pvpM2=round(parseFloat(p.pvpCajaMXN)/m2pb,2);
-  } else if(p.pvpCajaMXN){
-    // Producto por unidad (galón, pieza, etc.) — usar precio directo
-    pvpM2=round(parseFloat(p.pvpCajaMXN),2);
-  }
-  // Costo neto (ya con descuentos si se calcularon) o bruto convertido
-  if(p.costoM2MXN && parseFloat(p.costoM2MXN)){
-    costoM2=round(parseFloat(p.costoM2MXN),2);
-  } else if(p.costoNetoMXN && m2pb){
-    costoM2=round(parseFloat(p.costoNetoMXN)/m2pb,2);
-  } else if(p.costoNetoMXN){
-    costoM2=round(parseFloat(p.costoNetoMXN),2);
-  } else if(p.costoMXN && m2pb){
-    costoM2=round(parseFloat(p.costoMXN)/m2pb,2);
-  } else if(p.costoMXN){
-    costoM2=round(parseFloat(p.costoMXN),2);
-  }
-  // Etiqueta dinámica según tipo de producto
-  const unitLabel = m2pb ? 'PVP por m² (MXN)' : `PVP por ${p.unit||'ud.'} (MXN)`;
-  const costLabel = m2pb ? 'Costo por m² (solo Luis)' : `Costo por ${p.unit||'ud.'} (solo Luis)`;
-  // Actualizar solo los labels de PVP y Costo, por id de su input hermano
+  const m2pu=parseFloat(p.m2perUnit)||0;
+  const volLbl=document.getElementById('pa-vol-lbl');
+  const boxesWrap=document.getElementById('pa-boxes-wrap');
+  const boxesLbl=document.getElementById('pa-boxes-lbl');
+  const m2rLbl=document.getElementById('pa-m2r-lbl');
   const pvpLbl=document.getElementById('pa-pvp').closest('.fg')?.querySelector('.lbl');
   const costLbl=document.getElementById('pa-cost').closest('.fg')?.querySelector('.lbl');
+
+  let pvpVal=0, costoVal=0, unitLabel='', costLabel='';
+
+  if(p.unit==='pieza'){
+    // Venta por pieza — usar precios en MXN/pieza, m² solo informativo
+    pvpVal=round(parseFloat(p.pvpCajaMXN)||0,2);
+    costoVal=round(parseFloat(p.costoNetoMXN)||0,2);
+    unitLabel='PVP por pieza (MXN)';
+    costLabel='Costo por pieza (solo Luis)';
+    if(volLbl) volLbl.textContent='Cantidad (piezas)';
+    if(boxesWrap) boxesWrap.style.display='none';
+    if(m2rLbl) m2rLbl.textContent='m² equivalentes';
+  } else {
+    // m² o caja — comportamiento existente
+    if(p.pvpM2MXN && parseFloat(p.pvpM2MXN)){
+      pvpVal=round(parseFloat(p.pvpM2MXN),2);
+    } else if(p.pvpCajaMXN && m2pb){
+      pvpVal=round(parseFloat(p.pvpCajaMXN)/m2pb,2);
+    } else if(p.pvpCajaMXN){
+      pvpVal=round(parseFloat(p.pvpCajaMXN),2);
+    }
+    if(p.costoM2MXN && parseFloat(p.costoM2MXN)){
+      costoVal=round(parseFloat(p.costoM2MXN),2);
+    } else if(p.costoNetoMXN && m2pb){
+      costoVal=round(parseFloat(p.costoNetoMXN)/m2pb,2);
+    } else if(p.costoNetoMXN){
+      costoVal=round(parseFloat(p.costoNetoMXN),2);
+    } else if(p.costoMXN && m2pb){
+      costoVal=round(parseFloat(p.costoMXN)/m2pb,2);
+    } else if(p.costoMXN){
+      costoVal=round(parseFloat(p.costoMXN),2);
+    }
+    unitLabel = m2pb ? 'PVP por m² (MXN)' : `PVP por ${p.unit||'ud.'} (MXN)`;
+    costLabel = m2pb ? 'Costo por m² (solo Luis)' : `Costo por ${p.unit||'ud.'} (solo Luis)`;
+    if(volLbl) volLbl.textContent='Volumen m²';
+    if(boxesWrap) boxesWrap.style.display='';
+    if(boxesLbl) boxesLbl.textContent='Cajas (↑ redondeo)';
+    if(m2rLbl) m2rLbl.textContent='m² reales';
+  }
+
   if(pvpLbl) pvpLbl.textContent=unitLabel;
   if(costLbl) costLbl.textContent=costLabel;
-  document.getElementById('pa-pvp').value=pvpM2||'';
-  document.getElementById('pa-cost').value=costoM2||'';
+  document.getElementById('pa-pvp').value=pvpVal||'';
+  document.getElementById('pa-cost').value=costoVal||'';
   document.getElementById('pa-table').value=CAT_TARGET_TABLE;
   document.getElementById('pa-rent').innerHTML='';
   closeModal('modal-catalog');
@@ -1249,8 +1268,13 @@ function openProductAdd(id){
 function calcPA(){
   const p=PA_PRODUCT;
   const vol=parseFloat(document.getElementById('pa-vol').value)||0;
-  // Cajas y m² reales (solo si el producto tiene m2perBox)
-  if(p&&p.m2perBox&&vol){
+
+  if(p&&p.unit==='pieza'){
+    // vol = cantidad de piezas; m² equivalentes solo informativo
+    const m2pu=parseFloat(p.m2perUnit)||0;
+    document.getElementById('pa-boxes').value='';
+    document.getElementById('pa-m2r').value=vol&&m2pu?round(vol*m2pu,3):'';
+  } else if(p&&p.m2perBox&&vol){
     const boxes=Math.ceil(vol/p.m2perBox);
     const m2r=round(boxes*p.m2perBox,3);
     document.getElementById('pa-boxes').value=boxes;
@@ -1259,12 +1283,14 @@ function calcPA(){
     document.getElementById('pa-boxes').value='';
     document.getElementById('pa-m2r').value=vol||'';
   }
+
   if(IS_ADMIN&&vol){
-    const pvpM2=parseFloat(document.getElementById('pa-pvp').value)||0;
-    const costM2=parseFloat(document.getElementById('pa-cost').value)||0;
-    const m2real=p&&p.m2perBox ? round(Math.ceil(vol/p.m2perBox)*p.m2perBox,3) : vol;
-    if(pvpM2){
-      const totPVP=round(m2real*pvpM2,2), totCost=round(m2real*costM2,2);
+    const pvpVal=parseFloat(document.getElementById('pa-pvp').value)||0;
+    const costVal=parseFloat(document.getElementById('pa-cost').value)||0;
+    let qty=vol;
+    if(p&&p.unit!=='pieza'&&p.m2perBox) qty=round(Math.ceil(vol/p.m2perBox)*p.m2perBox,3);
+    if(pvpVal){
+      const totPVP=round(qty*pvpVal,2), totCost=round(qty*costVal,2);
       const margin=totPVP-totCost, pct=totPVP?margin/totPVP:0;
       document.getElementById('pa-rent').innerHTML=`<div style="display:flex;gap:14px;flex-wrap:wrap">
         <div><div class="lbl">PVP total</div><div style="font-family:var(--mono)">${mxn(totPVP)}</div></div>
@@ -1277,11 +1303,15 @@ function calcPA(){
 function confirmAddToQuote(){
   const p=PA_PRODUCT;
   if(!p){toast('Sin producto','⚠️');return;}
-  const pvpM2=parseFloat(document.getElementById('pa-pvp').value)||0;
-  const costM2=parseFloat(document.getElementById('pa-cost').value)||0;
+  const pvpVal=parseFloat(document.getElementById('pa-pvp').value)||0;
+  const costVal=parseFloat(document.getElementById('pa-cost').value)||0;
   const table=document.getElementById('pa-table').value;
   let vol,unit;
-  if(p.m2perBox&&document.getElementById('pa-vol').value){
+  if(p.unit==='pieza'){
+    // vol = cantidad de piezas, pvp/cost ya están en MXN/pieza
+    vol=parseFloat(document.getElementById('pa-vol').value)||0;
+    unit='pieza';
+  } else if(p.m2perBox&&document.getElementById('pa-vol').value){
     const volRaw=parseFloat(document.getElementById('pa-vol').value)||0;
     const boxes=Math.ceil(volRaw/p.m2perBox);
     vol=round(boxes*p.m2perBox,3); unit='m2';
@@ -1289,9 +1319,9 @@ function confirmAddToQuote(){
     vol=parseFloat(document.getElementById('pa-vol').value)||0;
     unit=p.unit||'m2';
   }
-  if(!vol||!pvpM2){toast('Ingresa volumen y PVP','⚠️');return;}
-  // pvp y cost se guardan por m² — la tabla los multiplica por volumen directamente
-  CURRENT_Q[table].push({id:uid(),desc:p.description||p.model,vol,unit,pvp:pvpM2,cost:costM2,currency:p.currency||'MXN',tcRef:p.tcUsado||_TC||0});
+  if(!vol||!pvpVal){toast('Ingresa volumen y PVP','⚠️');return;}
+  // pvp y cost se guardan en la unidad de venta (vol*pvp = subtotal)
+  CURRENT_Q[table].push({id:uid(),desc:p.description||p.model,vol,unit,pvp:pvpVal,cost:costVal,currency:p.currency||'MXN',tcRef:p.tcUsado||_TC||0});
   closeModal('modal-prod-add');
   renderQuoteTables(); recalcAll(); markDirty();
   toast('Producto añadido','✅','success');
