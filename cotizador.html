@@ -543,12 +543,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           </div>
         </div>
         <div class="sec">
-          <div class="sec-hd"><div class="sec-title">Descuentos de costo</div></div>
-          <div style="padding:12px 16px">
-            <div class="disc-row"><span style="font-size:12px;color:var(--text2)">Descuento 1 (proveedor)</span><div style="display:flex;align-items:center;gap:4px"><input class="mini-inp" id="cost-d1" type="number" value="0" min="0" max="100" style="width:55px" oninput="recalcAll()"><span style="font-size:11px;color:var(--text3)">%</span></div></div>
-            <div class="disc-row"><span style="font-size:12px;color:var(--text2)">Descuento 2</span><div style="display:flex;align-items:center;gap:4px"><input class="mini-inp" id="cost-d2" type="number" value="0" min="0" max="100" style="width:55px" oninput="recalcAll()"><span style="font-size:11px;color:var(--text3)">%</span></div></div>
-            <div class="disc-row"><span style="font-size:12px;color:var(--text2)">Descuento 3</span><div style="display:flex;align-items:center;gap:4px"><input class="mini-inp" id="cost-d3" type="number" value="0" min="0" max="100" style="width:55px" oninput="recalcAll()"><span style="font-size:11px;color:var(--text3)">%</span></div></div>
-            <div class="disc-row" style="border:none"><span style="font-size:12px;color:var(--text2)">Flete / extras</span><div style="display:flex;align-items:center;gap:4px"><span style="font-size:11px;color:var(--text3)">$</span><input class="mini-inp" id="cost-flete" type="number" value="0" style="width:80px" oninput="recalcAll()"></div></div>
+          <div class="sec-hd" style="display:flex;justify-content:space-between;align-items:center">
+            <div class="sec-title">Gastos adicionales</div>
+            <button class="btn btn-ghost" style="font-size:11px;padding:3px 8px" onclick="addExtraCost()">+ Agregar gasto</button>
+          </div>
+          <div style="padding:12px 16px" id="extra-costs-list">
+            <!-- líneas generadas dinámicamente -->
           </div>
         </div>
       </div>
@@ -1356,7 +1356,7 @@ function newQuote(){
   const year=new Date().getFullYear();
   const q={id:uid(),num:`P${String(100+QUOTES.length).padStart(3,'0')}/C001/${year}`,
     date:today(),project:'',client:'',pricelist:'',discVol:0,discPP:0,
-    supply:[],labor:[],costD1:0,costD2:0,costD3:0,costFlete:0,text:'',_createdAt:Date.now()};
+    supply:[],labor:[],extraCosts:[],text:'',_createdAt:Date.now()};
   QUOTES.unshift(q);
   renderQuoteList();
   selectQuote(q.id);
@@ -1380,8 +1380,8 @@ function loadQuoteToForm(){
   setValue('q-project',q.project); setValue('q-client',q.client);
   setValue('q-pricelist',q.pricelist);
   setValue('q-disc-vol',q.discVol||0); setValue('q-disc-pp',q.discPP||0);
-  setValue('cost-d1',q.costD1||0); setValue('cost-d2',q.costD2||0);
-  setValue('cost-d3',q.costD3||0); setValue('cost-flete',q.costFlete||0);
+  if(!q.extraCosts) q.extraCosts=[];
+  renderExtraCosts();
   document.getElementById('proposal-text').innerHTML=q.text||'';
 }
 async function saveQuote(){
@@ -1391,8 +1391,6 @@ async function saveQuote(){
   q.client=val('q-client'); q.pricelist=val('q-pricelist');
   q.discVol=parseFloat(val('q-disc-vol'))||0;
   q.discPP=parseFloat(val('q-disc-pp'))||0;
-  q.costD1=parseFloat(val('cost-d1'))||0; q.costD2=parseFloat(val('cost-d2'))||0;
-  q.costD3=parseFloat(val('cost-d3'))||0; q.costFlete=parseFloat(val('cost-flete'))||0;
   q.text=document.getElementById('proposal-text').innerHTML;
   q._updatedAt=Date.now();
   const idx=QUOTES.findIndex(x=>x.id===q.id);
@@ -1462,10 +1460,7 @@ function recalcAll(){
   if(!CURRENT_Q) return;
   const discVol=(parseFloat(val('q-disc-vol'))||0)/100;
   const discPP=(parseFloat(val('q-disc-pp'))||0)/100;
-  const d1=(parseFloat(val('cost-d1'))||0)/100;
-  const d2=(parseFloat(val('cost-d2'))||0)/100;
-  const d3=(parseFloat(val('cost-d3'))||0)/100;
-  const flete=parseFloat(val('cost-flete'))||0;
+  const extraCosts=CURRENT_Q.extraCosts||[];
   // Separar items por moneda
   const supMXN=CURRENT_Q.supply.filter(x=>(x.currency||'MXN')==='MXN');
   const supUSD=CURRENT_Q.supply.filter(x=>x.currency==='USD');
@@ -1503,21 +1498,61 @@ function recalcAll(){
       setText('gt-mxn',mxn((supNetMXN+labRaw)*1.16));
     }
   }
-  if(IS_ADMIN) recalcRent(supNetMXN,labRaw,d1,d2,d3,flete);
+  renderExtraCosts();
+  if(IS_ADMIN) recalcRent(supNetMXN,labRaw,extraCosts);
 }
-function recalcRent(supNet,labRaw,d1,d2,d3,flete){
+function renderExtraCosts(){
+  const list=document.getElementById('extra-costs-list');
+  if(!list) return;
+  const items=CURRENT_Q?.extraCosts||[];
+  if(!items.length){
+    list.innerHTML='<div style="font-size:12px;color:var(--text3);text-align:center;padding:8px">Sin gastos adicionales</div>';
+    return;
+  }
+  list.innerHTML=items.map((e,i)=>`
+    <div class="disc-row" style="gap:8px">
+      <input class="mini-inp" type="text" placeholder="Descripción (ej. Comisión arquitecto)" value="${esc(e.desc||'')}" style="flex:1" oninput="updateExtraCost(${i},'desc',this.value)">
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:11px;color:var(--text3)">$</span>
+        <input class="mini-inp" type="number" value="${e.amount||0}" style="width:90px" oninput="updateExtraCost(${i},'amount',this.value)">
+        <button class="btn-icon" style="color:var(--accent)" title="Eliminar" onclick="removeExtraCost(${i})">✕</button>
+      </div>
+    </div>`).join('');
+}
+function addExtraCost(){
+  if(!CURRENT_Q) return;
+  if(!CURRENT_Q.extraCosts) CURRENT_Q.extraCosts=[];
+  CURRENT_Q.extraCosts.push({desc:'',amount:0});
+  renderExtraCosts();
+  markDirty();
+}
+function removeExtraCost(i){
+  if(!CURRENT_Q?.extraCosts) return;
+  CURRENT_Q.extraCosts.splice(i,1);
+  renderExtraCosts();
+  recalcAll();
+  markDirty();
+}
+function updateExtraCost(i,field,value){
+  if(!CURRENT_Q?.extraCosts?.[i]) return;
+  CURRENT_Q.extraCosts[i][field]=field==='amount'?(parseFloat(value)||0):value;
+  recalcAll();
+  markDirty();
+}
+
+function recalcRent(supNet,labRaw,extraCosts){
   const discVol=(parseFloat(val('q-disc-vol'))||0)/100;
   const discPP=(parseFloat(val('q-disc-pp'))||0)/100;
   const income=supNet+labRaw; // supNet ya lleva descVol y descPP; labRaw sin descuentos
   const allItems=[...CURRENT_Q.supply,...CURRENT_Q.labor];
-  let totalCost=flete;
+  const extraTotal=(extraCosts||[]).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  let totalCost=extraTotal;
   document.getElementById('rent-tbody').innerHTML=allItems.map((x,i)=>{
     const isSupply=i<CURRENT_Q.supply.length;
     // PVP neto por partida: aplicar descuentos solo a suministro
     const pvpBruto=x.vol*x.pvp;
     const pvpNeto=isSupply ? pvpBruto*(1-discVol)*(1-discPP) : pvpBruto;
-    let cost=x.cost||0;
-    if(cost>0) cost=cost*(1-d1)*(1-d2)*(1-d3);
+    const cost=x.cost||0; // costo ya neto desde el catálogo, sin descuentos adicionales
     const costT=x.vol*cost;
     totalCost+=costT;
     const margin=pvpNeto-costT, pct=pvpNeto?margin/pvpNeto:0;
