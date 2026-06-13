@@ -206,38 +206,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         </div>
         <div class="fg" id="pe-conversion-wrap">
           <label class="lbl" id="pe-conversion-lbl">m² por caja</label>
-          <input class="inp" id="pe-conversion" type="number" placeholder="2.16" min="0" step="0.01" oninput="calcPEPrices()">
+          <input class="inp" id="pe-conversion" type="number" placeholder="2.16" min="0" step="0.01" oninput="renderPESuppliers()">
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-        <div class="fg">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-            <label class="lbl" id="pe-pvp-lbl" style="margin-bottom:0">Precio lista (MXN/caja)</label>
-            <select class="inp" id="pe-price-unit" style="width:80px;padding:2px 4px;font-size:11px" onchange="onPEPriceUnitChange()">
-              <option value="m2">m²</option>
-              <option value="caja">Caja</option>
-              <option value="pieza">Pieza</option>
-            </select>
-          </div>
-          <input class="inp" id="pe-pvp" type="number" placeholder="4799.00" data-auto="1" oninput="this.removeAttribute('data-auto');calcPEPrices()">
+      <div id="pe-suppliers-section" style="margin-top:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <label class="lbl" style="margin-bottom:0">Proveedores</label>
+          <button type="button" class="btn btn-ghost" id="pe-add-supplier-btn" style="font-size:11px;padding:3px 8px" onclick="addPESupplier()">+ Agregar proveedor</button>
         </div>
-        <div class="fg" id="pe-cost-wrap-cur">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-            <label class="lbl" id="pe-cost-lbl" style="margin-bottom:0">Costo (MXN/caja) — solo Luis</label>
-            <select class="inp" id="pe-currency" style="width:80px;padding:2px 4px;font-size:11px" onchange="onPECurrencyChange()">
-              <option value="MXN">MXN</option>
-              <option value="USD">USD</option>
-            </select>
-          </div>
-          <input class="inp" id="pe-cost" type="number" placeholder="3599.00" oninput="calcPEPrices()">
-        </div>
-      </div>
-      <div id="pe-tc-wrap" style="display:none;margin-top:8px">
-        <div class="fg"><label class="lbl">Tipo de cambio USD → MXN</label><input class="inp" id="pe-tc" type="number" placeholder="17.50" step="0.01" oninput="calcPEPrices()"></div>
-      </div>
-      <div id="pe-disc-wrap" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-        <div class="fg"><label class="lbl">Desc. 1 proveedor %</label><input class="inp" id="pe-d1" type="number" placeholder="30" min="0" max="100" oninput="calcPEPrices()"></div>
-        <div class="fg"><label class="lbl">Desc. 2 %</label><input class="inp" id="pe-d2" type="number" placeholder="5" min="0" max="100" oninput="calcPEPrices()"></div>
+        <div id="pe-suppliers-list"></div>
       </div>
       <div style="margin-top:8px" class="fg">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
@@ -246,7 +223,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         </div>
         <textarea class="inp" id="pe-spec" rows="3" placeholder="Escribe o genera el texto que aparecerá en la cotización..." style="font-size:12px;resize:vertical"></textarea>
       </div>
-      <div id="pe-calc-preview" style="margin-top:8px;padding:8px;background:var(--surface2);border-radius:var(--r);font-size:11px;display:none"></div>
     </div>
     <div class="modal-ft">
       <button class="btn btn-ghost" onclick="closeModal('modal-prod-edit')">Cancelar</button>
@@ -261,6 +237,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
     <div class="modal-hd"><h2 id="pa-title">Añadir a cotización</h2><button class="modal-close" onclick="closeModal('modal-prod-add')">✕</button></div>
     <div class="modal-body">
       <p id="pa-desc" style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.6"></p>
+      <div class="fg" id="pa-supplier-wrap" style="display:none;margin-bottom:10px">
+        <label class="lbl">Proveedor</label>
+        <select class="inp" id="pa-supplier" onchange="onPASupplierChange()"></select>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px">
         <div class="fg"><label class="lbl" id="pa-vol-lbl">Volumen m²</label><input class="inp" id="pa-vol" type="number" placeholder="24.62" oninput="calcPA()"></div>
         <div class="fg" id="pa-boxes-wrap"><label class="lbl" id="pa-boxes-lbl">Cajas (↑ redondeo)</label><input class="inp" id="pa-boxes" type="number" readonly style="opacity:.6"></div>
@@ -598,11 +578,15 @@ let IS_ADMIN = false;
 let CATALOG  = [];
 let CAT_DEFS = {};
 let QUOTES   = [];
+let PROVIDERS = [];
+let PROVIDER_CATS = [];
 let CURRENT_Q = null;
 let CAT_TARGET_TABLE = 'supply';
 let CAT_ACTIVE_CAT   = '';
 let PA_PRODUCT = null;
+let PA_SELECTED_CURRENCY = 'MXN';
 let PE_PRODUCT = null;
+let _peSuppliers = []; // array temporal de proveedores mientras el modal está abierto
 let IS_SAVING = false;
 let _TC = 0; // Tipo de cambio USD/MXN — se carga de Banxico al abrir modal con USD
 
@@ -708,6 +692,10 @@ async function loadAllFromCloud(){
     // Quotes
     QUOTES = data.quotes || [];
 
+    // Providers
+    PROVIDERS = data.providers || [];
+    PROVIDER_CATS = data.providerCats || [];
+
     // Catalog — cloud takes priority, fallback to JSON file
     if(data.catalog && data.catalog.length > 0){
       CATALOG = data.catalog;
@@ -722,6 +710,24 @@ async function loadAllFromCloud(){
     CAT_DEFS = data.catDefs && Object.keys(data.catDefs).length > 0
       ? data.catDefs
       : {...DEFAULT_CAT_DEFS};
+
+    // Migración: productos sin suppliers[] -> crear un proveedor con los valores actuales
+    CATALOG.forEach(p=>{
+      if(!p.suppliers || !p.suppliers.length){
+        p.suppliers=[{
+          providerId: null,
+          providerName: '',
+          priceUnit: p.priceUnit || p.unit || 'caja',
+          currency: p.currency || 'MXN',
+          cost: p.currency==='USD' ? (p.costoUSD||0) : (p.costoMXN||0),
+          d1: p.descD1||0,
+          d2: p.descD2||0,
+          tc: p.tcUsado||0,
+          pvp: p.pvpCajaMXN||0
+        }];
+        recalcProductFromSuppliers(p);
+      }
+    });
 
     const t = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
     setSyncDot('ok');
@@ -943,17 +949,11 @@ function openAddProduct(){
   document.getElementById('pe-fields').innerHTML=fields.map(f=>`
     <div class="fg"><label class="lbl">${esc(f.label)}</label>
     <input class="inp" id="pe-f-${f.key}" type="${f.type||'text'}" style="font-size:12px"></div>`).join('');
-  ['pe-pvp','pe-cost','pe-d1','pe-d2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   const _peUnitA=document.getElementById('pe-unit'); if(_peUnitA) _peUnitA.value='caja';
   const _peConvA=document.getElementById('pe-conversion'); if(_peConvA) _peConvA.value='';
   const _peSpecA=document.getElementById('pe-spec'); if(_peSpecA) _peSpecA.value='';
-  const _peCurA=document.getElementById('pe-currency'); if(_peCurA) _peCurA.value='MXN';
-  const _peTcWrapA=document.getElementById('pe-tc-wrap'); if(_peTcWrapA) _peTcWrapA.style.display='none';
-  const _pePvpA=document.getElementById('pe-pvp'); if(_pePvpA) _pePvpA.setAttribute('data-auto','1');
-  const _pePriceUnitR=document.getElementById('pe-price-unit'); if(_pePriceUnitR) _pePriceUnitR.value='caja';
+  _peSuppliers=[{providerId:'',providerName:'',currency:'MXN',cost:0,d1:0,d2:0,tc:0,pvp:0,priceUnit:'caja'}];
   onPEUnitChange();
-  document.getElementById('pe-calc-preview').style.display='none';
-  if(!IS_ADMIN) document.getElementById('pe-cost').closest('.fg').style.display='none';
   _resetSaveBtn();
   document.getElementById('modal-prod-edit').classList.remove('hidden');
 }
@@ -966,25 +966,17 @@ function openEditProduct(id){
   document.getElementById('pe-fields').innerHTML=fields.map(f=>`
     <div class="fg"><label class="lbl">${esc(f.label)}</label>
     <input class="inp" id="pe-f-${f.key}" type="${f.type||'text'}" value="${esc(String(PE_PRODUCT[f.key]||''))}" style="font-size:12px"></div>`).join('');
-  document.getElementById('pe-pvp').value=PE_PRODUCT.pvpCajaMXN||PE_PRODUCT.pvpM2MXN||'';
-  document.getElementById('pe-cost').value=PE_PRODUCT.costoMXN||'';
-  document.getElementById('pe-d1').value=PE_PRODUCT.descD1||'';
-  document.getElementById('pe-d2').value=PE_PRODUCT.descD2||'';
   const specElEdit=document.getElementById('pe-spec'); if(specElEdit) specElEdit.value=PE_PRODUCT.spec||'';
   const _pEdit=PE_PRODUCT;
   const _peUnitE=document.getElementById('pe-unit'); if(_peUnitE) _peUnitE.value=_pEdit.unit||(_pEdit.m2perBox?'caja':(_pEdit.pvpM2MXN?'m2':'caja'));
   const _peConvE=document.getElementById('pe-conversion'); if(_peConvE) _peConvE.value=_pEdit.m2perUnit||_pEdit.m2perBox||'';
-  const _peCurE=document.getElementById('pe-currency'); if(_peCurE) _peCurE.value=_pEdit.currency||'MXN';
-  const _peTcE=document.getElementById('pe-tc'); if(_peTcE) _peTcE.value=_pEdit.tcUsado||'';
-  const _peTcWrapE=document.getElementById('pe-tc-wrap'); if(_peTcWrapE) _peTcWrapE.style.display=(_pEdit.currency==='USD'?'':'none');
-  const _pePvpE=document.getElementById('pe-pvp'); if(_pePvpE){ if(_pEdit.pvpCajaMXN) _pePvpE.removeAttribute('data-auto'); else _pePvpE.setAttribute('data-auto','1'); }
-  const _pePriceUnitE=document.getElementById('pe-price-unit'); if(_pePriceUnitE) _pePriceUnitE.value=_pEdit.priceUnit||_pEdit.unit||'caja';
+  _peSuppliers=(_pEdit.suppliers&&_pEdit.suppliers.length)?_pEdit.suppliers.map(s=>({...s})):[{providerId:'',providerName:'',currency:_pEdit.currency||'MXN',cost:(_pEdit.currency==='USD'?_pEdit.costoUSD:_pEdit.costoMXN)||0,d1:_pEdit.descD1||0,d2:_pEdit.descD2||0,tc:_pEdit.tcUsado||0,pvp:_pEdit.pvpCajaMXN||0,priceUnit:_pEdit.priceUnit||_pEdit.unit||'caja'}];
   onPEUnitChange();
   if(!IS_ADMIN){
-    document.getElementById('pe-cost').closest('.fg').style.display='none';
-    document.getElementById('pe-disc-wrap').style.display='none';
+    document.getElementById('pe-suppliers-section').style.display='none';
+  } else {
+    document.getElementById('pe-suppliers-section').style.display='';
   }
-  calcPEPrices();
   _resetSaveBtn();
   document.getElementById('modal-prod-edit').classList.remove('hidden');
 }
@@ -995,54 +987,16 @@ async function saveProdEdit(){
     const el=document.getElementById('pe-f-'+f.key);
     if(el) obj[f.key]=f.type==='number'?(parseFloat(el.value)||0):el.value.trim();
   });
-  const pvpUnit=parseFloat(document.getElementById('pe-pvp').value)||null;
-  const costoUnit=parseFloat(document.getElementById('pe-cost').value)||null;
-  const d1=(parseFloat(document.getElementById('pe-d1').value)||0)/100;
-  const d2=(parseFloat(document.getElementById('pe-d2').value)||0)/100;
   const unit=document.getElementById('pe-unit')?.value||'caja';
-  const priceUnit=document.getElementById('pe-price-unit')?.value||unit;
-  obj.priceUnit=priceUnit;
   const m2perUnit=unit==='m2'?1:(parseFloat(document.getElementById('pe-conversion')?.value)||0);
-  const currency=document.getElementById('pe-currency')?.value||'MXN';
-  const tcUsado=parseFloat(document.getElementById('pe-tc')?.value)||_TC||17.5;
-  const costoMXN=currency==='USD'&&costoUnit?round(costoUnit*tcUsado,2):costoUnit;
   obj.unit=unit;
   obj.m2perUnit=m2perUnit;
-  obj.m2perBox=unit==='caja'?m2perUnit:(obj.m2perBox||null);
-  obj.currency=currency;
-  obj.costoUSD=currency==='USD'?costoUnit:null;
-  obj.tcUsado=currency==='USD'?tcUsado:null;
-  obj.pvpCajaMXN=pvpUnit;
-  obj.costoMXN=costoMXN;
-  obj.descD1=parseFloat(document.getElementById('pe-d1').value)||0;
-  obj.descD2=parseFloat(document.getElementById('pe-d2').value)||0;
   obj.spec=(document.getElementById('pe-spec').value||'').trim();
-  // Calcular costo neto en priceUnit (antes de convertir a saleUnit)
-  const costoNetoRaw=costoMXN?round(costoMXN*(1-d1)*(1-d2),2):0;
-  // Convertir costo neto a saleUnit
-  let costoNetoSaleUnit=costoNetoRaw;
-  if(priceUnit!==unit && m2perUnit){
-    if(priceUnit==='m2' && unit!=='m2') costoNetoSaleUnit=round(costoNetoRaw*m2perUnit,4);
-    else if(priceUnit!=='m2' && unit==='m2') costoNetoSaleUnit=m2perUnit?round(costoNetoRaw/m2perUnit,4):0;
-  }
-  obj.costoNetoMXN=costoNetoSaleUnit||null;
-  // pvpCajaMXN es el PVP en saleUnit tal como lo introdujo el usuario
-  obj.pvpCajaMXN=pvpUnit;
-  // Calcular precios por m² para cotización
-  if(priceUnit==='m2'){
-    // Precio introducido ya en m²
-    obj.pvpM2MXN=pvpUnit;
-    obj.costoM2MXN=costoNetoRaw||null;
-  } else if(unit==='m2'){
-    obj.pvpM2MXN=pvpUnit;
-    obj.costoM2MXN=costoNetoSaleUnit||null;
-  } else if(m2perUnit&&pvpUnit){
-    obj.pvpM2MXN=round(pvpUnit/m2perUnit,2);
-    if(costoNetoSaleUnit) obj.costoM2MXN=round(costoNetoSaleUnit/m2perUnit,2);
-  } else {
-    obj.pvpM2MXN=null;
-    obj.costoM2MXN=null;
-  }
+  // Guardar lista de proveedores y recalcular campos raíz (proveedor más barato)
+  obj.suppliers=_peSuppliers.map(s=>{ const {_calc,...clean}=s; return clean; });
+  obj.priceUnit=(_peSuppliers[0]?.priceUnit)||unit;
+  obj.m2perBox=unit==='caja'?m2perUnit:(obj.m2perBox||null);
+  recalcProductFromSuppliers(obj);
   obj.description=buildDesc(obj,fields);
   if(PE_PRODUCT){ const idx=CATALOG.findIndex(p=>p.id===PE_PRODUCT.id); if(idx>-1) CATALOG[idx]=obj; }
   else CATALOG.push(obj);
@@ -1051,120 +1005,20 @@ async function saveProdEdit(){
   await persistAll();
   toast(PE_PRODUCT?'Producto actualizado':'Producto añadido','✅','success');
 }
-function calcPEPrices(){
-  const pvpEl=document.getElementById('pe-pvp');
-  const costoRaw=parseFloat(document.getElementById('pe-cost').value)||0;
-  const d1=(parseFloat(document.getElementById('pe-d1').value)||0)/100;
-  const d2=(parseFloat(document.getElementById('pe-d2').value)||0)/100;
-  const cur=document.getElementById('pe-currency')?.value||'MXN';
-  const tc=parseFloat(document.getElementById('pe-tc')?.value)||_TC||17.5;
-  const costoMXN=cur==='USD'?costoRaw*tc:costoRaw;
-  const preview=document.getElementById('pe-calc-preview');
-  const costoNeto=costoMXN?(costoMXN*(1-d1)*(1-d2)):0;
-
-  // Unidades
-  const saleUnit=document.getElementById('pe-unit')?.value||'caja';
-  const priceUnit=document.getElementById('pe-price-unit')?.value||saleUnit;
-  const convEl=document.getElementById('pe-conversion');
-  const m2perSaleUnit=saleUnit==='m2'?1:(convEl?parseFloat(convEl.value)||0:0);
-
-  // Convertir costo a unidad de venta si es necesario
-  // costoRaw está expresado en priceUnit, necesitamos costoNeto en saleUnit
-  let costoNetoSale=costoNeto; // costo neto en priceUnit
-  if(priceUnit!==saleUnit && m2perSaleUnit){
-    if(priceUnit==='m2' && saleUnit!=='m2'){
-      // precio/m² → precio/unidad_venta
-      costoNetoSale=round(costoNeto*m2perSaleUnit,4);
-    } else if(priceUnit!=='m2' && saleUnit==='m2'){
-      // precio/unidad → precio/m²
-      costoNetoSale=m2perSaleUnit?round(costoNeto/m2perSaleUnit,4):0;
-    }
-  }
-
-  // PVP automático = costo neto en unidad de venta × 2 (siempre se recalcula al cambiar costo/descuentos)
-  if(costoNetoSale && pvpEl){
-    pvpEl.value=round(costoNetoSale*2,2);
-  }
-  const pvpSale=parseFloat(pvpEl?.value)||0; // PVP en saleUnit (lo que el usuario ve)
-
-  // Convertir PVP a m² para el preview
-  let pvpM2=0, costoM2=0;
-  if(priceUnit==='m2'){
-    // El precio ya está en m² — no hay que convertir
-    pvpM2=pvpSale;
-    costoM2=costoNeto; // costo también en m² (sin convertir a saleUnit)
-  } else if(saleUnit==='m2'){
-    pvpM2=pvpSale;
-    costoM2=costoNetoSale;
-  } else if(m2perSaleUnit&&pvpSale){
-    pvpM2=round(pvpSale/m2perSaleUnit,2);
-    costoM2=costoNetoSale?round(costoNetoSale/m2perSaleUnit,2):0;
-  }
-
-  if(!pvpSale&&!costoNeto){preview.style.display='none';return;}
-  let html=`<div style="display:flex;gap:18px;flex-wrap:wrap">`;
-  if(costoNeto){
-    const lbl=cur==='USD'?`Costo neto (USD ${round(costoRaw*(1-d1)*(1-d2),2).toFixed(2)} → MXN)`:'Costo neto';
-    html+=`<div><div class="lbl">${lbl}</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(costoNetoSale)}</div></div>`;
-    if(cur==='USD') html+=`<div><div class="lbl">TC usado</div><div style="font-family:var(--mono)">$${tc.toFixed(2)}</div></div>`;
-  }
-  if(pvpM2&&costoM2){
-    const margen=pvpM2-costoM2, pct=pvpM2?margen/pvpM2:0;
-    html+=`<div><div class="lbl">PVP/m²</div><div style="font-family:var(--mono)">${mxn(pvpM2)}</div></div>`;
-    html+=`<div><div class="lbl">Costo/m²</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(costoM2)}</div></div>`;
-    html+=`<div><div class="lbl">Margen</div>${mbadge(pct)}</div>`;
-  } else if(pvpSale&&costoNetoSale){
-    const margen=pvpSale-costoNetoSale, pct=pvpSale?margen/pvpSale:0;
-    html+=`<div><div class="lbl">Margen</div>${mbadge(pct)}</div>`;
-  }
-  html+=`</div>`;
-  preview.innerHTML=html;
-  preview.style.display='';
-}
-
-async function onPECurrencyChange(){
-  const cur=document.getElementById('pe-currency').value;
-  const tcWrap=document.getElementById('pe-tc-wrap');
-  if(cur==='USD'){
-    tcWrap.style.display='';
-    const tc=await fetchTC();
-    const tcEl=document.getElementById('pe-tc');
-    if(tcEl&&!tcEl.value) tcEl.value=tc.toFixed(2);
-  } else {
-    tcWrap.style.display='none';
-  }
-  onPEPriceUnitChange();
-}
-
-function onPEPriceUnitChange(){
-  const pu=document.getElementById('pe-price-unit')?.value||'caja';
-  const lbl=document.getElementById('pe-pvp-lbl');
-  const cur=document.getElementById('pe-currency')?.value||'MXN';
-  const units={'m2':'m²','caja':'caja','pieza':'pieza'};
-  if(lbl) lbl.textContent=`Precio lista (${cur}/${units[pu]||pu})`;
-  calcPEPrices();
-}
-
 function onPEUnitChange(){
   const unit=document.getElementById('pe-unit').value;
   const convWrap=document.getElementById('pe-conversion-wrap');
   const convLbl=document.getElementById('pe-conversion-lbl');
-  const pvpLbl=document.getElementById('pe-pvp-lbl');
-  const costLbl=document.getElementById('pe-cost-lbl');
   if(unit==='m2'){
     convWrap.style.display='none';
-    if(costLbl) costLbl.textContent='Costo (MXN/m²) — solo Luis';
   } else if(unit==='caja'){
     convWrap.style.display='';
     convLbl.textContent='m² por caja';
-    if(costLbl) costLbl.textContent='Costo (MXN/caja) — solo Luis';
   } else if(unit==='pieza'){
     convWrap.style.display='';
     convLbl.textContent='m² por pieza';
-    if(costLbl) costLbl.textContent='Costo (MXN/pieza) — solo Luis';
   }
-  onPEPriceUnitChange();
-  calcPEPrices();
+  renderPESuppliers();
 }
 
 function peGenerateText(){
@@ -1178,6 +1032,190 @@ function peGenerateText(){
   const txt=buildDesc(obj,fields);
   const el=document.getElementById('pe-spec');
   if(el){ el.value=txt; el.focus(); }
+}
+
+function renderPESuppliers(){
+  const list=document.getElementById('pe-suppliers-list');
+  if(!list) return;
+  // Determinar cuál es el más barato (para el badge)
+  const tmpProduct={unit:document.getElementById('pe-unit')?.value||'caja', priceUnit:'', m2perUnit:parseFloat(document.getElementById('pe-conversion')?.value)||(document.getElementById('pe-unit')?.value==='m2'?1:0)};
+  let bestIdx=-1, bestCost=Infinity;
+  _peSuppliers.forEach((s,i)=>{
+    s.priceUnit=s.priceUnit||tmpProduct.unit;
+    const calc=computeSupplierPrices(tmpProduct,s);
+    s._calc=calc;
+    const c=calc.costoNetoMXN||Infinity;
+    if(c<bestCost){ bestCost=c; bestIdx=i; }
+  });
+
+  // Opciones de proveedor desde PROVIDERS
+  const providerOptions=(PROVIDERS||[]).map(pr=>`<option value="${esc(pr.id)}">${esc(pr.name)}</option>`).join('');
+
+  list.innerHTML=_peSuppliers.map((s,i)=>{
+    const isBest=i===bestIdx;
+    const calc=s._calc||{};
+    const unitLabel={'m2':'m²','caja':'caja','pieza':'pieza'}[s.priceUnit]||s.priceUnit;
+    return `
+    <div class="fg" style="background:var(--surface2);border:1px solid ${isBest?'var(--green,#22c55e)':'var(--border)'};border-radius:8px;padding:10px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <select class="inp" style="width:auto;flex:1;margin-right:8px" onchange="updatePESupplier(${i},'providerId',this.value)">
+          <option value="">— Sin proveedor —</option>
+          ${providerOptions}
+          <option value="__other__" ${!s.providerId?'':''}>Otro (texto libre)</option>
+        </select>
+        ${isBest?'<span style="font-size:10px;font-weight:700;color:var(--green,#22c55e);white-space:nowrap;margin-right:8px">★ MÁS BARATO</span>':''}
+        ${_peSuppliers.length>1?`<button type="button" class="btn-icon" style="color:var(--accent)" onclick="removePESupplier(${i})" title="Quitar">✕</button>`:''}
+      </div>
+      ${(!s.providerId||s.providerId==='__other__')?`<input class="inp" placeholder="Nombre del proveedor" value="${esc(s.providerName||'')}" style="margin-bottom:8px" oninput="updatePESupplier(${i},'providerName',this.value)">`:''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="fg" style="margin-bottom:0">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+            <label class="lbl" style="margin-bottom:0">Precio lista (${esc(s.currency||'MXN')}/${esc(unitLabel)})</label>
+            <select class="inp" style="width:70px;padding:2px 4px;font-size:11px" onchange="updatePESupplier(${i},'priceUnit',this.value)">
+              <option value="m2" ${s.priceUnit==='m2'?'selected':''}>m²</option>
+              <option value="caja" ${s.priceUnit==='caja'?'selected':''}>caja</option>
+              <option value="pieza" ${s.priceUnit==='pieza'?'selected':''}>pieza</option>
+            </select>
+          </div>
+          <input class="inp" type="number" value="${s.pvp||''}" placeholder="4799.00" oninput="updatePESupplier(${i},'pvp',this.value)">
+        </div>
+        <div class="fg" style="margin-bottom:0">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <label class="lbl" style="margin-bottom:0">Costo — solo Luis</label>
+            <select class="inp" style="width:70px;padding:2px 4px;font-size:11px" onchange="updatePESupplier(${i},'currency',this.value)">
+              <option value="MXN" ${s.currency==='MXN'?'selected':''}>MXN</option>
+              <option value="USD" ${s.currency==='USD'?'selected':''}>USD</option>
+            </select>
+          </div>
+          <input class="inp" type="number" value="${s.cost||''}" placeholder="3599.00" oninput="updatePESupplier(${i},'cost',this.value)">
+        </div>
+      </div>
+      ${s.currency==='USD'?`
+      <div class="fg" style="margin-bottom:8px">
+        <label class="lbl">Tipo de cambio USD → MXN</label>
+        <input class="inp" type="number" value="${s.tc||_TC||17.5}" step="0.01" oninput="updatePESupplier(${i},'tc',this.value)">
+      </div>`:''}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div class="fg" style="margin-bottom:0"><label class="lbl">Desc. 1 proveedor %</label><input class="inp" type="number" value="${s.d1||0}" min="0" max="100" oninput="updatePESupplier(${i},'d1',this.value)"></div>
+        <div class="fg" style="margin-bottom:0"><label class="lbl">Desc. 2 %</label><input class="inp" type="number" value="${s.d2||0}" min="0" max="100" oninput="updatePESupplier(${i},'d2',this.value)"></div>
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px">
+        ${calc.costoNetoMXN?`<div><div class="lbl">Costo neto</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(calc.costoNetoMXN)}</div></div>`:''}
+        ${calc.pvpM2MXN?`<div><div class="lbl">PVP/m²</div><div style="font-family:var(--mono)">${mxn(calc.pvpM2MXN)}</div></div>`:''}
+        ${calc.costoM2MXN?`<div><div class="lbl">Costo/m²</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(calc.costoM2MXN)}</div></div>`:''}
+        ${(calc.pvpM2MXN&&calc.costoM2MXN)?`<div><div class="lbl">Margen</div>${mbadge(calc.pvpM2MXN?(calc.pvpM2MXN-calc.costoM2MXN)/calc.pvpM2MXN:0)}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Botón "+ Agregar proveedor" deshabilitado si ya hay 5
+  const addBtn=document.getElementById('pe-add-supplier-btn');
+  if(addBtn) addBtn.style.display=_peSuppliers.length>=5?'none':'';
+}
+function addPESupplier(){
+  if(_peSuppliers.length>=5) return;
+  _peSuppliers.push({providerId:'',providerName:'',currency:'MXN',cost:0,d1:0,d2:0,tc:0,pvp:0,priceUnit:document.getElementById('pe-unit')?.value||'caja'});
+  renderPESuppliers();
+}
+function removePESupplier(i){
+  if(_peSuppliers.length<=1) return;
+  _peSuppliers.splice(i,1);
+  renderPESuppliers();
+}
+function updatePESupplier(i,field,value){
+  if(!_peSuppliers[i]) return;
+  if(field==='providerId'){
+    if(value==='__other__'){
+      _peSuppliers[i].providerId='__other__';
+      _peSuppliers[i].providerName='';
+    } else if(value===''){
+      _peSuppliers[i].providerId='';
+      _peSuppliers[i].providerName='';
+    } else {
+      const pr=(PROVIDERS||[]).find(p=>String(p.id)===String(value));
+      _peSuppliers[i].providerId=value;
+      _peSuppliers[i].providerName=pr?pr.name:'';
+    }
+  } else if(field==='providerName'){
+    _peSuppliers[i].providerName=value;
+  } else if(['cost','pvp','d1','d2','tc'].includes(field)){
+    _peSuppliers[i][field]=parseFloat(value)||0;
+  } else {
+    _peSuppliers[i][field]=value;
+  }
+  renderPESuppliers();
+}
+
+// Calcula los precios derivados (costoNetoMXN, pvpM2MXN, costoM2MXN, etc.) para UN proveedor,
+// usando la unidad de venta (p.unit) y unidad de precio (p.priceUnit) del producto.
+function computeSupplierPrices(p, supplier){
+  const unit=p.unit||'caja';
+  const priceUnit=supplier.priceUnit||p.priceUnit||unit;
+  const m2perUnit=unit==='m2'?1:(parseFloat(p.m2perUnit)||0);
+  const currency=supplier.currency||'MXN';
+  const costRaw=parseFloat(supplier.cost)||0;
+  const d1=(parseFloat(supplier.d1)||0)/100;
+  const d2=(parseFloat(supplier.d2)||0)/100;
+  const tc=parseFloat(supplier.tc)||_TC||17.5;
+  const costoMXN=currency==='USD'&&costRaw?round(costRaw*tc,2):costRaw;
+  const costoNetoRaw=costoMXN?round(costoMXN*(1-d1)*(1-d2),2):0;
+
+  // Convertir costo neto a saleUnit (igual lógica que saveProdEdit)
+  let costoNetoSaleUnit=costoNetoRaw;
+  if(priceUnit!==unit && m2perUnit){
+    if(priceUnit==='m2' && unit!=='m2') costoNetoSaleUnit=round(costoNetoRaw*m2perUnit,4);
+    else if(priceUnit!=='m2' && unit==='m2') costoNetoSaleUnit=m2perUnit?round(costoNetoRaw/m2perUnit,4):0;
+  }
+
+  const pvpUnit=parseFloat(supplier.pvp)||null;
+  let pvpM2MXN=null, costoM2MXN=null;
+  if(priceUnit==='m2'){
+    pvpM2MXN=pvpUnit;
+    costoM2MXN=costoNetoRaw||null;
+  } else if(unit==='m2'){
+    pvpM2MXN=pvpUnit;
+    costoM2MXN=costoNetoSaleUnit||null;
+  } else if(m2perUnit&&pvpUnit){
+    pvpM2MXN=round(pvpUnit/m2perUnit,2);
+    if(costoNetoSaleUnit) costoM2MXN=round(costoNetoSaleUnit/m2perUnit,2);
+  }
+
+  return {
+    currency,
+    costoMXN,
+    costoUSD: currency==='USD'?costRaw:null,
+    tcUsado: currency==='USD'?tc:null,
+    descD1: parseFloat(supplier.d1)||0,
+    descD2: parseFloat(supplier.d2)||0,
+    costoNetoMXN: costoNetoSaleUnit||null,
+    pvpCajaMXN: pvpUnit,
+    pvpM2MXN,
+    costoM2MXN
+  };
+}
+
+// Recalcula los campos raíz del producto (costoMXN, pvpM2MXN, etc.) a partir de
+// p.suppliers, eligiendo el proveedor con menor costoNetoMXN como referencia.
+function recalcProductFromSuppliers(p){
+  if(!p.suppliers||!p.suppliers.length) return;
+  let best=null, bestCost=Infinity;
+  p.suppliers.forEach(s=>{
+    const calc=computeSupplierPrices(p,s);
+    s._calc=calc; // cache para reutilizar en UI sin recalcular
+    const c=calc.costoNetoMXN||Infinity;
+    if(c<bestCost){ bestCost=c; best=calc; }
+  });
+  if(!best) return;
+  p.currency=best.currency;
+  p.costoMXN=best.costoMXN;
+  p.costoUSD=best.costoUSD;
+  p.tcUsado=best.tcUsado;
+  p.descD1=best.descD1;
+  p.descD2=best.descD2;
+  p.costoNetoMXN=best.costoNetoMXN;
+  p.pvpCajaMXN=best.pvpCajaMXN;
+  p.pvpM2MXN=best.pvpM2MXN;
+  p.costoM2MXN=best.costoM2MXN;
 }
 
 function buildDesc(p,fields){
@@ -1205,15 +1243,9 @@ async function deleteProduct(id){
 }
 
 // ── PRODUCT ADD TO QUOTE ──
-function openProductAdd(id){
-  PA_PRODUCT=CATALOG.find(p=>p.id===id);
-  if(!PA_PRODUCT) return;
-  const p=PA_PRODUCT;
-  document.getElementById('pa-title').textContent=(p.brand||'')+' — '+(p.model||'');
-  document.getElementById('pa-desc').textContent=p.description||'';
-  document.getElementById('pa-vol').value='';
-  document.getElementById('pa-boxes').value='';
-  document.getElementById('pa-m2r').value='';
+// Aplica los valores de un proveedor (pvpM2MXN/costoM2MXN/pvpCajaMXN/costoNetoMXN/currency)
+// a los campos pa-pvp/pa-cost, respetando la unidad de venta del producto.
+function _paApplySupplierValues(p, supplierData){
   const m2pb=parseFloat(p.m2perBox)||0;
   const m2pu=parseFloat(p.m2perUnit)||0;
   const volLbl=document.getElementById('pa-vol-lbl');
@@ -1226,35 +1258,33 @@ function openProductAdd(id){
   let pvpVal=0, costoVal=0, unitLabel='', costLabel='';
 
   if(p.unit==='pieza'){
-    // Venta por pieza — convertir precio/m² a precio/pieza usando m2perUnit
-    const pvpM2_=parseFloat(p.pvpM2MXN)||0;
-    const costoM2_=parseFloat(p.costoM2MXN)||0;
-    pvpVal=m2pu?round(pvpM2_*m2pu,2):round(parseFloat(p.pvpCajaMXN)||0,2);
-    costoVal=m2pu?round(costoM2_*m2pu,2):round(parseFloat(p.costoNetoMXN)||0,2);
+    const pvpM2_=parseFloat(supplierData.pvpM2MXN)||0;
+    const costoM2_=parseFloat(supplierData.costoM2MXN)||0;
+    pvpVal=m2pu?round(pvpM2_*m2pu,2):round(parseFloat(supplierData.pvpCajaMXN)||0,2);
+    costoVal=m2pu?round(costoM2_*m2pu,2):round(parseFloat(supplierData.costoNetoMXN)||0,2);
     unitLabel='PVP por pieza (MXN)';
     costLabel='Costo por pieza (solo Luis)';
     if(volLbl) volLbl.textContent='Cantidad (piezas)';
     if(boxesWrap) boxesWrap.style.display='none';
     if(m2rLbl) m2rLbl.textContent='m² equivalentes';
   } else {
-    // m² o caja — comportamiento existente
-    if(p.pvpM2MXN && parseFloat(p.pvpM2MXN)){
-      pvpVal=round(parseFloat(p.pvpM2MXN),2);
-    } else if(p.pvpCajaMXN && m2pb){
-      pvpVal=round(parseFloat(p.pvpCajaMXN)/m2pb,2);
-    } else if(p.pvpCajaMXN){
-      pvpVal=round(parseFloat(p.pvpCajaMXN),2);
+    if(supplierData.pvpM2MXN && parseFloat(supplierData.pvpM2MXN)){
+      pvpVal=round(parseFloat(supplierData.pvpM2MXN),2);
+    } else if(supplierData.pvpCajaMXN && m2pb){
+      pvpVal=round(parseFloat(supplierData.pvpCajaMXN)/m2pb,2);
+    } else if(supplierData.pvpCajaMXN){
+      pvpVal=round(parseFloat(supplierData.pvpCajaMXN),2);
     }
-    if(p.costoM2MXN && parseFloat(p.costoM2MXN)){
-      costoVal=round(parseFloat(p.costoM2MXN),2);
-    } else if(p.costoNetoMXN && m2pb){
-      costoVal=round(parseFloat(p.costoNetoMXN)/m2pb,2);
-    } else if(p.costoNetoMXN){
-      costoVal=round(parseFloat(p.costoNetoMXN),2);
-    } else if(p.costoMXN && m2pb){
-      costoVal=round(parseFloat(p.costoMXN)/m2pb,2);
-    } else if(p.costoMXN){
-      costoVal=round(parseFloat(p.costoMXN),2);
+    if(supplierData.costoM2MXN && parseFloat(supplierData.costoM2MXN)){
+      costoVal=round(parseFloat(supplierData.costoM2MXN),2);
+    } else if(supplierData.costoNetoMXN && m2pb){
+      costoVal=round(parseFloat(supplierData.costoNetoMXN)/m2pb,2);
+    } else if(supplierData.costoNetoMXN){
+      costoVal=round(parseFloat(supplierData.costoNetoMXN),2);
+    } else if(supplierData.costoMXN && m2pb){
+      costoVal=round(parseFloat(supplierData.costoMXN)/m2pb,2);
+    } else if(supplierData.costoMXN){
+      costoVal=round(parseFloat(supplierData.costoMXN),2);
     }
     unitLabel = m2pb ? 'PVP por m² (MXN)' : `PVP por ${p.unit||'ud.'} (MXN)`;
     costLabel = m2pb ? 'Costo por m² (solo Luis)' : `Costo por ${p.unit||'ud.'} (solo Luis)`;
@@ -1268,6 +1298,60 @@ function openProductAdd(id){
   if(costLbl) costLbl.textContent=costLabel;
   document.getElementById('pa-pvp').value=pvpVal||'';
   document.getElementById('pa-cost').value=costoVal||'';
+  PA_SELECTED_CURRENCY=supplierData.currency||'MXN';
+  calcPA();
+}
+
+function onPASupplierChange(){
+  const p=PA_PRODUCT;
+  if(!p) return;
+  const idx=parseInt(document.getElementById('pa-supplier').value);
+  const s=p.suppliers?.[idx];
+  if(!s) return;
+  const calc=s._calc||computeSupplierPrices({unit:p.unit,priceUnit:s.priceUnit||p.priceUnit||p.unit,m2perUnit:p.m2perUnit}, s);
+  _paApplySupplierValues(p, calc);
+}
+
+function openProductAdd(id){
+  PA_PRODUCT=CATALOG.find(p=>p.id===id);
+  if(!PA_PRODUCT) return;
+  const p=PA_PRODUCT;
+  document.getElementById('pa-title').textContent=(p.brand||'')+' — '+(p.model||'');
+  document.getElementById('pa-desc').textContent=p.description||'';
+  document.getElementById('pa-vol').value='';
+  document.getElementById('pa-boxes').value='';
+  document.getElementById('pa-m2r').value='';
+
+  // Selector de proveedor (si hay más de uno)
+  const supWrap=document.getElementById('pa-supplier-wrap');
+  const supSel=document.getElementById('pa-supplier');
+  let bestIdx=0;
+  if(p.suppliers && p.suppliers.length>1){
+    let bestCost=Infinity;
+    p.suppliers.forEach((s,i)=>{
+      const calc=computeSupplierPrices({unit:p.unit,priceUnit:s.priceUnit||p.priceUnit||p.unit,m2perUnit:p.m2perUnit}, s);
+      s._calc=calc;
+      const c=calc.costoNetoMXN||Infinity;
+      if(c<bestCost){ bestCost=c; bestIdx=i; }
+    });
+    supSel.innerHTML=p.suppliers.map((s,i)=>{
+      const name=s.providerName||'(sin nombre)';
+      const cost=s._calc?.costoNetoMXN;
+      return `<option value="${i}">${esc(name)}${cost?' — '+mxn(cost)+' neto':''}</option>`;
+    }).join('');
+    supSel.value=bestIdx;
+    supWrap.style.display='';
+  } else {
+    supWrap.style.display='none';
+  }
+
+  // Aplicar valores del proveedor por defecto (campos raíz ya reflejan el más barato)
+  _paApplySupplierValues(p, {
+    pvpM2MXN: p.pvpM2MXN, costoM2MXN: p.costoM2MXN,
+    pvpCajaMXN: p.pvpCajaMXN, costoNetoMXN: p.costoNetoMXN,
+    costoMXN: p.costoMXN, currency: p.currency
+  });
+
   document.getElementById('pa-table').value=CAT_TARGET_TABLE;
   document.getElementById('pa-rent').innerHTML='';
   closeModal('modal-catalog');
@@ -1329,7 +1413,7 @@ function confirmAddToQuote(){
   }
   if(!vol||!pvpVal){toast('Ingresa volumen y PVP','⚠️');return;}
   // pvp y cost se guardan en la unidad de venta (vol*pvp = subtotal)
-  CURRENT_Q[table].push({id:uid(),desc:p.description||p.model,vol,unit,pvp:pvpVal,cost:costVal,currency:p.currency||'MXN',tcRef:p.tcUsado||_TC||0});
+  CURRENT_Q[table].push({id:uid(),desc:p.description||p.model,vol,unit,pvp:pvpVal,cost:costVal,currency:PA_SELECTED_CURRENCY||'MXN',tcRef:p.tcUsado||_TC||0});
   closeModal('modal-prod-add');
   renderQuoteTables(); recalcAll(); markDirty();
   toast('Producto añadido','✅','success');
@@ -1764,24 +1848,16 @@ function openProdEditFromCatalogTab(id){
   document.getElementById('pe-fields').innerHTML=fields.map(f=>`
     <div class="fg"><label class="lbl">${esc(f.label)}</label>
     <input class="inp" id="pe-f-${f.key}" type="${f.type||'text'}" value="${esc(String(p[f.key]||''))}" style="font-size:12px"></div>`).join('');
-  document.getElementById('pe-pvp').value=p.pvpCajaMXN||p.pvpM2MXN||'';
-  document.getElementById('pe-cost').value=p.costoMXN||'';
-  document.getElementById('pe-d1').value=p.descD1||'';
-  document.getElementById('pe-d2').value=p.descD2||'';
   const specElCat=document.getElementById('pe-spec'); if(specElCat) specElCat.value=p.spec||'';
-  const _peUnitC=document.getElementById('pe-unit'); if(_peUnitC) _peUnitC.value=p.unit||(_pEdit2=p,p.m2perBox?'caja':(p.pvpM2MXN?'m2':'caja'));
+  const _peUnitC=document.getElementById('pe-unit'); if(_peUnitC) _peUnitC.value=p.unit||(p.m2perBox?'caja':(p.pvpM2MXN?'m2':'caja'));
   const _peConvC=document.getElementById('pe-conversion'); if(_peConvC) _peConvC.value=p.m2perUnit||p.m2perBox||'';
-  const _peCurC=document.getElementById('pe-currency'); if(_peCurC) _peCurC.value=p.currency||'MXN';
-  const _peTcC=document.getElementById('pe-tc'); if(_peTcC) _peTcC.value=p.tcUsado||'';
-  const _peTcWrapC=document.getElementById('pe-tc-wrap'); if(_peTcWrapC) _peTcWrapC.style.display=(p.currency==='USD'?'':'none');
-  const _pePvpC=document.getElementById('pe-pvp'); if(_pePvpC){ if(p.pvpCajaMXN) _pePvpC.removeAttribute('data-auto'); else _pePvpC.setAttribute('data-auto','1'); }
-  const _pePriceUnitC=document.getElementById('pe-price-unit'); if(_pePriceUnitC) _pePriceUnitC.value=p.priceUnit||p.unit||'caja';
+  _peSuppliers=(p.suppliers&&p.suppliers.length)?p.suppliers.map(s=>({...s})):[{providerId:'',providerName:'',currency:p.currency||'MXN',cost:(p.currency==='USD'?p.costoUSD:p.costoMXN)||0,d1:p.descD1||0,d2:p.descD2||0,tc:p.tcUsado||0,pvp:p.pvpCajaMXN||0,priceUnit:p.priceUnit||p.unit||'caja'}];
   onPEUnitChange();
   if(!IS_ADMIN){
-    document.getElementById('pe-cost').closest('.fg').style.display='none';
-    document.getElementById('pe-disc-wrap').style.display='none';
+    document.getElementById('pe-suppliers-section').style.display='none';
+  } else {
+    document.getElementById('pe-suppliers-section').style.display='';
   }
-  calcPEPrices();
   // Al guardar, también refresca la tabla de catálogo
   const saveBtn=document.getElementById('modal-prod-edit').querySelector('.btn-primary');
   saveBtn.onclick=async function(){
@@ -1805,19 +1881,15 @@ function openNewProdCatalogTab(){
   document.getElementById('pe-fields').innerHTML=fields.map(f=>`
     <div class="fg"><label class="lbl">${esc(f.label)}</label>
     <input class="inp" id="pe-f-${f.key}" type="${f.type||'text'}" style="font-size:12px"></div>`).join('');
-  ['pe-pvp','pe-cost','pe-d1','pe-d2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const specEl=document.getElementById('pe-spec'); if(specEl) specEl.value='';
   const _peUnitN=document.getElementById('pe-unit'); if(_peUnitN) _peUnitN.value='caja';
   const _peConvN=document.getElementById('pe-conversion'); if(_peConvN) _peConvN.value='';
-  const _peCurN=document.getElementById('pe-currency'); if(_peCurN) _peCurN.value='MXN';
-  const _peTcWrapN=document.getElementById('pe-tc-wrap'); if(_peTcWrapN) _peTcWrapN.style.display='none';
-  const _pePvpN=document.getElementById('pe-pvp'); if(_pePvpN) _pePvpN.setAttribute('data-auto','1');
-  const _pePriceUnitR=document.getElementById('pe-price-unit'); if(_pePriceUnitR) _pePriceUnitR.value='caja';
+  _peSuppliers=[{providerId:'',providerName:'',currency:'MXN',cost:0,d1:0,d2:0,tc:0,pvp:0,priceUnit:'caja'}];
   onPEUnitChange();
-  document.getElementById('pe-calc-preview').style.display='none';
   if(!IS_ADMIN){
-    document.getElementById('pe-cost').closest('.fg').style.display='none';
-    document.getElementById('pe-disc-wrap').style.display='none';
+    document.getElementById('pe-suppliers-section').style.display='none';
+  } else {
+    document.getElementById('pe-suppliers-section').style.display='';
   }
   document.getElementById('modal-prod-edit').classList.remove('hidden');
 }
