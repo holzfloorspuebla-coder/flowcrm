@@ -194,6 +194,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   <div class="modal" style="width:560px">
     <div class="modal-hd"><h2 id="pe-title">Producto</h2><button class="modal-close" onclick="closeModal('modal-prod-edit')">✕</button></div>
     <div class="modal-body">
+      <div class="fg">
+        <label class="lbl">Categoría</label>
+        <select class="inp" id="pe-category" onchange="onPECategoryChange()"></select>
+      </div>
       <div id="pe-fields" class="pd-fields"></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
         <div class="fg">
@@ -941,12 +945,40 @@ async function deleteCatEditor(){
 }
 
 // ── PRODUCT ADD / EDIT ──
+// Pobla el selector de categoría con todas las CAT_DEFS, seleccionando 'selected'
+function _pePopulateCategorySelect(selected){
+  const sel=document.getElementById('pe-category');
+  if(!sel) return;
+  sel.innerHTML=Object.keys(CAT_DEFS).map(c=>`<option value="${esc(c)}" ${c===selected?'selected':''}>${esc(c)}</option>`).join('');
+}
+
+// Al cambiar la categoría en el modal: actualiza CAT_ACTIVE_CAT, re-renderiza los campos
+// dinámicos (preservando valores de campos cuyo key coincida) y refresca proveedores/título.
+function onPECategoryChange(){
+  const newCat=document.getElementById('pe-category').value;
+  if(!newCat) return;
+  // Capturar valores actuales de los campos dinámicos antes de cambiar
+  const oldFields=CAT_DEFS[CAT_ACTIVE_CAT]?.fields||[];
+  const currentValues={};
+  oldFields.forEach(f=>{
+    const el=document.getElementById('pe-f-'+f.key);
+    if(el) currentValues[f.key]=el.value;
+  });
+  CAT_ACTIVE_CAT=newCat;
+  const fields=CAT_DEFS[CAT_ACTIVE_CAT]?.fields||[];
+  document.getElementById('pe-fields').innerHTML=fields.map(f=>`
+    <div class="fg"><label class="lbl">${esc(f.label)}</label>
+    <input class="inp" id="pe-f-${f.key}" type="${f.type||'text'}" value="${esc(String(currentValues[f.key]||''))}" style="font-size:12px"></div>`).join('');
+  renderPESuppliers();
+}
+
 function _resetSaveBtn(){
   document.getElementById('modal-prod-edit').querySelector('.btn-primary').onclick=saveProdEdit;
 }
 function openAddProduct(){
   PE_PRODUCT=null;
   document.getElementById('pe-title').textContent='+ Añadir producto a '+CAT_ACTIVE_CAT;
+  _pePopulateCategorySelect(CAT_ACTIVE_CAT);
   const fields=CAT_DEFS[CAT_ACTIVE_CAT]?.fields||[];
   document.getElementById('pe-fields').innerHTML=fields.map(f=>`
     <div class="fg"><label class="lbl">${esc(f.label)}</label>
@@ -962,6 +994,8 @@ function openAddProduct(){
 function openEditProduct(id){
   PE_PRODUCT=CATALOG.find(p=>p.id===id);
   if(!PE_PRODUCT) return;
+  CAT_ACTIVE_CAT=PE_PRODUCT.category||CAT_ACTIVE_CAT;
+  _pePopulateCategorySelect(CAT_ACTIVE_CAT);
   const fields=CAT_DEFS[CAT_ACTIVE_CAT]?.fields||[];
   const _t1=PE_PRODUCT.model||PE_PRODUCT[fields.find(f=>['model','nombre','servicio'].includes(f.key)||['Modelo','Nombre','Servicio'].includes(f.label))?.key]||fields[0]&&PE_PRODUCT[fields[0].key]||'Producto';
   document.getElementById('pe-title').textContent='Editar: '+_t1;
@@ -983,8 +1017,12 @@ function openEditProduct(id){
   document.getElementById('modal-prod-edit').classList.remove('hidden');
 }
 async function saveProdEdit(){
+  // CAT_ACTIVE_CAT ya refleja la categoría elegida en el selector (onPECategoryChange la actualiza)
+  const selectedCat=document.getElementById('pe-category')?.value||CAT_ACTIVE_CAT;
+  CAT_ACTIVE_CAT=selectedCat;
   const fields=CAT_DEFS[CAT_ACTIVE_CAT]?.fields||[];
   const obj=PE_PRODUCT?{...PE_PRODUCT}:{id:uid(),category:CAT_ACTIVE_CAT};
+  obj.category=selectedCat;
   fields.forEach(f=>{
     const el=document.getElementById('pe-f-'+f.key);
     if(el) obj[f.key]=f.type==='number'?(parseFloat(el.value)||0):el.value.trim();
@@ -1036,10 +1074,8 @@ function peGenerateText(){
   if(el){ el.value=txt; el.focus(); }
 }
 
-function renderPESuppliers(){
-  const list=document.getElementById('pe-suppliers-list');
-  if(!list) return;
-  // Determinar cuál es el más barato (para el badge)
+// Recalcula _calc de todos los proveedores y devuelve el índice del más barato
+function _peRecalcAll(){
   const tmpProduct={unit:document.getElementById('pe-unit')?.value||'caja', priceUnit:'', m2perUnit:parseFloat(document.getElementById('pe-conversion')?.value)||(document.getElementById('pe-unit')?.value==='m2'?1:0)};
   let bestIdx=-1, bestCost=Infinity;
   _peSuppliers.forEach((s,i)=>{
@@ -1049,6 +1085,34 @@ function renderPESuppliers(){
     const c=calc.costoNetoMXN||Infinity;
     if(c<bestCost){ bestCost=c; bestIdx=i; }
   });
+  return bestIdx;
+}
+
+// Refresca solo el preview (costo neto / PVP-m² / costo-m² / margen) y el badge "★ MÁS BARATO"
+// de cada bloque, sin reconstruir los <input> — preserva el foco mientras se escribe.
+function _peRefreshPreviews(bestIdx){
+  _peSuppliers.forEach((s,i)=>{
+    const calc=s._calc||{};
+    const preview=document.getElementById('pe-sup-preview-'+i);
+    if(preview){
+      preview.innerHTML=`
+        ${calc.costoNetoMXN?`<div><div class="lbl">Costo neto</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(calc.costoNetoMXN)}</div></div>`:''}
+        ${calc.pvpM2MXN?`<div><div class="lbl">PVP/m²</div><div style="font-family:var(--mono)">${mxn(calc.pvpM2MXN)}</div></div>`:''}
+        ${calc.costoM2MXN?`<div><div class="lbl">Costo/m²</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(calc.costoM2MXN)}</div></div>`:''}
+        ${(calc.pvpM2MXN&&calc.costoM2MXN)?`<div><div class="lbl">Margen</div>${mbadge(calc.pvpM2MXN?(calc.pvpM2MXN-calc.costoM2MXN)/calc.pvpM2MXN:0)}</div>`:''}
+      `;
+    }
+    const badge=document.getElementById('pe-sup-badge-'+i);
+    const card=document.getElementById('pe-sup-card-'+i);
+    if(badge) badge.innerHTML=i===bestIdx?'<span style="font-size:10px;font-weight:700;color:var(--green,#22c55e);white-space:nowrap;margin-right:8px">★ MÁS BARATO</span>':'';
+    if(card) card.style.borderColor=i===bestIdx?'var(--green,#22c55e)':'var(--border)';
+  });
+}
+
+function renderPESuppliers(){
+  const list=document.getElementById('pe-suppliers-list');
+  if(!list) return;
+  const bestIdx=_peRecalcAll();
 
   // Opciones de proveedor desde PROVIDERS
   const providerOptions=(PROVIDERS||[]).map(pr=>`<option value="${esc(pr.id)}">${esc(pr.name)}</option>`).join('');
@@ -1058,14 +1122,14 @@ function renderPESuppliers(){
     const calc=s._calc||{};
     const unitLabel={'m2':'m²','caja':'caja','pieza':'pieza'}[s.priceUnit]||s.priceUnit;
     return `
-    <div class="fg" style="background:var(--surface2);border:1px solid ${isBest?'var(--green,#22c55e)':'var(--border)'};border-radius:8px;padding:10px;margin-bottom:8px">
+    <div class="fg" id="pe-sup-card-${i}" style="background:var(--surface2);border:1px solid ${isBest?'var(--green,#22c55e)':'var(--border)'};border-radius:8px;padding:10px;margin-bottom:8px">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
         <select class="inp" style="width:auto;flex:1;margin-right:8px" onchange="updatePESupplier(${i},'providerId',this.value)">
           <option value="">— Sin proveedor —</option>
           ${providerOptions}
           <option value="__other__" ${!s.providerId?'':''}>Otro (texto libre)</option>
         </select>
-        ${isBest?'<span style="font-size:10px;font-weight:700;color:var(--green,#22c55e);white-space:nowrap;margin-right:8px">★ MÁS BARATO</span>':''}
+        <span id="pe-sup-badge-${i}">${isBest?'<span style="font-size:10px;font-weight:700;color:var(--green,#22c55e);white-space:nowrap;margin-right:8px">★ MÁS BARATO</span>':''}</span>
         ${_peSuppliers.length>1?`<button type="button" class="btn-icon" style="color:var(--accent)" onclick="removePESupplier(${i})" title="Quitar">✕</button>`:''}
       </div>
       ${(!s.providerId||s.providerId==='__other__')?`<input class="inp" placeholder="Nombre del proveedor" value="${esc(s.providerName||'')}" style="margin-bottom:8px" oninput="updatePESupplier(${i},'providerName',this.value)">`:''}
@@ -1079,7 +1143,7 @@ function renderPESuppliers(){
               <option value="pieza" ${s.priceUnit==='pieza'?'selected':''}>pieza</option>
             </select>
           </div>
-          <input class="inp" type="number" value="${s.pvp||''}" placeholder="4799.00" oninput="updatePESupplier(${i},'pvp',this.value)">
+          <input class="inp" type="number" id="pe-sup-pvp-${i}" value="${s.pvp||''}" placeholder="4799.00" oninput="updatePESupplier(${i},'pvp',this.value)">
         </div>
         <div class="fg" style="margin-bottom:0">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
@@ -1101,7 +1165,7 @@ function renderPESuppliers(){
         <div class="fg" style="margin-bottom:0"><label class="lbl">Desc. 1 proveedor %</label><input class="inp" type="number" value="${s.d1||0}" min="0" max="100" oninput="updatePESupplier(${i},'d1',this.value)"></div>
         <div class="fg" style="margin-bottom:0"><label class="lbl">Desc. 2 %</label><input class="inp" type="number" value="${s.d2||0}" min="0" max="100" oninput="updatePESupplier(${i},'d2',this.value)"></div>
       </div>
-      <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px">
+      <div id="pe-sup-preview-${i}" style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px">
         ${calc.costoNetoMXN?`<div><div class="lbl">Costo neto</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(calc.costoNetoMXN)}</div></div>`:''}
         ${calc.pvpM2MXN?`<div><div class="lbl">PVP/m²</div><div style="font-family:var(--mono)">${mxn(calc.pvpM2MXN)}</div></div>`:''}
         ${calc.costoM2MXN?`<div><div class="lbl">Costo/m²</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(calc.costoM2MXN)}</div></div>`:''}
@@ -1124,28 +1188,52 @@ function removePESupplier(i){
   _peSuppliers.splice(i,1);
   renderPESuppliers();
 }
+// Campos cuyo cambio requiere reconstruir todo el bloque (cambian estructura/labels/visibilidad)
+const _PE_FULL_RENDER_FIELDS=['providerId','priceUnit','currency'];
+
 function updatePESupplier(i,field,value){
   if(!_peSuppliers[i]) return;
+  const s=_peSuppliers[i];
   if(field==='providerId'){
     if(value==='__other__'){
-      _peSuppliers[i].providerId='__other__';
-      _peSuppliers[i].providerName='';
+      s.providerId='__other__';
+      s.providerName='';
     } else if(value===''){
-      _peSuppliers[i].providerId='';
-      _peSuppliers[i].providerName='';
+      s.providerId='';
+      s.providerName='';
     } else {
       const pr=(PROVIDERS||[]).find(p=>String(p.id)===String(value));
-      _peSuppliers[i].providerId=value;
-      _peSuppliers[i].providerName=pr?pr.name:'';
+      s.providerId=value;
+      s.providerName=pr?pr.name:'';
     }
   } else if(field==='providerName'){
-    _peSuppliers[i].providerName=value;
-  } else if(['cost','pvp','d1','d2','tc'].includes(field)){
-    _peSuppliers[i][field]=parseFloat(value)||0;
+    s.providerName=value;
+  } else if(field==='pvp'){
+    s.pvp=parseFloat(value)||0;
+    s._pvpManual=true; // el usuario editó el PVP manualmente
+  } else if(['cost','d1','d2','tc'].includes(field)){
+    s[field]=parseFloat(value)||0;
   } else {
-    _peSuppliers[i][field]=value;
+    s[field]=value;
   }
-  renderPESuppliers();
+
+  // PVP automático = costo neto × 2, salvo que el usuario ya lo haya editado manualmente
+  if(['cost','d1','d2','tc','currency'].includes(field) && !s._pvpManual){
+    const tmpProduct={unit:document.getElementById('pe-unit')?.value||'caja', priceUnit:'', m2perUnit:parseFloat(document.getElementById('pe-conversion')?.value)||(document.getElementById('pe-unit')?.value==='m2'?1:0)};
+    const calc=computeSupplierPrices(tmpProduct,s);
+    if(calc.costoNetoMXN){
+      s.pvp=round(calc.costoNetoMXN*2,2);
+      const pvpInput=document.getElementById('pe-sup-pvp-'+i);
+      if(pvpInput) pvpInput.value=s.pvp;
+    }
+  }
+
+  if(_PE_FULL_RENDER_FIELDS.includes(field)){
+    renderPESuppliers();
+  } else {
+    const bestIdx=_peRecalcAll();
+    _peRefreshPreviews(bestIdx);
+  }
 }
 
 // Calcula los precios derivados (costoNetoMXN, pvpM2MXN, costoM2MXN, etc.) para UN proveedor,
@@ -1844,6 +1932,7 @@ function openProdEditFromCatalogTab(id){
   if(!p) return;
   CAT_ACTIVE_CAT=p.category||Object.keys(CAT_DEFS)[0];
   PE_PRODUCT=p;
+  _pePopulateCategorySelect(CAT_ACTIVE_CAT);
   const fields=CAT_DEFS[CAT_ACTIVE_CAT]?.fields||[];
   const _t2=p.model||p[fields.find(f=>['model','nombre','servicio'].includes(f.key)||['Modelo','Nombre','Servicio'].includes(f.label))?.key]||fields[0]&&p[fields[0].key]||'Producto';
   document.getElementById('pe-title').textContent='Editar: '+_t2;
@@ -1876,9 +1965,12 @@ async function deleteProdFromCatalogTab(id){
   toast('Producto eliminado');
 }
 function openNewProdCatalogTab(){
-  CAT_ACTIVE_CAT=Object.keys(CAT_DEFS)[0];
+  // Usar la categoría seleccionada en el filtro si hay una, sino la primera
+  const filterCat=document.getElementById('cat-tab-filter')?.value;
+  CAT_ACTIVE_CAT=filterCat||Object.keys(CAT_DEFS)[0];
   PE_PRODUCT=null;
   document.getElementById('pe-title').textContent='+ Nuevo producto';
+  _pePopulateCategorySelect(CAT_ACTIVE_CAT);
   const fields=CAT_DEFS[CAT_ACTIVE_CAT]?.fields||[];
   document.getElementById('pe-fields').innerHTML=fields.map(f=>`
     <div class="fg"><label class="lbl">${esc(f.label)}</label>
