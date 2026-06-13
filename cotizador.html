@@ -544,6 +544,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
             <select class="inp" id="cat-tab-filter" onchange="renderCatalogTabTable()" style="width:160px;font-size:12px">
               <option value="">Todas las categorías</option>
             </select>
+            <button class="btn btn-ghost" style="font-size:12px" id="cat-tab-newcat-btn" onclick="openNewCategory()">+ Nueva categoría</button>
             <button class="btn btn-primary" style="font-size:12px" onclick="openNewProdCatalogTab()">+ Añadir producto</button>
           </div>
         </div>
@@ -681,6 +682,7 @@ function unlock(){
   if(!IS_ADMIN) document.getElementById('tab-rent-btn').style.display='none';
   if(!IS_ADMIN) document.getElementById('pa-cost-wrap').style.display='none';
   if(!IS_ADMIN) document.getElementById('man-cost-wrap').style.display='none';
+  if(!IS_ADMIN) document.getElementById('cat-tab-newcat-btn').style.display='none';
   loadAllFromCloud();
 }
 // ── LOAD ALL FROM CLOUD ──
@@ -922,7 +924,7 @@ async function saveCatEditor(){
   CAT_DEFS[newName]={fields};
   CAT_ACTIVE_CAT=newName;
   closeModal('modal-cat-editor');
-  renderCatTabs(); renderCatalogTable();
+  renderCatTabs(); renderCatalogTable(); renderCatalogTabTable();
   await persistAll();
   toast('Categoría guardada','✅','success');
 }
@@ -933,7 +935,7 @@ async function deleteCatEditor(){
   const cats=Object.keys(CAT_DEFS);
   CAT_ACTIVE_CAT=cats[0]||'';
   closeModal('modal-cat-editor');
-  renderCatTabs(); renderCatalogTable();
+  renderCatTabs(); renderCatalogTable(); renderCatalogTabTable();
   await persistAll();
   toast('Categoría eliminada');
 }
