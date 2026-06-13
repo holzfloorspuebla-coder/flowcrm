@@ -126,6 +126,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .save-ind.dirty{color:var(--orange);}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
 </head>
 <body>
 
@@ -1773,11 +1774,11 @@ async function generateText(){
 }
 
 // ── COPY TABLE ──
-function exportExcel(){
+async function exportExcel(){
   if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
   const dv=(parseFloat(val('q-disc-vol'))||0)/100;
   const dp=(parseFloat(val('q-disc-pp'))||0)/100;
-  // Separar por moneda
+
   const supMXN=CURRENT_Q.supply.filter(x=>(x.currency||'MXN')==='MXN');
   const supUSD=CURRENT_Q.supply.filter(x=>x.currency==='USD');
   const labMXN=CURRENT_Q.labor.filter(x=>(x.currency||'MXN')==='MXN');
@@ -1792,69 +1793,99 @@ function exportExcel(){
   const tcItems=[...supUSD,...labUSD].map(x=>x.tcRef||_TC||17.5);
   const tcRef=tcItems.length?tcItems.reduce((a,b)=>a+b,0)/tcItems.length:(_TC||17.5);
 
-  const rows=[];
-  rows.push([`COTIZACIÓN: ${val('q-num')}`,`FECHA: ${val('q-date')}`,`CLIENTE: ${val('q-client')}`,'','']);
-  rows.push([`PROYECTO: ${val('q-project')}`,'','','','']);
-  rows.push(['','','','','']);
+  const FONT='Pragmatica', SIZE=11;
+  const BLACK_FILL={type:'pattern',pattern:'solid',fgColor:{argb:'FF000000'}};
+  const WHITE_FONT={name:FONT,size:SIZE,color:{argb:'FFFFFFFF'},bold:true};
+  const NORMAL_FONT={name:FONT,size:SIZE};
+  const BOLD_FONT={name:FONT,size:SIZE,bold:true};
+  const MONEY_FMT='"$"#,##0.00';
+  const NUM_FMT='#,##0.00';
 
-  // SUMINISTRO — líneas MXN
-  rows.push(['SUMINISTRO','','','','']);
-  rows.push(['PARTIDA','VOLUMEN','UD','MONEDA','PVP','SUBTOTAL']);
-  supMXN.forEach(x=>{ rows.push([x.desc, x.vol, x.unit, 'MXN', x.pvp, x.vol*x.pvp]); });
-  supUSD.forEach(x=>{ rows.push([x.desc, x.vol, x.unit, 'USD', x.pvp, x.vol*x.pvp]); });
-  rows.push(['','','','','','']);
+  const wb=new ExcelJS.Workbook();
+  const ws=wb.addWorksheet('Cotización');
+  ws.columns=[{width:55},{width:12},{width:10},{width:16},{width:14}];
 
-  // Totales suministro MXN
-  if(supMXN.length){
-    rows.push(['','','','SUBTOTAL MXN','', supRawMXN]);
-    if(dv>0) rows.push(['','','',`DESC. VOLUMEN ${(dv*100).toFixed(0)}%`,'', -(supRawMXN*dv)]);
-    if(dp>0) rows.push(['','','',`DESC. PRONTO PAGO ${(dp*100).toFixed(0)}%`,'', -(afterVol*dp)]);
-    rows.push(['','','','SUBTOTAL NETO MXN','', supNetMXN]);
-    rows.push(['','','','IVA 16%','', supNetMXN*0.16]);
-    rows.push(['','','','TOTAL SUMINISTRO MXN','', supNetMXN*1.16]);
-  }
-  // Totales suministro USD
-  if(supUSD.length){
-    rows.push(['','','','TOTAL SUMINISTRO USD','', supRawUSD]);
-    rows.push(['','','','IVA 16%','', supRawUSD*0.16]);
-    rows.push(['','','','TOTAL SUMINISTRO USD (c/IVA)','', supRawUSD*1.16]);
-    rows.push(['','','',`Referencia MXN (TC $${tcRef.toFixed(2)})`,'', supRawUSD*1.16*tcRef]);
-  }
-  rows.push(['','','','','','']);
+  let r=0;
+  function addRow(values){ r++; return ws.addRow(values); }
 
-  // MANO DE OBRA
-  rows.push(['MANO DE OBRA','','','','']);
-  rows.push(['PARTIDA','VOLUMEN','UD','MONEDA','PVP','SUBTOTAL']);
-  labMXN.forEach(x=>{ rows.push([x.desc, x.vol, x.unit, 'MXN', x.pvp, x.vol*x.pvp]); });
-  labUSD.forEach(x=>{ rows.push([x.desc, x.vol, x.unit, 'USD', x.pvp, x.vol*x.pvp]); });
-  rows.push(['','','','','','']);
-  if(labMXN.length){
-    rows.push(['','','','SUBTOTAL MXN','', labRawMXN]);
-    rows.push(['','','','IVA 16%','', labRawMXN*0.16]);
-    rows.push(['','','','TOTAL MO MXN','', labRawMXN*1.16]);
-  }
-  if(labUSD.length){
-    rows.push(['','','','TOTAL MO USD','', labRawUSD]);
-    rows.push(['','','','IVA 16%','', labRawUSD*0.16]);
-    rows.push(['','','','TOTAL MO USD (c/IVA)','', labRawUSD*1.16]);
-    rows.push(['','','',`Referencia MXN (TC $${tcRef.toFixed(2)})`,'', labRawUSD*1.16*tcRef]);
+  function addSectionRow(title){
+    const row=addRow([title,'','','','']);
+    ws.mergeCells(r,1,r,5);
+    row.eachCell(cell=>{
+      cell.fill=BLACK_FILL; cell.font=WHITE_FONT;
+      cell.alignment={horizontal:'center',vertical:'middle'};
+    });
+    row.height=18;
   }
 
-  // RESUMEN FINAL
+  function addHeaderRow(){
+    const row=addRow(['PARTIDA','VOLUMEN','UD.','PVP','SUBTOTAL']);
+    row.eachCell((cell,col)=>{
+      cell.fill=BLACK_FILL; cell.font=WHITE_FONT;
+      cell.alignment={horizontal:col===1?'left':'center',vertical:'middle'};
+    });
+    row.height=16;
+  }
+
+  function addDataRow(x){
+    const sub=round(x.vol*x.pvp,2);
+    const row=addRow([x.desc,x.vol,x.unit,x.pvp,sub]);
+    row.getCell(1).font=NORMAL_FONT; row.getCell(1).alignment={wrapText:true,vertical:'top'};
+    row.getCell(2).font=NORMAL_FONT; row.getCell(2).numFmt=NUM_FMT; row.getCell(2).alignment={horizontal:'center'};
+    row.getCell(3).font=NORMAL_FONT; row.getCell(3).alignment={horizontal:'center'};
+    row.getCell(4).font=NORMAL_FONT; row.getCell(4).numFmt=MONEY_FMT; row.getCell(4).alignment={horizontal:'right'};
+    row.getCell(5).font=BOLD_FONT; row.getCell(5).numFmt=MONEY_FMT; row.getCell(5).alignment={horizontal:'right'};
+  }
+
+  function addTotalRow(label, value){
+    const row=addRow(['','','',label,value]);
+    ws.mergeCells(r,1,r,4);
+    [1,2,3,4,5].forEach(c=>{
+      row.getCell(c).fill=BLACK_FILL;
+      row.getCell(c).font=WHITE_FONT;
+    });
+    row.getCell(4).alignment={horizontal:'right',vertical:'middle'};
+    row.getCell(5).numFmt=MONEY_FMT; row.getCell(5).alignment={horizontal:'right',vertical:'middle'};
+    row.height=16;
+  }
+
+  addSectionRow('SUMINISTRO DE MATERIALES');
+  addHeaderRow();
+  [...supMXN,...supUSD].forEach(x=>addDataRow(x));
+  addTotalRow('SUBTOTAL MATERIALES', supRawMXN);
+  if(dv>0) addTotalRow('DESCUENTO POR VOLUMEN ('+(dv*100).toFixed(0)+'%)', -(supRawMXN*dv));
+  if(dp>0) addTotalRow('DESCUENTO PRONTO PAGO ('+(dp*100).toFixed(0)+'%)', -(afterVol*dp));
+  if(hasUSD&&supUSD.length){
+    addTotalRow('SUBTOTAL SUMINISTRO USD', supRawUSD);
+    addTotalRow('Ref. MXN (TC $'+tcRef.toFixed(2)+')', supRawUSD*tcRef);
+  }
+
+  addSectionRow('MANO DE OBRA');
+  addHeaderRow();
+  [...labMXN,...labUSD].forEach(x=>addDataRow(x));
+  addTotalRow('SUBTOTAL MANO DE OBRA', labRawMXN);
+  if(hasUSD&&labUSD.length){
+    addTotalRow('SUBTOTAL MANO DE OBRA USD', labRawUSD);
+    addTotalRow('Ref. MXN (TC $'+tcRef.toFixed(2)+')', labRawUSD*tcRef);
+  }
+
+  const subtotalFinal=supNetMXN+labRawMXN;
+  addTotalRow('SUBTOTAL', subtotalFinal);
+  addTotalRow('IVA (16%)', subtotalFinal*0.16);
+  addTotalRow('TOTAL A PAGAR', subtotalFinal*1.16);
   if(hasUSD){
-    rows.push(['','','','','','']);
-    rows.push(['RESUMEN POR MONEDA','','','','','']);
-    rows.push(['','','','TOTAL EN USD (c/IVA)','', totalUSD*1.16]);
-    rows.push(['','','',`Referencia MXN (TC $${tcRef.toFixed(2)})`,'', totalUSD*1.16*tcRef]);
-    rows.push(['','','','TOTAL EN MXN (c/IVA)','', (supNetMXN+labRawMXN)*1.16]);
+    addTotalRow('TOTAL EN USD (c/IVA)', totalUSD*1.16);
+    addTotalRow('TOTAL USD Ref. MXN (TC $'+tcRef.toFixed(2)+')', totalUSD*1.16*tcRef);
   }
 
-  const ws=XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols']=[{wch:55},{wch:10},{wch:8},{wch:30},{wch:14},{wch:16}];
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Cotización');
-  const filename=`${val('q-num')||'cotizacion'}_${val('q-client')||'cliente'}.xlsx`.replace(/[/\\:*?"<>|]/g,'_');
-  XLSX.writeFile(wb, filename);
+  const buffer=await wb.xlsx.writeBuffer();
+  const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=(val('q-num')||'cotizacion')+'_'+(val('q-client')||'cliente')+'.xlsx';
+  a.click();
+  URL.revokeObjectURL(url);
   toast('Excel descargado','📥','success');
 }
 function copyText(){
