@@ -1798,7 +1798,7 @@ function switchTabById(id){
 function renderCatalogTabTable(){
   // Poblar filtro de categorías
   const filterEl=document.getElementById('cat-tab-filter');
-  const cats=[...new Set(CATALOG.map(p=>p.category||'').filter(Boolean))].sort();
+  const cats=[...new Set([...Object.keys(CAT_DEFS), ...CATALOG.map(p=>p.category||'')].filter(Boolean))].sort();
   const current=filterEl.value;
   filterEl.innerHTML='<option value="">Todas las categorías</option>'+cats.map(c=>`<option${c===current?' selected':''}>${esc(c)}</option>`).join('');
   const q=(document.getElementById('cat-tab-search').value||'').toLowerCase();
