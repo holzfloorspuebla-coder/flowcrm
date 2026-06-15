@@ -2488,7 +2488,6 @@ async function saveProvidersToCloud(){
 
 function renderProviders(){
   const q=(document.getElementById('search-inp')?.value||'').toLowerCase();
-  if(clr) clr.style.display=q?'block':'none';
   renderProvCatChips();
   let items=[...ALL_PROVIDERS];
   if(_provCatFilter) items=items.filter(p=>p.cat===_provCatFilter);
