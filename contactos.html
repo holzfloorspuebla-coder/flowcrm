@@ -1004,14 +1004,22 @@ function populateStateFilter(){
 }
 
 function applyFilters(){
-  const q=norm(document.getElementById('search-inp').value||'');
+  const qRaw=document.getElementById('search-inp').value||'';
+  const q=norm(qRaw);
+  const qDigits=qRaw.replace(/\D/g,'');
+  const isPhoneQuery=qDigits.length>=7;
+  const qPhone=isPhoneQuery?normPhone(qDigits):'';
   const ag=(document.getElementById('f-agent').value||'').toLowerCase();
   const ty=(document.getElementById('f-type').value||'').toLowerCase();
   const st=(document.getElementById('f-state').value||'').toLowerCase();
   const pl=(document.getElementById('f-pricelist').value||'').toLowerCase();
   filtered=ALL.filter(c=>{
     if((c.type||'').toLowerCase()==='estudio') return false;
-    if(q&&![c.name,c.studio,c.email,c.email2,c.city,c.state,c.phone,c.mailingName,c.whatsapp,c.instagram,c.linkedin,c.web,c.origin,c.segment,c.notes,c.code].some(v=>norm(v).includes(q))) return false;
+    if(q){
+      const textMatch=[c.name,c.studio,c.email,c.email2,c.city,c.state,c.phone,c.mailingName,c.whatsapp,c.instagram,c.linkedin,c.web,c.origin,c.segment,c.notes,c.code].some(v=>norm(v).includes(q));
+      const phoneMatch=isPhoneQuery&&(normPhone(c.phone).includes(qPhone)||normPhone(c.whatsapp).includes(qPhone));
+      if(!textMatch&&!phoneMatch) return false;
+    }
     if(ag&&(c.agent||'').toLowerCase()!==ag) return false;
     if(ty&&(c.type||'').toLowerCase()!==ty) return false;
     if(st&&(c.state||'').toLowerCase()!==st) return false;
@@ -2062,12 +2070,20 @@ function openMergeStudiosFromSelection(){
 }
 
 function renderStudios(){
-  const q=norm(document.getElementById('search-inp')?.value||'');
+  const qRaw=document.getElementById('search-inp')?.value||'';
+  const q=norm(qRaw);
+  const qDigits=qRaw.replace(/\D/g,'');
+  const isPhoneQuery=qDigits.length>=7;
+  const qPhone=isPhoneQuery?normPhone(qDigits):'';
   const countMap={};
   ALL.forEach(c=>{ if(c.studioId!=null) countMap[String(c.studioId)]=(countMap[String(c.studioId)]||0)+1; });
   const users = window._gestorUsers || {};
   let studios=[...ALL_STUDIOS].sort((a,b)=>(a.name||'').localeCompare(b.name||'','es',{sensitivity:'base'}));
-  if(q) studios=studios.filter(s=>[s.name,s.city,s.state,s.phone,s.whatsapp,s.email,s.email2,s.instagram,s.linkedin,s.web,s.segment,s.origin,s.notes].some(v=>norm(v).includes(q)));
+  if(q) studios=studios.filter(s=>{
+    const textMatch=[s.name,s.city,s.state,s.phone,s.whatsapp,s.email,s.email2,s.instagram,s.linkedin,s.web,s.segment,s.origin,s.notes].some(v=>norm(v).includes(q));
+    const phoneMatch=isPhoneQuery&&(normPhone(s.phone).includes(qPhone)||normPhone(s.whatsapp).includes(qPhone));
+    return textMatch||phoneMatch;
+  });
   const el=document.getElementById('studios-tbody');
   const cel=document.getElementById('studio-count');
   if(cel)cel.textContent=studios.length+' estudios';
@@ -2436,7 +2452,7 @@ function mergeStudioAC(q){
 // Normaliza texto eliminando acentos para búsquedas
 const STAGE_NAMES={'c-lead':'Lead captado','c-contactado':'Contactado','c-respuesta':'Respuesta recibida','c-agendado':'Visita agendada','c-showroom':'Visitó showroom','c-activado':'Activado'};
 
-function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,''); }
 
 function mergeAgentAC(q){
   const list = document.getElementById('mr-agent-ac');
@@ -2487,11 +2503,19 @@ async function saveProvidersToCloud(){
 }
 
 function renderProviders(){
-  const q=(document.getElementById('search-inp')?.value||'').toLowerCase();
+  const qRaw=document.getElementById('search-inp')?.value||'';
+  const q=norm(qRaw);
+  const qDigits=qRaw.replace(/\D/g,'');
+  const isPhoneQuery=qDigits.length>=7;
+  const qPhone=isPhoneQuery?normPhone(qDigits):'';
   renderProvCatChips();
   let items=[...ALL_PROVIDERS];
   if(_provCatFilter) items=items.filter(p=>p.cat===_provCatFilter);
-  if(q) items=items.filter(p=>[p.name,p.rfc,p.cat,p.email,p.phone,p.bank,p.notes,p.web,p.instagram,p.clabe,p.account].some(v=>(v||'').toLowerCase().includes(q)));
+  if(q) items=items.filter(p=>{
+    const textMatch=[p.name,p.rfc,p.cat,p.email,p.phone,p.bank,p.notes,p.web,p.instagram,p.clabe,p.account].some(v=>norm(v).includes(q));
+    const phoneMatch=isPhoneQuery&&normPhone(p.phone).includes(qPhone);
+    return textMatch||phoneMatch;
+  });
   items.sort((a,b)=>(a.name||'').localeCompare(b.name||'','es'));
   const el=document.getElementById('prov-tbody');
   const cel=document.getElementById('prov-count');
