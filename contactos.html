@@ -387,8 +387,9 @@ tr.selected td{background:var(--accentDim);}
       <button class="btn" id="tb-eliminar" onclick="bulkDelete()" style="display:none;background:rgba(163,45,45,.1);color:#A32D2D;border:1px solid rgba(163,45,45,.25)">🗑 Eliminar</button>
       <button class="btn btn-primary" id="tb-nuevo" onclick="openNewContactModal()">+ Nuevo</button>
       <button class="btn btn-ghost" id="tb-dups" onclick="openDups()">🔍 Duplicados</button>
-      <button class="btn btn-ghost" id="tb-excel" onclick="document.getElementById('xlsx-inp').click()">📊 Importar Excel</button>
+      <button class="btn btn-ghost" id="tb-excel-import" onclick="document.getElementById('xlsx-inp').click()">📥 Importar</button>
       <input autocomplete="off" type="file" id="xlsx-inp" accept=".xlsx,.xls" style="display:none" onchange="importExcel(this)">
+      <button class="btn btn-ghost" id="tb-excel-export" onclick="exportContactsReport()">📤 Exportar</button>
       <select id="approval-filter" onchange="renderApprovals()" style="display:none;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:6px;font-size:12px;font-family:var(--font)">
         <option value="pending">Pendientes</option>
         <option value="approved">Aprobados</option>
@@ -1004,22 +1005,14 @@ function populateStateFilter(){
 }
 
 function applyFilters(){
-  const qRaw=document.getElementById('search-inp').value||'';
-  const q=norm(qRaw);
-  const qDigits=qRaw.replace(/\D/g,'');
-  const isPhoneQuery=qDigits.length>=7;
-  const qPhone=isPhoneQuery?normPhone(qDigits):'';
+  const q=norm(document.getElementById('search-inp').value||'');
   const ag=(document.getElementById('f-agent').value||'').toLowerCase();
   const ty=(document.getElementById('f-type').value||'').toLowerCase();
   const st=(document.getElementById('f-state').value||'').toLowerCase();
   const pl=(document.getElementById('f-pricelist').value||'').toLowerCase();
   filtered=ALL.filter(c=>{
     if((c.type||'').toLowerCase()==='estudio') return false;
-    if(q){
-      const textMatch=[c.name,c.studio,c.email,c.email2,c.city,c.state,c.phone,c.mailingName,c.whatsapp,c.instagram,c.linkedin,c.web,c.origin,c.segment,c.notes,c.code].some(v=>norm(v).includes(q));
-      const phoneMatch=isPhoneQuery&&(normPhone(c.phone).includes(qPhone)||normPhone(c.whatsapp).includes(qPhone));
-      if(!textMatch&&!phoneMatch) return false;
-    }
+    if(q&&![c.name,c.studio,c.email,c.email2,c.city,c.state,c.phone,c.mailingName,c.whatsapp,c.instagram,c.linkedin,c.web,c.origin,c.segment,c.notes,c.code].some(v=>norm(v).includes(q))) return false;
     if(ag&&(c.agent||'').toLowerCase()!==ag) return false;
     if(ty&&(c.type||'').toLowerCase()!==ty) return false;
     if(st&&(c.state||'').toLowerCase()!==st) return false;
@@ -2070,20 +2063,12 @@ function openMergeStudiosFromSelection(){
 }
 
 function renderStudios(){
-  const qRaw=document.getElementById('search-inp')?.value||'';
-  const q=norm(qRaw);
-  const qDigits=qRaw.replace(/\D/g,'');
-  const isPhoneQuery=qDigits.length>=7;
-  const qPhone=isPhoneQuery?normPhone(qDigits):'';
+  const q=norm(document.getElementById('search-inp')?.value||'');
   const countMap={};
   ALL.forEach(c=>{ if(c.studioId!=null) countMap[String(c.studioId)]=(countMap[String(c.studioId)]||0)+1; });
   const users = window._gestorUsers || {};
   let studios=[...ALL_STUDIOS].sort((a,b)=>(a.name||'').localeCompare(b.name||'','es',{sensitivity:'base'}));
-  if(q) studios=studios.filter(s=>{
-    const textMatch=[s.name,s.city,s.state,s.phone,s.whatsapp,s.email,s.email2,s.instagram,s.linkedin,s.web,s.segment,s.origin,s.notes].some(v=>norm(v).includes(q));
-    const phoneMatch=isPhoneQuery&&(normPhone(s.phone).includes(qPhone)||normPhone(s.whatsapp).includes(qPhone));
-    return textMatch||phoneMatch;
-  });
+  if(q) studios=studios.filter(s=>[s.name,s.city,s.state,s.phone,s.whatsapp,s.email,s.email2,s.instagram,s.linkedin,s.web,s.segment,s.origin,s.notes].some(v=>norm(v).includes(q)));
   const el=document.getElementById('studios-tbody');
   const cel=document.getElementById('studio-count');
   if(cel)cel.textContent=studios.length+' estudios';
@@ -2123,6 +2108,63 @@ function renderStudios(){
 // ══════════════════════════════════════════════════════════════════
 //  EXCEL IMPORT
 // ══════════════════════════════════════════════════════════════════
+// Orden del pipeline, de menos a más avanzado — usado para elegir el estatus
+// más avanzado entre los contactos asociados a un estudio.
+const PIPELINE_ORDER=['c-lead','c-contactado','c-respuesta','c-agendado','c-showroom','c-activado'];
+
+function exportContactsReport(){
+  toast('Generando reporte...','⏳');
+  function doExport(XLSX){
+    const rows=[];
+
+    // Contactos
+    ALL.forEach(c=>{
+      if((c.type||'').toLowerCase()==='estudio') return;
+      rows.push({
+        'Tipo': 'Contacto',
+        'Nombre': c.name||'',
+        'Nombre de correspondencia': c.mailingName||'',
+        'E-mail 1': c.email||'',
+        'E-mail 2': c.email2||'',
+        'Estatus': STAGE_NAMES[c.stage]||c.stage||''
+      });
+    });
+
+    // Estudios — estatus = el más avanzado entre sus contactos asociados
+    ALL_STUDIOS.forEach(s=>{
+      const relacionados=ALL.filter(c=>c.studioId!=null && String(c.studioId)===String(s.id));
+      let bestStage='', bestIdx=-1;
+      relacionados.forEach(c=>{
+        const idx=PIPELINE_ORDER.indexOf(c.stage);
+        if(idx>bestIdx){ bestIdx=idx; bestStage=c.stage; }
+      });
+      rows.push({
+        'Tipo': 'Estudio',
+        'Nombre': s.name||'',
+        'Nombre de correspondencia': '',
+        'E-mail 1': s.email||'',
+        'E-mail 2': s.email2||'',
+        'Estatus': bestStage?(STAGE_NAMES[bestStage]||bestStage):''
+      });
+    });
+
+    const ws=XLSX.utils.json_to_sheet(rows);
+    ws['!cols']=[{wch:10},{wch:30},{wch:30},{wch:28},{wch:28},{wch:20}];
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Contactos y Estudios');
+    const date=new Date().toISOString().slice(0,10);
+    XLSX.writeFile(wb,`reporte_contactos_estudios_${date}.xlsx`);
+    toast('Reporte descargado ✅','📤');
+  }
+  if(window.XLSX) doExport(XLSX);
+  else{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload=()=>doExport(XLSX);
+    document.head.appendChild(s);
+  }
+}
+
 function importExcel(input){
   const file=input.files[0]; if(!file) return;
   toast('Cargando Excel...','⏳');
@@ -2452,7 +2494,7 @@ function mergeStudioAC(q){
 // Normaliza texto eliminando acentos para búsquedas
 const STAGE_NAMES={'c-lead':'Lead captado','c-contactado':'Contactado','c-respuesta':'Respuesta recibida','c-agendado':'Visita agendada','c-showroom':'Visitó showroom','c-activado':'Activado'};
 
-function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/\s+/g,''); }
+function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 
 function mergeAgentAC(q){
   const list = document.getElementById('mr-agent-ac');
@@ -2503,19 +2545,11 @@ async function saveProvidersToCloud(){
 }
 
 function renderProviders(){
-  const qRaw=document.getElementById('search-inp')?.value||'';
-  const q=norm(qRaw);
-  const qDigits=qRaw.replace(/\D/g,'');
-  const isPhoneQuery=qDigits.length>=7;
-  const qPhone=isPhoneQuery?normPhone(qDigits):'';
+  const q=(document.getElementById('search-inp')?.value||'').toLowerCase();
   renderProvCatChips();
   let items=[...ALL_PROVIDERS];
   if(_provCatFilter) items=items.filter(p=>p.cat===_provCatFilter);
-  if(q) items=items.filter(p=>{
-    const textMatch=[p.name,p.rfc,p.cat,p.email,p.phone,p.bank,p.notes,p.web,p.instagram,p.clabe,p.account].some(v=>norm(v).includes(q));
-    const phoneMatch=isPhoneQuery&&normPhone(p.phone).includes(qPhone);
-    return textMatch||phoneMatch;
-  });
+  if(q) items=items.filter(p=>[p.name,p.rfc,p.cat,p.email,p.phone,p.bank,p.notes,p.web,p.instagram,p.clabe,p.account].some(v=>(v||'').toLowerCase().includes(q)));
   items.sort((a,b)=>(a.name||'').localeCompare(b.name||'','es'));
   const el=document.getElementById('prov-tbody');
   const cel=document.getElementById('prov-count');
