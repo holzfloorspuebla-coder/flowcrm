@@ -577,7 +577,8 @@ function updateToolbar(){
   else { tbNuevo.style.display='none'; }
   // Duplicados e importar excel
   document.getElementById('tb-dups').style.display = isApprovals?'none':'';
-  document.getElementById('tb-excel').style.display = isApprovals?'none':'';
+  document.getElementById('tb-excel-import').style.display = isApprovals?'none':'';
+  document.getElementById('tb-excel-export').style.display = isApprovals?'none':'';
   // Aprobaciones
   document.getElementById('approval-filter').style.display = isApprovals?'':'none';
   document.getElementById('tb-refresh-approvals').style.display = isApprovals?'':'none';
