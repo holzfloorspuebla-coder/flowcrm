@@ -2894,6 +2894,27 @@ function _doConvertStudio(s){
           <div><label style="font-size:11px;color:var(--text3);font-weight:600">ORIGEN</label><input autocomplete="off" id="nc-c-origin" class="inp" style="width:100%;margin-top:4px"></div>
         </div>
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOTAS</label><textarea id="nc-c-notes" class="inp" style="width:100%;margin-top:4px;min-height:60px;resize:vertical"></textarea></div>
+        <div style="border-top:1px solid var(--border);padding-top:10px;margin-top:4px">
+          <div style="font-size:11px;color:var(--text3);font-weight:600;margin-bottom:8px">PIPELINE CRM</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div>
+              <label style="font-size:11px;color:var(--text3);font-weight:600">ETAPA <span style="font-weight:400">(opcional)</span></label>
+              <select id="nc-c-stage" class="inp" style="width:100%;margin-top:4px">
+                <option value="">— Sin asignar —</option>
+                <option value="c-lead">Lead captado</option>
+                <option value="c-contactado">Contactado</option>
+                <option value="c-respuesta">Respuesta recibida</option>
+                <option value="c-agendado">Visita agendada</option>
+                <option value="c-showroom">Visitó showroom</option>
+                <option value="c-activado">Activado</option>
+              </select>
+            </div>
+          </div>
+          <div style="margin-top:8px">
+            <label style="font-size:11px;color:var(--text3);font-weight:600">ACTIVIDAD INICIAL <span style="font-weight:400">(opcional)</span></label>
+            <textarea id="nc-c-activity" class="inp" placeholder="Añade una nota o registro de actividad..." style="width:100%;margin-top:4px;min-height:60px;resize:vertical"></textarea>
+          </div>
+        </div>
       </div>
 
       <!-- TAB 2: OPORTUNIDAD -->
@@ -2951,9 +2972,9 @@ function openNewContactModal(){
   ['nc-s-name','nc-s-city','nc-s-state','nc-s-email','nc-s-phone','nc-s-web','nc-s-instagram','nc-s-notes',
    'nc-c-name','nc-c-mailing','nc-c-phone','nc-c-email','nc-c-email2','nc-c-whatsapp',
    'nc-c-city','nc-c-state','nc-c-instagram','nc-c-linkedin','nc-c-origin','nc-c-notes',
-   'nc-p-name','nc-p-value','nc-p-notes','nc-studio-search'
+   'nc-p-name','nc-p-value','nc-p-notes','nc-studio-search','nc-c-activity'
   ].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
-  ['nc-c-type','nc-c-pricelist','nc-c-agent','nc-s-agent'].forEach(id=>{ const el=document.getElementById(id); if(el) el.selectedIndex=0; });
+  ['nc-c-type','nc-c-pricelist','nc-c-agent','nc-s-agent','nc-c-stage'].forEach(id=>{ const el=document.getElementById(id); if(el) el.selectedIndex=0; });
   document.getElementById('nc-p-stage').value='c-lead';
   // Populate agent selects from _gestorUsers
   const users=window._gestorUsers||{};
@@ -3105,6 +3126,18 @@ async function saveNewContact(){
       _updatedAt: Date.now()
     };
 
+    // ── PIPELINE desde pestaña Contacto ──
+    const contactStage=(document.getElementById('nc-c-stage').value||'').trim();
+    const contactActivity=(document.getElementById('nc-c-activity').value||'').trim();
+    if(contactStage){
+      newContact.stage=contactStage;
+      newContact.inPipeline=true;
+      newContact.stageDate=new Date().toISOString().split('T')[0];
+    }
+    if(contactActivity){
+      newContact.notesList=[{text:contactActivity, date:new Date().toISOString().split('T')[0], author:agentName||''}];
+    }
+
     // ── 3. OPORTUNIDAD ──
     const projName=(document.getElementById('nc-p-name').value||'').trim();
     if(projName){
@@ -3112,7 +3145,8 @@ async function saveNewContact(){
       newContact.inPipeline=true;
       newContact.stageDate=new Date().toISOString().split('T')[0];
       if(document.getElementById('nc-p-notes').value.trim()){
-        newContact.notesList=[{text:document.getElementById('nc-p-notes').value.trim(), date:new Date().toISOString().split('T')[0], author:''}];
+        const oppNote={text:document.getElementById('nc-p-notes').value.trim(), date:new Date().toISOString().split('T')[0], author:agentName||''};
+        newContact.notesList=[...(newContact.notesList||[]), oppNote];
       }
     }
 
