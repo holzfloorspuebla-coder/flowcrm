@@ -2371,9 +2371,9 @@ function filterMUCContact(q){
   if(!dd)return;
   const nq=norm(q);
   const all=visibleContacts();
-  const filtered=nq?all.filter(c=>norm(c.name).includes(nq)||norm((D.studios||[]).find(s=>s.id===c.studioId)?.name||'').includes(nq)):all;
+  const filtered=nq?all.filter(c=>norm(c.name).includes(nq)||norm((D.studios||[]).find(s=>String(s.id)===String(c.studioId))?.name||'').includes(nq)):all;
   dd.innerHTML=filtered.slice(0,8).map(c=>{
-    const st=(D.studios||[]).find(s=>s.id===c.studioId);
+    const st=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
     const already=_mucPContactIds.includes(c.id);
     const safeName=c.name.replace(/'/g,'&#39;');
     const clickFn=already?'void(0)':'addMUCContact('+c.id+",'"+safeName+"')";
@@ -2558,9 +2558,9 @@ function filterTareaEntity(q){
   const nq=norm(q);
   const results=[];
   // Search contacts
-  (D.contacts||[]).filter(c=>!nq||norm(c.name).includes(nq)||norm((D.studios||[]).find(s=>s.id===c.studioId)?.name||'').includes(nq))
+  (D.contacts||[]).filter(c=>!nq||norm(c.name).includes(nq)||norm((D.studios||[]).find(s=>String(s.id)===String(c.studioId))?.name||'').includes(nq))
     .slice(0,6).forEach(c=>{
-      const st=(D.studios||[]).find(s=>s.id===c.studioId);
+      const st=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
       results.push({id:c.id,type:'contact',name:c.name,sub:st?st.name:'',icon:'&#128101;'});
     });
   // Search studios
@@ -2771,7 +2771,7 @@ function findDuplicates(by){
       ${arr.map((c,i)=>{
         const ag=USERS.find(u=>u.id===c.agent);
         const st=C_STAGES.find(s=>s.id===c.stage);
-        const studio=(D.studios||[]).find(s=>s.id===c.studioId);
+        const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
         const inPipe=c.inPipeline!==false&&c.stage;
         return`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border)">
           <div style="flex:1;min-width:0">
@@ -2902,7 +2902,7 @@ function renderCKanban(){
       let items=visibleContacts().filter(c=>c.stage===st.id&&c.inPipeline!==false);
       if(S.cFilter!=='all')items=items.filter(c=>c.agent===S.cFilter);
       if(kq) items=items.filter(c=>{
-        const studio=(D.studios||[]).find(s=>s.id===c.studioId);
+        const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
         return norm(c.name).includes(kq)||norm(studio?.name||'').includes(kq)||norm(c.email||'').includes(kq)||norm(c.phone||'').includes(kq);
       });
       const studioItems=studioVirtualContacts().filter(s=>s.stage===st.id);
@@ -2926,7 +2926,7 @@ function renderCKanban(){
         let items=visibleContacts().filter(c=>c.stage===st.id&&c.inPipeline!==false);
         if(S.cFilter!=='all')items=items.filter(c=>c.agent===S.cFilter);
         if(kq) items=items.filter(c=>{
-          const studio=(D.studios||[]).find(s=>s.id===c.studioId);
+          const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
           return norm(c.name).includes(kq)||norm(studio?.name||'').includes(kq);
         });
         const studioItems2=studioVirtualContacts().filter(s=>s.stage===st.id);
@@ -2970,7 +2970,7 @@ function cCardH(c,col){
   return`<div class="card${alarmClass2}" draggable="true" id="cc-${c.id}" ondragstart="ds(event,${c.id},'c')" onclick="openProfile(${c.id})" style="${alarmStyle2}">
     ${alarmBadgeHtml(alarm)}${taskBadgeHtml(c.id)}
     <div class="card-top">${avEl(c.name[0],col,28)}<div class="card-name">${c.name}</div></div>
-    <div class="card-sub">🏛️ ${(D.studios||[]).find(s=>s.id===c.studioId)?.name||'—'}</div>
+    <div class="card-sub">🏛️ ${(D.studios||[]).find(s=>String(s.id)===String(c.studioId))?.name||'—'}</div>
     <div class="card-sub">🔖 ${c.type}${c.city?' · 📍'+c.city:''}</div>
     ${np?`<div style="font-size:11px;color:var(--accent);margin:3px 0 5px">📁 ${np} proyecto${np!==1?'s':''}</div>`:''}
     ${tags?`<div class="tags">${tags}</div>`:''}
@@ -3004,7 +3004,7 @@ function renderCTable(){
   const filterVal=filterInp?norm(filterInp.value):'';
   if(filterVal){
     items=items.filter(c=>{
-      const studio=(D.studios||[]).find(s=>s.id===c.studioId);
+      const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
       return [c.name,c.mailingName,c.email,c.email2,c.phone,
               c.whatsapp,studio?.name,c.city,c.state,c.code].some(f=>norm(f).includes(filterVal));
     });
@@ -3068,7 +3068,7 @@ function renderCTable(){
     const np=visibleProjects().filter(p=>p.contactIds?.includes(c.id)).length;
     const ag=USERS.find(a=>a.id===c.agent);
     const st=C_STAGES.find(s=>s.id===c.stage);
-    const studio=(D.studios||[]).find(s=>s.id===c.studioId);
+    const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
     const seg=c.segment?SC[c.segment]:null;
     const sel=(S.selectedContacts||new Set()).has(c.id);
     const inPipeline=!!c.stage;
@@ -3315,7 +3315,7 @@ function openProfile(id){
   $('pf-av').style.cssText=`background:${ag?.color||COLORS[0]}22;color:${ag?.color||COLORS[0]};font-size:24px;font-weight:700;`;
   $('pf-av').textContent=c.name[0];
   $('pf-name').textContent=c.name;
-  const studio=c.studioId?(D.studios||[]).find(s=>s.id===c.studioId):null;
+  const studio=c.studioId?(D.studios||[]).find(s=>String(s.id)===String(c.studioId)):null;
   $('pf-meta').innerHTML=`<span>🔖 ${c.type}</span>${studio?`<span style="cursor:pointer;color:var(--accent)" onclick="openStudioProfile(${studio.id})">🏛️ ${studio.name}</span>`:c.company?`<span>🏢 ${c.company}</span>`:''}${c.city?`<span>📍 ${c.city}</span>`:''}${c.phone?`<span>📞 ${c.phone}</span>`:''}${c.email?`<span><a href="mailto:${c.email}" style="color:var(--accent);text-decoration:none">✉️ ${c.email}</a></span>`:''}${c.instagram?`<span><a href="https://instagram.com/${c.instagram.replace('@','')}" target="_blank" style="color:#c77dff;text-decoration:none">📸 ${c.instagram}</a></span>`:''}${c.linkedin?`<span><a href="${c.linkedin.startsWith('http')?c.linkedin:'https://'+c.linkedin}" target="_blank" style="color:#0a66c2;text-decoration:none">💼 LinkedIn</a></span>`:''}`;
 
   // Actions: edit/delete only if can edit
@@ -3747,7 +3747,7 @@ function exportCsv(){
     // Contact/architect rows — only skip contacts with type='Estudio' (they're already in studio rows)
     (D.contacts||[]).forEach(c=>{
       if(c.type==='Estudio'){return;} // already exported as studio row
-      const studio=(D.studios||[]).find(s=>s.id===c.studioId);
+      const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
       const ag=USERS.find(u=>u.id===c.agent);
       rows.push([
         esc(studio?.name||''),esc(c.name),esc(c.type||'Arquitecto'),
@@ -4941,7 +4941,7 @@ function processUnifiedCsv(text,input){
           : D.contacts.find(c=>{
               if(norm(c.name)!==norm(name)) return false;
               if(c.studioId && studioId){
-                const cs=(D.studios||[]).find(s=>s.id===c.studioId);
+                const cs=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
                 const ns=(D.studios||[]).find(s=>s.id===studioId);
                 return norm(cs?.name||'')===norm(ns?.name||'');
               }
@@ -5564,7 +5564,7 @@ function globalSearch(val){
   // Search contacts by name, studio, phone, email, whatsapp
   const nq=norm(val.trim());
   const cMatch=visibleContacts().filter(c=>{
-    const studio=(D.studios||[]).find(s=>s.id===c.studioId);
+    const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
     return [c.name, c.mailingName, c.email, c.email2,
             c.phone, c.whatsapp, studio?.name,
             c.city, c.state, c.origin].some(f=>norm(f).includes(nq));
@@ -5618,7 +5618,7 @@ function globalSearch(val){
   if(cMatch.length){
     html+=`<div style="padding:8px 12px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)">Contactos (${cMatch.length})</div>`;
     html+=cMatch.map((c,i)=>{
-      const studio=(D.studios||[]).find(s=>s.id===c.studioId);
+      const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
       const ag=USERS.find(a=>a.id===c.agent);
       const st=C_STAGES.find(s=>s.id===c.stage);
       // Highlight matching field
