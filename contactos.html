@@ -3135,26 +3135,47 @@ async function saveNewContact(){
       newContact.stageDate=new Date().toISOString().split('T')[0];
     }
     if(contactActivity){
-      newContact.notesList=[{text:contactActivity, date:new Date().toISOString().split('T')[0], author:agentName||''}];
+      newContact.notesList=[{text:contactActivity, date:new Date().toISOString().split('T')[0], author:'Luis'}];
     }
 
     // ── 3. OPORTUNIDAD ──
     const projName=(document.getElementById('nc-p-name').value||'').trim();
+    const newProjects=[];
     if(projName){
-      newContact.stage=document.getElementById('nc-p-stage').value||'c-lead';
-      newContact.inPipeline=true;
-      newContact.stageDate=new Date().toISOString().split('T')[0];
-      if(document.getElementById('nc-p-notes').value.trim()){
-        const oppNote={text:document.getElementById('nc-p-notes').value.trim(), date:new Date().toISOString().split('T')[0], author:agentName||''};
+      const today=new Date().toISOString().split('T')[0];
+      const projNotes=(document.getElementById('nc-p-notes').value||'').trim();
+      // Añadir nota de oportunidad al contacto si hay notas
+      if(projNotes){
+        const oppNote={text:projNotes, date:today, author:'Luis'};
         newContact.notesList=[...(newContact.notesList||[]), oppNote];
       }
+      const agentEntry=Object.entries(window._gestorUsers||{}).find(([,n])=>n===agentName);
+      const agentId=agentEntry?parseInt(agentEntry[0]):1;
+      const newProj={
+        id: Date.now()+Math.floor(Math.random()*10000),
+        name: projName,
+        stage: document.getElementById('nc-p-stage').value||'contacto-inicial',
+        stageDate: today,
+        date: today,
+        value: parseFloat(document.getElementById('nc-p-value').value)||0,
+        notes: projNotes,
+        city: newContact.city||'',
+        agent: agentId,
+        segment: '',
+        tags: [],
+        closeDate: '',
+        actLog: [],
+        contactIds: [newCrmId],
+        _updatedAt: Date.now()
+      };
+      newProjects.push(newProj);
     }
 
-    // ── SAVE — mandar solo el contacto nuevo (y estudio si aplica) ──
+    // ── SAVE — mandar contacto, estudio y proyecto si aplica ──
     const payload={
       contacts: [newContact],
       studios: newStudios,
-      projects: [],
+      projects: newProjects,
       _savedAt: Date.now()+30000
     };
     await fetch(WORKER+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
