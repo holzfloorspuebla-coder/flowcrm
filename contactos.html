@@ -1006,14 +1006,22 @@ function populateStateFilter(){
 }
 
 function applyFilters(){
-  const q=norm(document.getElementById('search-inp').value||'');
+  const qRaw=document.getElementById('search-inp').value||'';
+  const q=norm(qRaw);
+  const qDigits=qRaw.replace(/\D/g,'');
+  const isPhoneQuery=qDigits.length>=7;
+  const qPhone=isPhoneQuery?normPhone(qDigits):'';
   const ag=(document.getElementById('f-agent').value||'').toLowerCase();
   const ty=(document.getElementById('f-type').value||'').toLowerCase();
   const st=(document.getElementById('f-state').value||'').toLowerCase();
   const pl=(document.getElementById('f-pricelist').value||'').toLowerCase();
   filtered=ALL.filter(c=>{
     if((c.type||'').toLowerCase()==='estudio') return false;
-    if(q&&![c.name,c.studio,c.email,c.email2,c.city,c.state,c.phone,c.mailingName,c.whatsapp,c.instagram,c.linkedin,c.web,c.origin,c.segment,c.notes,c.code].some(v=>norm(v).includes(q))) return false;
+    if(q){
+      const textMatch=[c.name,c.studio,c.email,c.email2,c.city,c.state,c.phone,c.mailingName,c.whatsapp,c.instagram,c.linkedin,c.web,c.origin,c.segment,c.notes,c.code].some(v=>norm(v).includes(q));
+      const phoneMatch=isPhoneQuery&&(normPhone(c.phone).includes(qPhone)||normPhone(c.whatsapp).includes(qPhone));
+      if(!textMatch&&!phoneMatch) return false;
+    }
     if(ag&&(c.agent||'').toLowerCase()!==ag) return false;
     if(ty&&(c.type||'').toLowerCase()!==ty) return false;
     if(st&&(c.state||'').toLowerCase()!==st) return false;
@@ -1290,10 +1298,11 @@ function findDupsAll(by){
     if(d.length===12&&d.startsWith('52')) return d.slice(2);
     return d; };
 
-  // Build unified list of contacts + studios
+  // Build unified list of contacts + studios + providers
   const contacts=ALL.filter(c=>(c.type||'').toLowerCase()!=='estudio').map(c=>({...c,_kind:'contact'}));
   const studios=ALL_STUDIOS.map(s=>({...s,_kind:'studio',_i:-1}));
-  const all=[...contacts,...studios];
+  const providers=(ALL_PROVIDERS||[]).map(p=>({...p,_kind:'provider',_i:-1}));
+  const all=[...contacts,...studios,...providers];
 
   const groups=[];
 
@@ -1313,11 +1322,21 @@ function findDupsAll(by){
     }
   } else if(by==='email'){
     const map={};
-    all.forEach(x=>{ const e=(x.email||'').toLowerCase().trim(); if(e.length>=5)(map[e]=map[e]||[]).push(x); });
+    all.forEach(x=>{
+      [x.email,x.email2].forEach(e=>{
+        const en=(e||'').toLowerCase().trim();
+        if(en.length>=5)(map[en]=map[en]||[]).push(x);
+      });
+    });
     Object.values(map).filter(g=>g.length>=2).forEach(g=>groups.push(g));
   } else if(by==='phone'){
     const map={};
-    all.forEach(x=>{ const p=normPhone(x.phone||''); if(p.length>=7)(map[p]=map[p]||[]).push(x); });
+    all.forEach(x=>{
+      [x.phone,x.whatsapp].forEach(ph=>{
+        const p=normPhone(ph||'');
+        if(p.length>=7)(map[p]=map[p]||[]).push(x);
+      });
+    });
     Object.values(map).filter(g=>g.length>=2).forEach(g=>groups.push(g));
   }
 
@@ -2064,12 +2083,20 @@ function openMergeStudiosFromSelection(){
 }
 
 function renderStudios(){
-  const q=norm(document.getElementById('search-inp')?.value||'');
+  const qRaw=document.getElementById('search-inp')?.value||'';
+  const q=norm(qRaw);
+  const qDigits=qRaw.replace(/\D/g,'');
+  const isPhoneQuery=qDigits.length>=7;
+  const qPhone=isPhoneQuery?normPhone(qDigits):'';
   const countMap={};
   ALL.forEach(c=>{ if(c.studioId!=null) countMap[String(c.studioId)]=(countMap[String(c.studioId)]||0)+1; });
   const users = window._gestorUsers || {};
   let studios=[...ALL_STUDIOS].sort((a,b)=>(a.name||'').localeCompare(b.name||'','es',{sensitivity:'base'}));
-  if(q) studios=studios.filter(s=>[s.name,s.city,s.state,s.phone,s.whatsapp,s.email,s.email2,s.instagram,s.linkedin,s.web,s.segment,s.origin,s.notes].some(v=>norm(v).includes(q)));
+  if(q) studios=studios.filter(s=>{
+    const textMatch=[s.name,s.city,s.state,s.phone,s.whatsapp,s.email,s.email2,s.instagram,s.linkedin,s.web,s.segment,s.origin,s.notes].some(v=>norm(v).includes(q));
+    const phoneMatch=isPhoneQuery&&(normPhone(s.phone).includes(qPhone)||normPhone(s.whatsapp).includes(qPhone));
+    return textMatch||phoneMatch;
+  });
   const el=document.getElementById('studios-tbody');
   const cel=document.getElementById('studio-count');
   if(cel)cel.textContent=studios.length+' estudios';
@@ -2546,11 +2573,19 @@ async function saveProvidersToCloud(){
 }
 
 function renderProviders(){
-  const q=(document.getElementById('search-inp')?.value||'').toLowerCase();
+  const qRaw=document.getElementById('search-inp')?.value||'';
+  const q=norm(qRaw);
+  const qDigits=qRaw.replace(/\D/g,'');
+  const isPhoneQuery=qDigits.length>=7;
+  const qPhone=isPhoneQuery?normPhone(qDigits):'';
   renderProvCatChips();
   let items=[...ALL_PROVIDERS];
   if(_provCatFilter) items=items.filter(p=>p.cat===_provCatFilter);
-  if(q) items=items.filter(p=>[p.name,p.rfc,p.cat,p.email,p.phone,p.bank,p.notes,p.web,p.instagram,p.clabe,p.account].some(v=>(v||'').toLowerCase().includes(q)));
+  if(q) items=items.filter(p=>{
+    const textMatch=[p.name,p.rfc,p.cat,p.email,p.phone,p.bank,p.notes,p.web,p.instagram,p.clabe,p.account].some(v=>norm(v).includes(q));
+    const phoneMatch=isPhoneQuery&&normPhone(p.phone).includes(qPhone);
+    return textMatch||phoneMatch;
+  });
   items.sort((a,b)=>(a.name||'').localeCompare(b.name||'','es'));
   const el=document.getElementById('prov-tbody');
   const cel=document.getElementById('prov-count');
