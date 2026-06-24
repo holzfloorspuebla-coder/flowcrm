@@ -1337,7 +1337,12 @@ function findDupsAll(by){
         if(p.length>=7)(map[p]=map[p]||[]).push(x);
       });
     });
-    Object.values(map).filter(g=>g.length>=2).forEach(g=>groups.push(g));
+    Object.values(map).forEach(g=>{
+      // Deduplicar: un mismo registro puede aparecer dos veces si phone===whatsapp
+      const seen=new Set();
+      const unique=g.filter(x=>{ const k=(x._kind||'')+'|'+(x.id||x._i); if(seen.has(k))return false; seen.add(k);return true; });
+      if(unique.length>=2) groups.push(unique);
+    });
   }
 
   groups.sort((a,b)=>b.length-a.length);
@@ -2869,11 +2874,23 @@ function _doConvertStudio(s){
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
               <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL</label><input autocomplete="off" id="nc-s-email" class="inp" style="width:100%;margin-top:4px" type="email"></div>
+              <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL 2</label><input autocomplete="off" id="nc-s-email2" class="inp" style="width:100%;margin-top:4px" type="email"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
               <div><label style="font-size:11px;color:var(--text3);font-weight:600">TELÉFONO</label><input autocomplete="off" id="nc-s-phone" class="inp" style="width:100%;margin-top:4px"></div>
+              <div><label style="font-size:11px;color:var(--text3);font-weight:600">WHATSAPP</label><input autocomplete="off" id="nc-s-whatsapp" class="inp" style="width:100%;margin-top:4px" placeholder="+52..."></div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
               <div><label style="font-size:11px;color:var(--text3);font-weight:600">WEB</label><input autocomplete="off" id="nc-s-web" class="inp" style="width:100%;margin-top:4px" placeholder="https://..."></div>
               <div><label style="font-size:11px;color:var(--text3);font-weight:600">INSTAGRAM</label><input autocomplete="off" id="nc-s-instagram" class="inp" style="width:100%;margin-top:4px" placeholder="@..."></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div><label style="font-size:11px;color:var(--text3);font-weight:600">LINKEDIN</label><input autocomplete="off" id="nc-s-linkedin" class="inp" style="width:100%;margin-top:4px" placeholder="https://..."></div>
+              <div><label style="font-size:11px;color:var(--text3);font-weight:600">ORIGEN</label><input autocomplete="off" id="nc-s-origin" class="inp" style="width:100%;margin-top:4px"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+              <div><label style="font-size:11px;color:var(--text3);font-weight:600">SEGMENTO</label><input autocomplete="off" id="nc-s-segment" class="inp" style="width:100%;margin-top:4px"></div>
+              <div></div>
             </div>
             <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOTAS</label><textarea id="nc-s-notes" class="inp" style="width:100%;margin-top:4px;min-height:50px;resize:vertical"></textarea></div>
           </div>
@@ -2918,6 +2935,10 @@ function _doConvertStudio(s){
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div><label style="font-size:11px;color:var(--text3);font-weight:600">INSTAGRAM</label><input autocomplete="off" id="nc-c-instagram" class="inp" style="width:100%;margin-top:4px" placeholder="@..."></div>
           <div><label style="font-size:11px;color:var(--text3);font-weight:600">LINKEDIN</label><input autocomplete="off" id="nc-c-linkedin" class="inp" style="width:100%;margin-top:4px" placeholder="https://..."></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">WEB</label><input autocomplete="off" id="nc-c-web" class="inp" style="width:100%;margin-top:4px" placeholder="https://..."></div>
+          <div><label style="font-size:11px;color:var(--text3);font-weight:600">SEGMENTO</label><input autocomplete="off" id="nc-c-segment" class="inp" style="width:100%;margin-top:4px"></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div><label style="font-size:11px;color:var(--text3);font-weight:600">VENDEDOR</label>
@@ -3004,9 +3025,9 @@ function openNewContactModal(){
   _ncTab = 0;
   _ncSelectedStudio = null;
   // Reset all fields
-  ['nc-s-name','nc-s-city','nc-s-state','nc-s-email','nc-s-phone','nc-s-web','nc-s-instagram','nc-s-notes',
+  ['nc-s-name','nc-s-city','nc-s-state','nc-s-email','nc-s-email2','nc-s-phone','nc-s-whatsapp','nc-s-web','nc-s-instagram','nc-s-linkedin','nc-s-origin','nc-s-segment','nc-s-notes',
    'nc-c-name','nc-c-mailing','nc-c-phone','nc-c-email','nc-c-email2','nc-c-whatsapp',
-   'nc-c-city','nc-c-state','nc-c-instagram','nc-c-linkedin','nc-c-origin','nc-c-notes',
+   'nc-c-city','nc-c-state','nc-c-instagram','nc-c-linkedin','nc-c-web','nc-c-segment','nc-c-origin','nc-c-notes',
    'nc-p-name','nc-p-value','nc-p-notes','nc-studio-search','nc-c-activity'
   ].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   ['nc-c-type','nc-c-pricelist','nc-c-agent','nc-s-agent','nc-c-stage'].forEach(id=>{ const el=document.getElementById(id); if(el) el.selectedIndex=0; });
@@ -3115,9 +3136,14 @@ async function saveNewContact(){
           city: (document.getElementById('nc-s-city').value||'').trim(),
           state: (document.getElementById('nc-s-state').value||'').trim(),
           email: (document.getElementById('nc-s-email').value||'').trim(),
+          email2: (document.getElementById('nc-s-email2').value||'').trim(),
           phone: (document.getElementById('nc-s-phone').value||'').trim(),
+          whatsapp: (document.getElementById('nc-s-whatsapp').value||'').trim(),
           web: (document.getElementById('nc-s-web').value||'').trim(),
           instagram: (document.getElementById('nc-s-instagram').value||'').trim(),
+          linkedin: (document.getElementById('nc-s-linkedin').value||'').trim(),
+          origin: (document.getElementById('nc-s-origin').value||'').trim(),
+          segment: (document.getElementById('nc-s-segment').value||'').trim(),
           notes: (document.getElementById('nc-s-notes').value||'').trim(),
           agent: document.getElementById('nc-s-agent').value||'',
           _updatedAt: Date.now()
@@ -3151,6 +3177,8 @@ async function saveNewContact(){
       state: (document.getElementById('nc-c-state').value||'').trim(),
       instagram: (document.getElementById('nc-c-instagram').value||'').trim(),
       linkedin: (document.getElementById('nc-c-linkedin').value||'').trim(),
+      web: (document.getElementById('nc-c-web').value||'').trim(),
+      segment: (document.getElementById('nc-c-segment').value||'').trim(),
       origin: (document.getElementById('nc-c-origin').value||'').trim(),
       notes: (document.getElementById('nc-c-notes').value||'').trim(),
       agent: agentEntry?parseInt(agentEntry[0])||agentEntry[0]:agentName,
@@ -3235,6 +3263,8 @@ async function saveNewContact(){
       state: newContact.state,
       instagram: newContact.instagram||'',
       linkedin: newContact.linkedin||'',
+      web: newContact.web||'',
+      segment: newContact.segment||'',
       origin: newContact.origin||'',
       notes: newContact.notes||'',
       agent: agentName,
