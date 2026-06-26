@@ -348,6 +348,33 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
   </div>
 </div>
 
+<!-- MODAL CERRAR PROYECTO -->
+<div class="overlay hidden" id="modal-close-quote">
+  <div class="modal" style="width:520px">
+    <div class="modal-hd">
+      <h2 id="mcq-title">🔒 Cerrar proyecto</h2>
+      <button class="modal-close" onclick="closeModal('modal-close-quote')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px 18px">
+      <div id="mcq-summary" style="background:var(--surface2);border-radius:var(--r);padding:14px;font-size:12px;margin-bottom:14px;line-height:1.8"></div>
+      <div style="margin-bottom:12px">
+        <label class="lbl" style="display:block;margin-bottom:5px">Centro contable destino</label>
+        <select class="inp" id="mcq-entity" style="width:100%">
+          <option value="">— No enviar a contabilidad —</option>
+        </select>
+      </div>
+      <div style="margin-bottom:14px">
+        <label class="lbl" style="display:block;margin-bottom:5px">Concepto del apunte</label>
+        <input class="inp" type="text" id="mcq-concept" style="width:100%">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('modal-close-quote')">Cancelar</button>
+        <button class="btn btn-primary" id="mcq-btn" onclick="confirmCloseQuote()">🔒 Cerrar proyecto</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MAIN -->
 <div class="shell hidden" id="shell">
   <div class="sidebar">
@@ -373,7 +400,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         <span class="save-ind" id="save-ind"></span>
         <button class="btn btn-ghost" onclick="generateText()">✨ Generar texto</button>
         <button class="btn btn-ghost" onclick="exportExcel()">📥 Descargar Excel</button>
-        <button class="btn btn-ghost" onclick="downloadBackup()" title="Descargar copia de seguridad de todos los datos">💾 Backup</button>
+        <button class="btn btn-ghost" onclick="downloadBackup()" title="Copia de seguridad">💾 Backup</button>
+        <button class="btn btn-ghost" id="btn-close-quote" onclick="openCloseQuoteModal()" style="display:none">🔒 Cerrar</button>
+        <button class="btn btn-ghost" id="btn-reopen-quote" onclick="reopenQuote()" style="display:none;color:var(--green)">🔓 Reabrir</button>
         <button class="btn btn-primary" onclick="saveQuote()">💾 Guardar</button>
       </div>
     </div>
@@ -925,6 +954,107 @@ function selectClientFromModal(name,pl){
   closeModal('modal-client-search');
   if(pl) setValue('q-pricelist',pl);
   updateTopbar(); recalcAll(); markDirty();
+}
+
+// ── CERRAR / REABRIR PROYECTO ──
+async function openCloseQuoteModal(){
+  if(!CURRENT_Q) return;
+  // Poblar select de centros contables
+  const sel=document.getElementById('mcq-entity');
+  sel.innerHTML='<option value="">— No enviar a contabilidad —</option>';
+  try{
+    const r=await fetch(WORKER+'/accounting?t='+Date.now(),{cache:'no-store'});
+    const data=await r.json();
+    const businesses=data.businesses||[], units=data.units||[];
+    businesses.forEach(b=>{
+      sel.innerHTML+=`<option value="${b.id}">🏢 ${b.name}</option>`;
+      units.filter(u=>u.businessId===b.id).forEach(u=>{
+        sel.innerHTML+=`<option value="${u.id}">　🏪 ${u.name} (${b.name})</option>`;
+      });
+    });
+    if(CURRENT_Q.accEntityId) sel.value=CURRENT_Q.accEntityId;
+  }catch(e){}
+  // Calcular resumen
+  const discPP=(parseFloat(val('q-disc-pp'))||0)/100;
+  const allItems=[...CURRENT_Q.supply,...CURRENT_Q.labor];
+  const realExtras=CURRENT_Q.realExtras||[];
+  const realIncomes=CURRENT_Q.realIncomes||[];
+  const realExtraTotal=realExtras.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  const realIncomeExtra=realIncomes.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  let totalCostReal=realExtraTotal;
+  allItems.forEach(x=>{
+    const cost=x.costReal!==undefined?x.costReal:0;
+    totalCostReal+=round(x.vol*cost,2);
+  });
+  const pvpBase=parseFloat(document.getElementById('rk-pvp')?.textContent?.replace(/[^0-9.]/g,'')||0)||
+    parseFloat(document.getElementById('gt-total')?.textContent?.replace(/[^0-9.]/g,'')||0);
+  const totalInc=pvpBase+realIncomeExtra;
+  const margenReal=round(totalInc-totalCostReal,2);
+  const pct=totalInc?round((margenReal/totalInc)*100,1):0;
+  document.getElementById('mcq-summary').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div><span style="color:var(--text3)">Ingreso total real:</span> <strong>${mxn(totalInc)}</strong></div>
+      <div><span style="color:var(--text3)">Costo total real:</span> <strong style="color:var(--orange)">${mxn(totalCostReal)}</strong></div>
+      <div><span style="color:var(--text3)">Margen real:</span> <strong style="color:var(--green)">${mxn(margenReal)}</strong></div>
+      <div><span style="color:var(--text3)">Margen %:</span> <strong>${pct}%</strong></div>
+    </div>`;
+  const concept='Resultado proyecto '+(CURRENT_Q.num||'');
+  const conceptEl=document.getElementById('mcq-concept');
+  if(conceptEl) conceptEl.value=CURRENT_Q.accConcept||concept;
+  document.getElementById('mcq-title').textContent='🔒 Cerrar proyecto — '+(CURRENT_Q.num||'');
+  // Guardar para uso en confirmCloseQuote
+  window._mcqTotalInc=totalInc; window._mcqTotalCostReal=totalCostReal;
+  document.getElementById('modal-close-quote').classList.remove('hidden');
+}
+
+async function confirmCloseQuote(){
+  if(!CURRENT_Q) return;
+  const entityId=document.getElementById('mcq-entity')?.value;
+  const concept=document.getElementById('mcq-concept')?.value?.trim()||'Resultado proyecto '+(CURRENT_Q.num||'');
+  CURRENT_Q.status='closed';
+  CURRENT_Q.accEntityId=entityId||CURRENT_Q.accEntityId;
+  CURRENT_Q.accConcept=concept;
+  CURRENT_Q._closedAt=Date.now();
+  markDirty();
+  await persistAll();
+  renderQuoteList();
+  // Actualizar botones
+  document.getElementById('btn-close-quote').style.display='none';
+  document.getElementById('btn-reopen-quote').style.display='';
+  closeModal('modal-close-quote');
+  // Enviar a contabilidad si se seleccionó un centro
+  if(entityId){
+    try{
+      const now=Date.now();
+      const r=await fetch(WORKER+'/accounting?t='+now,{cache:'no-store'});
+      const accData=await r.json();
+      if(!accData.transactions) accData.transactions=[];
+      // Eliminar apuntes anteriores de este proyecto si existen
+      accData.transactions=accData.transactions.filter(t=>t._quoteId!==CURRENT_Q.id);
+      accData.transactions.push(
+        {id:'tx-'+now+'-i',entityId,type:'income',concept,net:window._mcqTotalInc||0,iva:0,date:today(),_quoteId:CURRENT_Q.id,_closedAt:now},
+        {id:'tx-'+now+'-e',entityId,type:'expense',concept:'Costos: '+concept,net:window._mcqTotalCostReal||0,iva:0,date:today(),_quoteId:CURRENT_Q.id,_closedAt:now}
+      );
+      const res=await fetch(WORKER+'/accounting',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(accData)});
+      if(res.ok) toast('Proyecto cerrado y resultado enviado a contabilidad ✓','✅','success');
+      else toast('Proyecto cerrado — error al enviar a contabilidad','⚠️');
+    }catch(e){ toast('Proyecto cerrado — error: '+e.message,'⚠️'); }
+  } else {
+    toast('Proyecto cerrado','🔒','success');
+  }
+}
+
+async function reopenQuote(){
+  if(!CURRENT_Q) return;
+  if(!confirm('¿Reabrir este proyecto? Podrás editar los datos y volver a enviar el resultado a contabilidad.')) return;
+  CURRENT_Q.status='open';
+  delete CURRENT_Q._closedAt;
+  markDirty();
+  await persistAll();
+  renderQuoteList();
+  document.getElementById('btn-close-quote').style.display='';
+  document.getElementById('btn-reopen-quote').style.display='none';
+  toast('Proyecto reabierto','🔓','success');
 }
 
 // ── BACKUP ──
@@ -1861,7 +1991,7 @@ function addManualProduct(){
 function newQuote(){
   const year=new Date().getFullYear();
   const q={id:uid(),num:`P${String(100+QUOTES.length).padStart(3,'0')}/C001/${year}`,
-    date:today(),project:'',client:'',pricelist:'',discPP:0,realExtras:[],
+    date:today(),project:'',client:'',pricelist:'',discPP:0,realExtras:[],realIncomes:[],
     supply:[],labor:[],extraCosts:[],text:'',_createdAt:Date.now()};
   QUOTES.unshift(q);
   renderQuoteList();
@@ -1871,6 +2001,14 @@ function newQuote(){
 function selectQuote(id){
   CURRENT_Q=QUOTES.find(q=>q.id===id);
   if(!CURRENT_Q) return;
+  // Botones cerrar/reabrir (solo admin)
+  if(IS_ADMIN){
+    const isClosed=CURRENT_Q.status==='closed';
+    const btnClose=document.getElementById('btn-close-quote');
+    const btnReopen=document.getElementById('btn-reopen-quote');
+    if(btnClose) btnClose.style.display=isClosed?'none':'';
+    if(btnReopen) btnReopen.style.display=isClosed?'':'none';
+  }
   document.querySelectorAll('.quote-item').forEach(el=>el.classList.toggle('active',el.dataset.id===id));
   document.getElementById('no-quote').style.display='none';
   document.getElementById('quote-editor').style.display='';
@@ -1889,6 +2027,7 @@ function loadQuoteToForm(){
   const notesEl=document.getElementById('q-notes'); if(notesEl) notesEl.value=q.notes||'';
   if(!q.extraCosts) q.extraCosts=[];
   if(!q.realExtras) q.realExtras=[];
+  if(!q.realIncomes) q.realIncomes=[];
   renderExtraCosts();
   document.getElementById('proposal-text').innerHTML=q.text||'';
 }
@@ -1926,7 +2065,7 @@ function renderQuoteList(){
   document.getElementById('quote-list').innerHTML=list.length?list.map(q=>`
     <div class="quote-item" data-id="${q.id}" onclick="selectQuote('${q.id}')">
       <div style="display:flex;align-items:center;justify-content:space-between">
-        <div class="quote-num">${esc(q.num||'Sin número')}</div>
+        <div class="quote-num">${esc(q.num||'Sin número')} ${q.status==='closed'?'<span style="font-size:9px;color:var(--text3);font-weight:600">🔒</span>':''}</div>
         <div style="display:flex;gap:2px">
           <button class="btn-icon" title="Duplicar" onclick="selectQuote('${q.id}');setTimeout(duplicateQuote,100);event.stopPropagation()">⧉</button>
           <button class="btn-icon" onclick="deleteQuote('${q.id}',event)">🗑</button>
@@ -2180,10 +2319,26 @@ function recalcRent(supNet,labRaw,extraCosts){
   const income=supNet;
   const allItems=[...CURRENT_Q.supply,...CURRENT_Q.labor];
   const extraTotal=(extraCosts||[]).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-  // Gastos extra reales
+  // Gastos extra reales e ingresos extra reales
   const realExtras=CURRENT_Q.realExtras||[];
   const realExtraTotal=realExtras.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  const realIncomes=CURRENT_Q.realIncomes||[];
+  const realIncomeExtra=realIncomes.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
   let totalCostExp=extraTotal, totalCostReal=realExtraTotal;
+  const totalIncome=income+realIncomeExtra;
+
+  // Filas de ingresos extra reales (se agregan al inicio del bloque de extras)
+  const realIncomeRows=realIncomes.map((e,i)=>`<tr style="background:var(--surface2)">
+    <td class="lft" colspan="5" style="color:var(--green);font-size:11px">
+      <input class="mini-inp" type="text" placeholder="Descripción del ingreso extra" value="${esc(e.desc||'')}" style="width:100%;font-size:11px;color:var(--green)" oninput="updateRealIncome(${i},'desc',this.value)">
+    </td>
+    <td style="color:var(--green)">
+      <input class="mini-inp" type="number" value="${e.amount||0}" style="width:72px;color:var(--green)" oninput="updateRealIncome(${i},'amount',this.value)">
+    </td>
+    <td style="font-family:var(--mono);font-size:11px;color:var(--green)">+${mxn(parseFloat(e.amount)||0)}</td>
+    <td colspan="3" style="font-size:10px;color:var(--text3)">Ingreso extra</td>
+    <td><button class="btn-icon" style="color:var(--green)" onclick="removeRealIncome(${i})">✕</button></td>
+  </tr>`).join('');
 
   // Filas de gastos extra reales (se agregan al final del tbody)
   const realExtraRows=realExtras.map((e,i)=>`<tr style="background:var(--surface2)">
@@ -2209,8 +2364,8 @@ function recalcRent(supNet,labRaw,extraCosts){
     const isAdjusted=x.costAdj!==undefined;
     const costT=round(x.vol*cost,2);
     totalCostExp+=costT;
-    // Costo real
-    const costReal=x.costReal!==undefined?x.costReal:cost;
+    // Costo real — por defecto 0 hasta que el usuario lo rellene
+    const costReal=x.costReal!==undefined?x.costReal:0;
     const costRealT=round(x.vol*costReal,2);
     totalCostReal+=costRealT;
     const diff=round(costRealT-costT,2);
@@ -2238,20 +2393,23 @@ function recalcRent(supNet,labRaw,extraCosts){
       <td>${mxn(pvpNeto)}</td><td style="color:var(--orange)">${mxn(costT)}</td>
       <td>${mxn(margin)}</td><td>${mbadge(pct)}</td>
     </tr>`;
-  }).join('')+realExtraRows+`<tr>
-    <td colspan="11" style="padding:4px 8px">
-      <button class="btn btn-ghost" style="font-size:11px;padding:2px 8px;color:var(--accent)" onclick="addRealExtra()">＋ Agregar gasto extra real</button>
+  }).join('')+realIncomeRows+realExtraRows+`<tr>
+    <td colspan="5" style="padding:4px 8px">
+      <button class="btn btn-ghost" style="font-size:11px;padding:2px 8px;color:var(--green)" onclick="addRealIncome()">＋ Ingreso extra</button>
+    </td>
+    <td colspan="6" style="padding:4px 8px">
+      <button class="btn btn-ghost" style="font-size:11px;padding:2px 8px;color:var(--accent)" onclick="addRealExtra()">＋ Gasto extra real</button>
     </td>
   </tr>`;
 
   const gross=income-totalCostExp, pct=income?gross/income:0;
-  const grossReal=income-totalCostReal, pctReal=income?grossReal/income:0;
+  const grossReal=totalIncome-totalCostReal, pctReal=totalIncome?grossReal/totalIncome:0;
   setText('r-income',mxn(income)); setText('r-cost',mxn(totalCostExp)); setText('r-margin',mxn(gross));
   document.getElementById('r-mbadge').innerHTML=mbadge(pct);
 
   // KPIs
   const costDiff=round(totalCostReal-totalCostExp,2);
-  setText('rk-pvp',mxn(income));
+  setText('rk-pvp',mxn(totalIncome));
   setText('rk-cost-exp',mxn(totalCostExp));
   setText('rk-margin-exp-pct',(pct*100).toFixed(1)+'%');
   setText('rk-cost-real',mxn(totalCostReal));
@@ -2263,7 +2421,7 @@ function recalcRent(supNet,labRaw,extraCosts){
 
   // Preview apunte contabilidad
   const prevEl=document.getElementById('rent-acc-preview');
-  if(prevEl) prevEl.textContent=`Se registrará un ingreso de ${mxn(income)} y gastos reales por ${mxn(totalCostReal)} en el centro seleccionado.`;
+  if(prevEl) prevEl.textContent=`Se registrará un ingreso de ${mxn(totalIncome)} y gastos reales por ${mxn(totalCostReal)} en el centro seleccionado.`;
 
   // Auto-rellenar concepto
   const concEl=document.getElementById('rent-acc-concept');
@@ -2278,6 +2436,23 @@ function setItemCostReal(table,i,value){
 }
 
 // ── GASTOS EXTRA REALES ──
+// ── INGRESOS EXTRA REALES ──
+function addRealIncome(){
+  if(!CURRENT_Q.realIncomes) CURRENT_Q.realIncomes=[];
+  CURRENT_Q.realIncomes.push({desc:'',amount:0});
+  recalcAll(true); markDirty();
+}
+function removeRealIncome(i){
+  if(!CURRENT_Q?.realIncomes) return;
+  CURRENT_Q.realIncomes.splice(i,1);
+  recalcAll(true); markDirty();
+}
+function updateRealIncome(i,field,value){
+  if(!CURRENT_Q?.realIncomes?.[i]) return;
+  CURRENT_Q.realIncomes[i][field]=field==='amount'?(parseFloat(value)||0):value;
+  recalcAll(true); markDirty();
+}
+
 function addRealExtra(){
   if(!CURRENT_Q.realExtras) CURRENT_Q.realExtras=[];
   CURRENT_Q.realExtras.push({desc:'',amount:0});
