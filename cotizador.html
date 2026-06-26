@@ -373,6 +373,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         <span class="save-ind" id="save-ind"></span>
         <button class="btn btn-ghost" onclick="generateText()">✨ Generar texto</button>
         <button class="btn btn-ghost" onclick="exportExcel()">📥 Descargar Excel</button>
+        <button class="btn btn-ghost" onclick="downloadBackup()" title="Descargar copia de seguridad de todos los datos">💾 Backup</button>
         <button class="btn btn-primary" onclick="saveQuote()">💾 Guardar</button>
       </div>
     </div>
@@ -924,6 +925,32 @@ function selectClientFromModal(name,pl){
   closeModal('modal-client-search');
   if(pl) setValue('q-pricelist',pl);
   updateTopbar(); recalcAll(); markDirty();
+}
+
+// ── BACKUP ──
+async function downloadBackup(){
+  try{
+    toast('Generando backup...','⏳');
+    const data=await cloudGet();
+    const backup={
+      _exportedAt: new Date().toISOString(),
+      _version: 'FlowCRM-Cotizador',
+      quotes:    data.quotes    || [],
+      catalog:   data.catalog   || [],
+      catDefs:   data.catDefs   || {},
+      providers: data.providers || [],
+      providerCats: data.providerCats || [],
+      customUnits:  data.customUnits  || [],
+    };
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='FlowCRM-Cotizador-Backup-'+new Date().toISOString().slice(0,10)+'.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Backup descargado','✅','success');
+  }catch(e){ toast('Error al generar backup: '+e.message,'❌'); }
 }
 
 // ── CUSTOM UNITS ──
@@ -2158,6 +2185,19 @@ function recalcRent(supNet,labRaw,extraCosts){
   const realExtraTotal=realExtras.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
   let totalCostExp=extraTotal, totalCostReal=realExtraTotal;
 
+  // Filas de gastos extra reales (se agregan al final del tbody)
+  const realExtraRows=realExtras.map((e,i)=>`<tr style="background:var(--surface2)">
+    <td class="lft" colspan="5" style="color:var(--accent);font-size:11px">
+      <input class="mini-inp" type="text" placeholder="Descripción del gasto real" value="${esc(e.desc||'')}" style="width:100%;font-size:11px;color:var(--accent)" oninput="updateRealExtra(${i},'desc',this.value)">
+    </td>
+    <td style="color:var(--accent)">
+      <input class="mini-inp" type="number" value="${e.amount||0}" style="width:72px;color:var(--accent)" oninput="updateRealExtra(${i},'amount',this.value)">
+    </td>
+    <td style="font-family:var(--mono);font-size:11px;color:var(--accent)">+${mxn(parseFloat(e.amount)||0)}</td>
+    <td colspan="3" style="font-size:10px;color:var(--text3)">Gasto extra real</td>
+    <td><button class="btn-icon" style="color:var(--accent)" onclick="removeRealExtra(${i})">✕</button></td>
+  </tr>`).join('');
+
   document.getElementById('rent-tbody').innerHTML=allItems.map((x,i)=>{
     const isSupply=i<CURRENT_Q.supply.length;
     const pvpBruto=x.vol*x.pvp;
@@ -2198,7 +2238,11 @@ function recalcRent(supNet,labRaw,extraCosts){
       <td>${mxn(pvpNeto)}</td><td style="color:var(--orange)">${mxn(costT)}</td>
       <td>${mxn(margin)}</td><td>${mbadge(pct)}</td>
     </tr>`;
-  }).join('');
+  }).join('')+realExtraRows+`<tr>
+    <td colspan="11" style="padding:4px 8px">
+      <button class="btn btn-ghost" style="font-size:11px;padding:2px 8px;color:var(--accent)" onclick="addRealExtra()">＋ Agregar gasto extra real</button>
+    </td>
+  </tr>`;
 
   const gross=income-totalCostExp, pct=income?gross/income:0;
   const grossReal=income-totalCostReal, pctReal=income?grossReal/income:0;
@@ -2262,12 +2306,10 @@ async function loadAccountingEntities(){
     const businesses=data.businesses||[];
     let opts='<option value="">— Seleccionar centro —</option>';
     businesses.forEach(b=>{
+      opts+=`<option value="${b.id}">🏢 ${b.name}</option>`;
       const bUnits=units.filter(u=>u.businessId===b.id);
       bUnits.forEach(u=>{
-        const uProjs=projects.filter(p=>p.unitId===u.id&&p.status!=='closed');
-        uProjs.forEach(p=>{
-          opts+=`<option value="${p.id}" data-income="${data.transactions?.filter(t=>t.entityId===p.id&&t.type==='income').reduce((s,t)=>s+t.net,0)||0}">${p.name} (${u.name} · ${b.name})</option>`;
-        });
+        opts+=`<option value="${u.id}">　🏪 ${u.name} (${b.name})</option>`;
       });
     });
     sel.innerHTML=opts;
