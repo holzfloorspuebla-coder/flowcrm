@@ -514,9 +514,15 @@ select.inp{cursor:pointer;}
       </div>
       <div class="tab-content">
         <div class="tab-panel active" id="ptab-pipeline">
-          <div class="pipeline-bar">
-            <div class="chip active" onclick="filterP(this,'all')">Todos</div>
-            <div id="p-agent-chips"></div>
+          <div class="pipeline-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div style="display:flex;gap:6px;align-items:center">
+              <div class="chip active" onclick="filterP(this,'all')">Todos</div>
+              <div id="p-agent-chips"></div>
+            </div>
+            <div class="srch" style="margin-left:auto">
+              <span>🔍</span>
+              <input type="text" id="pipeline-search" placeholder="Buscar proyecto..." oninput="renderPKanban()" autocomplete="off" style="width:200px">
+            </div>
           </div>
           <div class="kanban" id="p-kanban"></div>
         </div>
@@ -3183,7 +3189,17 @@ function renderPKanban(){
   syncPostventa();
   $('p-kanban').innerHTML=P_STAGES.map(st=>{
     const isPostventa = st.id===POSTVENTA_ID;
-    let items=visibleProjects().filter(p=>p.stage===st.id&&p.inPipeline!==false);
+    const _psq=norm(document.getElementById('pipeline-search')?.value||'');
+    let items=visibleProjects().filter(p=>{
+      if(p.stage!==st.id||p.inPipeline===false) return false;
+      if(!_psq) return true;
+      // Buscar en todos los campos relevantes del proyecto
+      const contacts=visibleContacts().filter(c=>p.contactIds?.includes(c.id));
+      const contactNames=contacts.map(c=>c.name+' '+(c.studio||'')).join(' ');
+      const ag=USERS.find(a=>a.id===p.agent);
+      const haystack=[p.name,p.city,p.value,p.date,ag?.name,contactNames,(p.tags||[]).join(' '),p.notes||''].join(' ');
+      return norm(haystack).includes(_psq);
+    });
     if(S.pFilter!=='all')items=items.filter(p=>p.agent===S.pFilter);
     // Hide ganado/perdido projects older than 3 months from kanban
     const hiddenCount=items.filter(p=>isClosedProjectHidden(p)).length;
