@@ -514,14 +514,12 @@ select.inp{cursor:pointer;}
       </div>
       <div class="tab-content">
         <div class="tab-panel active" id="ptab-pipeline">
-          <div class="pipeline-bar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-            <div style="display:flex;gap:6px;align-items:center">
-              <div class="chip active" onclick="filterP(this,'all')">Todos</div>
-              <div id="p-agent-chips"></div>
-            </div>
+          <div class="pipeline-bar">
+            <div class="chip active" onclick="filterP(this,'all')">Todos</div>
+            <div id="p-agent-chips"></div>
             <div class="srch" style="margin-left:auto">
               <span>🔍</span>
-              <input type="text" id="pipeline-search" placeholder="Buscar proyecto..." oninput="renderPKanban()" autocomplete="off" style="width:200px">
+              <input type="text" id="p-pipeline-search" placeholder="Buscar proyecto..." oninput="renderPKanban()" autocomplete="off" style="width:200px">
             </div>
           </div>
           <div class="kanban" id="p-kanban"></div>
@@ -3189,11 +3187,10 @@ function renderPKanban(){
   syncPostventa();
   $('p-kanban').innerHTML=P_STAGES.map(st=>{
     const isPostventa = st.id===POSTVENTA_ID;
-    const _psq=norm(document.getElementById('pipeline-search')?.value||'');
+    const _psq=norm(document.getElementById('p-pipeline-search')?.value||'');
     let items=visibleProjects().filter(p=>{
       if(p.stage!==st.id||p.inPipeline===false) return false;
       if(!_psq) return true;
-      // Buscar en todos los campos relevantes del proyecto
       const contacts=visibleContacts().filter(c=>p.contactIds?.includes(c.id));
       const contactNames=contacts.map(c=>c.name+' '+(c.studio||'')).join(' ');
       const ag=USERS.find(a=>a.id===p.agent);
