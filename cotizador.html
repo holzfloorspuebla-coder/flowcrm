@@ -203,11 +203,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
         <div class="fg">
           <label class="lbl">Unidad de venta</label>
-          <select class="inp" id="pe-unit" onchange="onPEUnitChange()">
-            <option value="m2">m²</option>
-            <option value="caja">Caja</option>
-            <option value="pieza">Pieza</option>
-          </select>
+          <div style="display:flex;gap:4px">
+            <select class="inp" id="pe-unit" onchange="onPEUnitChange()" style="flex:1">
+              <option value="m2">m²</option>
+              <option value="caja">Caja</option>
+              <option value="pieza">Pieza</option>
+            </select>
+            <button type="button" onclick="addCustomUnit()" title="Agregar unidad" style="flex-shrink:0;background:var(--surface3);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;cursor:pointer;font-size:13px;color:var(--text3)">＋</button>
+          </div>
         </div>
         <div class="fg" id="pe-conversion-wrap">
           <label class="lbl" id="pe-conversion-lbl">m² por caja</label>
@@ -277,7 +280,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 80px;gap:8px">
           <div class="fg"><label class="lbl">Volumen</label><input class="inp" id="man-vol" type="number"></div>
           <div class="fg"><label class="lbl">Unidad</label>
-            <select class="inp" id="man-unit"><option>m2</option><option>m.l.</option><option>Pieza</option><option>caja</option><option>Cartucho</option><option>ud</option></select>
+            <select class="inp" id="man-unit"></select>
           </div>
           <div class="fg"><label class="lbl">PVP unit.</label><input class="inp" id="man-pvp" type="number"></div>
           <div class="fg"><label class="lbl">Moneda</label>
@@ -300,6 +303,35 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 </div>
 
 <!-- MODAL: CLIENT SEARCH -->
+<div class="overlay hidden" id="modal-link-catalog">
+  <div class="modal" style="width:540px">
+    <div class="modal-hd">
+      <h2>🔗 Vincular partida a catálogo</h2>
+      <button class="modal-close" onclick="closeModal('modal-link-catalog')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:12px 18px">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:10px" id="lc-item-desc"></div>
+      <input class="inp" id="lc-input" placeholder="Buscar producto en catálogo..." autocomplete="off" oninput="onLinkCatalogSearch()" style="width:100%;font-size:13px;margin-bottom:12px">
+      <div id="lc-results" style="min-height:60px;max-height:340px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="modal-project-search">
+  <div class="modal" style="width:540px">
+    <div class="modal-hd">
+      <h2>📁 Buscar proyecto en CRM</h2>
+      <button class="modal-close" onclick="closeModal('modal-project-search')">✕</button>
+    </div>
+    <div class="modal-body" style="padding:12px 18px">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input class="inp" id="ps-input" placeholder="Nombre del proyecto..." autocomplete="off" oninput="onProjectSearch()" style="flex:1;font-size:13px">
+      </div>
+      <div id="ps-results" style="min-height:60px;max-height:340px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
 <div class="overlay hidden" id="modal-client-search">
   <div class="modal" style="width:540px">
     <div class="modal-hd">
@@ -375,7 +407,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
                   </div>
                 </div>
               </div>
-              <div class="fg"><label class="lbl">Proyecto</label><input class="inp" id="q-project" placeholder="Revestimientos oficinas" oninput="markDirty()"></div>
+              <div class="fg"><label class="lbl">Proyecto</label>
+                <div class="autocomplete-wrap">
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <input class="inp" id="q-project" placeholder="Revestimientos oficinas" autocomplete="off" oninput="markDirty()" style="flex:1">
+                    <button class="btn btn-ghost" onclick="openProjectSearch()" title="Buscar en CRM" style="flex-shrink:0;padding:7px 10px;font-size:13px">🔍</button>
+                  </div>
+                </div>
+              </div>
             </div>
             <div class="form-grid-3">
               <div class="fg"><label class="lbl">Price List cliente</label>
@@ -385,13 +424,6 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
                   <option>Industry</option><option>Hospitality</option><option>Retailer</option>
                   <option>General contractor</option><option>Workplace</option>
                 </select>
-              </div>
-              <div class="fg">
-                <label class="lbl">Desc. por volumen %</label>
-                <div style="display:flex;align-items:center;gap:5px">
-                  <input class="inp" id="q-disc-vol" type="number" min="0" max="100" value="0" oninput="recalcAll();markDirty()" style="flex:1">
-                  <span style="font-size:12px;color:var(--text3)">% sobre subtotal</span>
-                </div>
               </div>
               <div class="fg">
                 <label class="lbl">Desc. pronto pago %</label>
@@ -415,23 +447,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           </div>
           <div style="overflow-x:auto">
             <table class="qt-table">
-              <thead><tr><th style="min-width:280px">Partida</th><th>Volumen</th><th>Ud.</th><th>PVP</th><th>Subtotal</th><th style="width:28px"></th></tr></thead>
+              <thead><tr><th style="min-width:280px">Partida</th><th>Volumen</th><th>Ud.</th><th>PVP</th><th style="width:52px">Desc.%</th><th>Subtotal</th><th style="width:28px"></th></tr></thead>
               <tbody id="supply-tbody"></tbody>
             </table>
           </div>
-          <div style="padding:12px 16px;border-top:1px solid var(--border)">
-            <div class="totals-grid">
-              <div class="tot-lbl">Subtotal</div><div></div><div class="tot-val" id="sup-sub">$0.00</div>
-              <div class="tot-lbl" style="color:var(--orange)">− Desc. volumen</div>
-              <div style="font-size:10px;color:var(--orange);text-align:right" id="dv-pct">0%</div>
-              <div class="tot-val" style="color:var(--orange)" id="dv-amt">$0.00</div>
-              <div class="tot-lbl" style="color:var(--orange)">− Desc. pronto pago</div>
-              <div style="font-size:10px;color:var(--orange);text-align:right" id="dp-pct">0%</div>
-              <div class="tot-val" style="color:var(--orange)" id="dp-amt">$0.00</div>
-              <div class="tot-lbl" style="font-weight:700;color:var(--text)">Subtotal neto</div><div></div><div class="tot-val" style="font-weight:700;color:var(--text)" id="sup-net">$0.00</div>
-              <div class="tot-lbl">IVA (16%)</div><div></div><div class="tot-val" id="sup-iva">$0.00</div>
-              <div class="tot-lbl tot-big">TOTAL A PAGAR</div><div></div><div class="tot-val tot-big" id="sup-total">$0.00</div>
-            </div>
+          <div style="padding:10px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:16px;align-items:center">
+            <span style="font-size:12px;color:var(--text3)">Subtotal suministro</span>
+            <span class="tot-val" id="sup-sub" style="font-size:13px;font-weight:600">$0.00</span>
           </div>
         </div>
 
@@ -446,25 +468,28 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           </div>
           <div style="overflow-x:auto">
             <table class="qt-table">
-              <thead><tr><th style="min-width:280px">Partida</th><th>Volumen</th><th>Ud.</th><th>PVP</th><th>Subtotal</th><th style="width:28px"></th></tr></thead>
+              <thead><tr><th style="min-width:280px">Partida</th><th>Volumen</th><th>Ud.</th><th>PVP</th><th style="width:52px">Desc.%</th><th>Subtotal</th><th style="width:28px"></th></tr></thead>
               <tbody id="labor-tbody"></tbody>
             </table>
           </div>
-          <div style="padding:12px 16px;border-top:1px solid var(--border)">
-            <div class="totals-grid">
-              <div class="tot-lbl">Subtotal</div><div></div><div class="tot-val" id="lab-sub">$0.00</div>
-              <div class="tot-lbl">IVA (16%)</div><div></div><div class="tot-val" id="lab-iva">$0.00</div>
-              <div class="tot-lbl tot-big">TOTAL A PAGAR</div><div></div><div class="tot-val tot-big" id="lab-total">$0.00</div>
-            </div>
+          <div style="padding:10px 16px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:16px;align-items:center">
+            <span style="font-size:12px;color:var(--text3)">Subtotal instalación</span>
+            <span class="tot-val" id="lab-sub" style="font-size:13px;font-weight:600">$0.00</span>
           </div>
         </div>
 
         <!-- GRAND TOTAL -->
         <div class="sec">
           <div style="padding:14px 16px">
-            <div class="totals-grid" style="max-width:400px;margin-left:auto">
-              <div class="tot-lbl">Total suministro</div><div></div><div class="tot-val" id="gt-sup">$0.00</div>
-              <div class="tot-lbl">Total mano de obra</div><div></div><div class="tot-val" id="gt-lab">$0.00</div>
+            <div class="totals-grid" style="max-width:420px;margin-left:auto">
+              <div class="tot-lbl">Subtotal suministro</div><div></div><div class="tot-val" id="gt-sup-raw">$0.00</div>
+              <div class="tot-lbl">Subtotal instalación</div><div></div><div class="tot-val" id="gt-lab-raw">$0.00</div>
+              <div class="tot-lbl" style="color:var(--orange)">− Desc. por volumen</div><div></div><div class="tot-val" style="color:var(--orange)" id="gt-dv-amt">$0.00</div>
+              <div class="tot-lbl" style="color:var(--orange)">− Desc. pronto pago</div>
+              <div style="font-size:10px;color:var(--orange);text-align:right" id="gt-dp-pct">0%</div>
+              <div class="tot-val" style="color:var(--orange)" id="gt-dp-amt">$0.00</div>
+              <div class="tot-lbl" style="font-weight:700;color:var(--text)">Subtotal proyecto</div><div></div><div class="tot-val" style="font-weight:700;color:var(--text)" id="gt-sub-proyecto">$0.00</div>
+              <div class="tot-lbl">IVA (16%)</div><div></div><div class="tot-val" id="gt-iva">$0.00</div>
               <div class="tot-lbl" style="font-size:15px;font-weight:800;color:var(--text)">TOTAL PROYECTO</div><div></div>
               <div class="tot-val" style="font-size:17px;font-weight:800;color:var(--accent)" id="gt-total">$0.00</div>
             </div>
@@ -478,6 +503,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
               </div>
             </div>
           </div>
+        </div>
+      </div>
+      <!-- NOTAS DEL PROYECTO -->
+      <div class="sec" style="margin-top:14px">
+        <div class="sec-hd">
+          <div class="sec-title">📝 Notas del proyecto</div>
+          <span style="font-size:11px;color:var(--text3)">Solo visibles en Rentabilidad — no aparecen en la propuesta</span>
+        </div>
+        <div style="padding:12px 16px">
+          <textarea id="q-notes" class="inp" rows="4" style="width:100%;resize:vertical;font-size:13px;line-height:1.6"
+            placeholder="Ajustes de costo, condiciones especiales, notas internas..."
+            oninput="CURRENT_Q.notes=this.value;markDirty()"></textarea>
         </div>
       </div>
     </div>
@@ -501,13 +538,39 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 
     <!-- TAB RENTABILIDAD -->
     <div class="content hidden" id="tab-rent">
+      <!-- KPIs comparativos -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px" id="rent-kpis">
+        <div class="sec" style="padding:12px 14px">
+          <div style="font-size:10px;color:var(--text3);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">PVP cotizado</div>
+          <div style="font-size:18px;font-weight:700;font-family:var(--mono)" id="rk-pvp">$0</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">sin IVA</div>
+        </div>
+        <div class="sec" style="padding:12px 14px">
+          <div style="font-size:10px;color:var(--text3);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Costo presupuestado</div>
+          <div style="font-size:18px;font-weight:700;font-family:var(--mono);color:var(--orange)" id="rk-cost-exp">$0</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px">margen esp. <span id="rk-margin-exp-pct">0%</span></div>
+        </div>
+        <div class="sec" style="padding:12px 14px">
+          <div style="font-size:10px;color:var(--text3);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Costo real</div>
+          <div style="font-size:18px;font-weight:700;font-family:var(--mono);color:var(--orange)" id="rk-cost-real">$0</div>
+          <div style="font-size:10px;margin-top:2px" id="rk-cost-diff" style="color:var(--text3)">—</div>
+        </div>
+        <div class="sec" style="padding:12px 14px">
+          <div style="font-size:10px;color:var(--text3);font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">Margen real</div>
+          <div style="font-size:18px;font-weight:700;font-family:var(--mono);color:var(--green)" id="rk-margin-real">$0</div>
+          <div style="font-size:10px;margin-top:2px" id="rk-margin-real-badge">—</div>
+        </div>
+      </div>
       <div class="sec" style="margin-bottom:14px">
         <div class="sec-hd"><div class="sec-title">📊 Rentabilidad por partida</div></div>
         <div style="overflow-x:auto">
           <table class="rent-table">
             <thead><tr>
               <th style="min-width:180px">Partida</th>
-              <th>Vol.</th><th>Ud.</th><th>PVP u.</th><th>Costo u.</th>
+              <th>Vol.</th><th>Ud.</th><th>PVP u.</th>
+              <th style="color:var(--orange)">Costo pres.</th>
+              <th style="color:var(--accent)">Costo real</th>
+              <th style="color:var(--text3)">Diferencia</th>
               <th>PVP total</th><th>Costo total</th><th>Margen $</th><th>Margen %</th>
             </tr></thead>
             <tbody id="rent-tbody"></tbody>
@@ -532,10 +595,33 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
             <div class="sec-title">Gastos adicionales</div>
             <button class="btn btn-ghost" style="font-size:11px;padding:3px 8px" onclick="addExtraCost()">+ Agregar gasto</button>
           </div>
-          <div style="padding:12px 16px" id="extra-costs-list">
-            <!-- líneas generadas dinámicamente -->
+          <div style="padding:12px 16px" id="extra-costs-list"></div>
+          <div class="sec-hd" style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border)">
+            <div class="sec-title" style="color:var(--accent)">Gastos extra reales</div>
+            <button class="btn btn-ghost" style="font-size:11px;padding:3px 8px;color:var(--accent)" onclick="addRealExtra()">+ Agregar gasto real</button>
           </div>
+          <div style="padding:12px 16px" id="real-extras-list"></div>
         </div>
+      </div>
+      <!-- Envío a contabilidad -->
+      <div class="sec" style="margin-top:14px">
+        <div class="sec-hd" style="display:flex;justify-content:space-between;align-items:center">
+          <div class="sec-title">📤 Registrar resultado en contabilidad</div>
+        </div>
+        <div style="padding:14px 16px;display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end">
+          <div>
+            <label class="lbl" style="display:block;margin-bottom:5px">Centro contable</label>
+            <select class="inp" id="rent-acc-entity" style="width:100%">
+              <option value="">— Cargando centros... —</option>
+            </select>
+          </div>
+          <div>
+            <label class="lbl" style="display:block;margin-bottom:5px">Concepto del apunte</label>
+            <input class="inp" type="text" id="rent-acc-concept" style="width:100%" placeholder="Resultado proyecto...">
+          </div>
+          <button class="btn btn-primary" onclick="sendResultToAccounting()" style="white-space:nowrap">✓ Registrar</button>
+        </div>
+        <div style="padding:0 16px 14px;font-size:12px;color:var(--text3)" id="rent-acc-preview"></div>
       </div>
     </div><!-- end tab-rent -->
 
@@ -591,6 +677,9 @@ let CAT_TARGET_TABLE = 'supply';
 let CAT_ACTIVE_CAT   = '';
 let PA_PRODUCT = null;
 let PA_SELECTED_CURRENCY = 'MXN';
+let CUSTOM_UNITS = []; // unidades extra definidas por el usuario
+const BASE_UNITS = [{v:'m2',l:'m²'},{v:'caja',l:'Caja'},{v:'pieza',l:'Pieza'}];
+function getAllUnits(){ return [...BASE_UNITS,...CUSTOM_UNITS.map(u=>({v:u,l:u}))]; }
 let PE_PRODUCT = null;
 let _peSuppliers = []; // array temporal de proveedores mientras el modal está abierto
 let IS_SAVING = false;
@@ -661,7 +750,7 @@ async function persistAll(label=''){
   IS_SAVING=true;
   setSyncDot('loading'); setSyncLbl('Guardando...');
   try{
-    await cloudSet({ quotes: QUOTES, catalog: CATALOG, catDefs: CAT_DEFS, _savedAt: Date.now() });
+    await cloudSet({ quotes: QUOTES, catalog: CATALOG, catDefs: CAT_DEFS, customUnits: CUSTOM_UNITS, _savedAt: Date.now() });
     const t = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
     setSyncDot('ok'); setSyncLbl('Guardado · '+t);
     if(label) markClean(t);
@@ -736,6 +825,22 @@ async function loadAllFromCloud(){
       }
     });
 
+    // Pre-cargar cache de contactos para el buscador de clientes
+    _csCache = (data.contacts||[]).map(c=>({
+      name:c.name||'', priceList:c.priceList||'', city:c.city||'',
+      phone:c.phone||'', email:c.email||''
+    })).filter(c=>c.name);
+
+    // Cargar unidades custom
+    CUSTOM_UNITS = data.customUnits || [];
+    populateUnitSelects();
+
+    // Pre-cargar cache de proyectos
+    _psCache = (data.projects||[]).map(p=>({
+      name:p.name||p.title||'', client:p.client||p.clientName||'',
+      stage:p.stage||'', city:p.city||''
+    })).filter(p=>p.name);
+
     const t = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
     setSyncDot('ok');
     setSyncLbl(QUOTES.length+' cot. · '+t);
@@ -756,6 +861,7 @@ async function loadAllFromCloud(){
 // ── CLIENT SEARCH (on-demand) ──
 let _csTimer = null;
 let _csCache = null; // cache de contactos para la sesión
+let _psCache = null; // cache de proyectos para la sesión
 
 function openClientSearch(){
   document.getElementById('cs-input').value='';
@@ -788,24 +894,16 @@ function onClientSearch(){
     renderCSResults(_csCache.filter(c=>c.name.toLowerCase().includes(q.toLowerCase())));
     return;
   }
-  // Primera búsqueda: cargar del Worker
-  document.getElementById('cs-spinner').style.display='flex';
+  // Cache aún no lista (carga muy rápida al inicio), reintentar en 500ms
   res.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Cargando contactos...</div>';
-  _csTimer = setTimeout(async()=>{
-    try{
-      const data = await cloudGet();
-      _csCache = (data.contacts||[]).map(c=>({
-        name:c.name||'', priceList:c.priceList||'', city:c.city||'',
-        phone:c.phone||'', email:c.email||''
-      })).filter(c=>c.name);
-      document.getElementById('cs-spinner').style.display='none';
-      const q2=(document.getElementById('cs-input').value||'').trim();
+  _csTimer = setTimeout(()=>{
+    const q2=(document.getElementById('cs-input').value||'').trim();
+    if(_csCache){
       renderCSResults(_csCache.filter(c=>c.name.toLowerCase().includes(q2.toLowerCase())));
-    }catch(e){
-      document.getElementById('cs-spinner').style.display='none';
-      res.innerHTML='<div style="color:var(--accent);font-size:12px;text-align:center;padding:20px">Error al cargar contactos</div>';
+    } else {
+      res.innerHTML='<div style="color:var(--accent);font-size:12px;text-align:center;padding:20px">Error al cargar contactos — recarga la página</div>';
     }
-  },300);
+  },500);
 }
 
 function renderCSResults(matches){
@@ -828,10 +926,83 @@ function selectClientFromModal(name,pl){
   updateTopbar(); recalcAll(); markDirty();
 }
 
+// ── CUSTOM UNITS ──
+function populateUnitSelects(selectedVal){
+  const units=getAllUnits();
+  ['pe-unit','man-unit'].forEach(id=>{
+    const sel=document.getElementById(id);
+    if(!sel) return;
+    const cur=selectedVal||sel.value||'caja';
+    sel.innerHTML=units.map(u=>`<option value="${u.v}" ${u.v===cur?'selected':''}>${u.l}</option>`).join('');
+  });
+}
+
+function addCustomUnit(){
+  const name=prompt('Nombre de la nueva unidad (ej: ml, ud, rollo, kg):');
+  if(!name||!name.trim()) return;
+  const u=name.trim();
+  if(getAllUnits().find(x=>x.v===u)){ toast('Esa unidad ya existe','⚠️'); return; }
+  CUSTOM_UNITS.push(u);
+  populateUnitSelects();
+  // Seleccionar la nueva unidad en pe-unit
+  const sel=document.getElementById('pe-unit');
+  if(sel){ sel.value=u; onPEUnitChange(); }
+  persistAll();
+  toast('Unidad "'+u+'" agregada','✅','success');
+}
+
+// ── PROJECT SEARCH ──
+function openProjectSearch(){
+  document.getElementById('ps-input').value='';
+  document.getElementById('ps-results').innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Escribe para buscar...</div>';
+  document.getElementById('modal-project-search').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('ps-input').focus(),80);
+}
+
+function onProjectSearch(){
+  const q=(document.getElementById('ps-input').value||'').trim();
+  const res=document.getElementById('ps-results');
+  if(q.length<2){
+    res.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Escribe al menos 2 caracteres...</div>';
+    return;
+  }
+  if(_psCache){
+    renderPSResults(_psCache.filter(p=>p.name.toLowerCase().includes(q.toLowerCase())||p.client.toLowerCase().includes(q.toLowerCase())));
+  } else {
+    res.innerHTML='<div style="color:var(--accent);font-size:12px;text-align:center;padding:20px">Error al cargar proyectos — recarga la página</div>';
+  }
+}
+
+function renderPSResults(matches){
+  const res=document.getElementById('ps-results');
+  if(!matches.length){
+    res.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Sin resultados</div>';
+    return;
+  }
+  res.innerHTML=matches.slice(0,15).map(p=>`
+    <div class="autocomplete-item" style="border-radius:var(--r);margin-bottom:3px;border:1px solid var(--border)" onclick="selectProjectFromModal('${esc(p.name)}','${esc(p.client)}')">
+      <div class="ac-name">${esc(p.name)}</div>
+      <div class="ac-sub">${[p.client,p.stage,p.city].filter(Boolean).map(esc).join(' · ')}</div>
+    </div>`).join('');
+}
+
+function selectProjectFromModal(name, client){
+  document.getElementById('q-project').value=name;
+  // Si el campo cliente está vacío, pre-llenarlo con el cliente del proyecto
+  const clientEl=document.getElementById('q-client');
+  if(client && !clientEl.value.trim()){
+    clientEl.value=client;
+    updateTopbar();
+  }
+  closeModal('modal-project-search');
+  markDirty();
+}
+
 // Permitir buscar con Enter en el modal
 document.addEventListener('DOMContentLoaded',()=>{
   document.getElementById('login-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
   document.getElementById('cs-input').addEventListener('keydown',e=>{if(e.key==='Escape')closeModal('modal-client-search');});
+  document.getElementById('ps-input').addEventListener('keydown',e=>{if(e.key==='Escape')closeModal('modal-project-search');});
 });
 // ── CATALOG MODAL ──
 function openCatalog(table){
@@ -990,6 +1161,7 @@ function openAddProduct(){
   _peSuppliers=[{providerId:'',providerName:'',currency:'MXN',cost:0,d1:0,d2:0,tc:0,pvp:0,priceUnit:'caja'}];
   onPEUnitChange();
   _resetSaveBtn();
+  populateUnitSelects();
   document.getElementById('modal-prod-edit').classList.remove('hidden');
 }
 function openEditProduct(id){
@@ -1043,6 +1215,7 @@ async function saveProdEdit(){
   else CATALOG.push(obj);
   closeModal('modal-prod-edit');
   renderCatalogTable();
+  renderCatalogTabTable();
   await persistAll();
   toast(PE_PRODUCT?'Producto actualizado':'Producto añadido','✅','success');
 }
@@ -1096,9 +1269,10 @@ function _peRefreshPreviews(bestIdx){
     const calc=s._calc||{};
     const preview=document.getElementById('pe-sup-preview-'+i);
     if(preview){
+      const pvpLbl=calc.pvpUSD?`PVP/m² (USD ${calc.pvpUSD} → MXN)`:'PVP/m²';
       preview.innerHTML=`
         ${calc.costoNetoMXN?`<div><div class="lbl">Costo neto</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(calc.costoNetoMXN)}</div></div>`:''}
-        ${calc.pvpM2MXN?`<div><div class="lbl">PVP/m²</div><div style="font-family:var(--mono)">${mxn(calc.pvpM2MXN)}</div></div>`:''}
+        ${calc.pvpM2MXN?`<div><div class="lbl">${pvpLbl}</div><div style="font-family:var(--mono)">${mxn(calc.pvpM2MXN)}</div></div>`:''}
         ${calc.costoM2MXN?`<div><div class="lbl">Costo/m²</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(calc.costoM2MXN)}</div></div>`:''}
         ${(calc.pvpM2MXN&&calc.costoM2MXN)?`<div><div class="lbl">Margen</div>${mbadge(calc.pvpM2MXN?(calc.pvpM2MXN-calc.costoM2MXN)/calc.pvpM2MXN:0)}</div>`:''}
       `;
@@ -1139,12 +1313,13 @@ function renderPESuppliers(){
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
             <label class="lbl" style="margin-bottom:0">Precio lista (${esc(s.currency||'MXN')}/${esc(unitLabel)})</label>
             <select class="inp" style="width:70px;padding:2px 4px;font-size:11px" onchange="updatePESupplier(${i},'priceUnit',this.value)">
-              <option value="m2" ${s.priceUnit==='m2'?'selected':''}>m²</option>
-              <option value="caja" ${s.priceUnit==='caja'?'selected':''}>caja</option>
-              <option value="pieza" ${s.priceUnit==='pieza'?'selected':''}>pieza</option>
+              ${getAllUnits().map(u=>`<option value="${u.v}" ${s.priceUnit===u.v?'selected':''}>${u.l}</option>`).join('')}
             </select>
           </div>
-          <input class="inp" type="number" id="pe-sup-pvp-${i}" value="${s.pvp||''}" placeholder="4799.00" oninput="updatePESupplier(${i},'pvp',this.value)">
+          <div style="display:flex;gap:4px;align-items:center">
+            <input class="inp" type="number" id="pe-sup-pvp-${i}" value="${s.pvp||''}" placeholder="4799.00" oninput="updatePESupplier(${i},'pvp',this.value)" style="flex:1">
+            <button type="button" title="Recalcular automático (costo neto × margen)" onclick="resetPVPAuto(${i})" style="flex-shrink:0;background:var(--surface3);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;cursor:pointer;font-size:13px;color:var(--text3)">🔄</button>
+          </div>
         </div>
         <div class="fg" style="margin-bottom:0">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
@@ -1166,9 +1341,50 @@ function renderPESuppliers(){
         <div class="fg" style="margin-bottom:0"><label class="lbl">Desc. 1 proveedor %</label><input class="inp" type="number" value="${s.d1||0}" min="0" max="100" oninput="updatePESupplier(${i},'d1',this.value)"></div>
         <div class="fg" style="margin-bottom:0"><label class="lbl">Desc. 2 %</label><input class="inp" type="number" value="${s.d2||0}" min="0" max="100" oninput="updatePESupplier(${i},'d2',this.value)"></div>
       </div>
+      <div id="pe-sup-calc-${i}" style="margin-bottom:8px">
+        <div onclick="togglePVPCalc(${i})" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:5px 0;user-select:none">
+          <span style="font-size:11px;color:var(--text3);font-weight:600">🧮 CALCULADORA PVP</span>
+          <span id="pe-sup-calc-arrow-${i}" style="font-size:10px;color:var(--text3);transition:transform .2s">${s._calcOpen?'▲':'▼'}</span>
+        </div>
+        <div id="pe-sup-calc-body-${i}" style="display:${s._calcOpen?'block':'none'}">
+          <div style="background:var(--surface3);border-radius:6px;padding:10px;border:1px solid var(--border)">
+            <div style="display:grid;grid-template-columns:1fr auto auto;gap:6px;align-items:end;margin-bottom:8px">
+              <div>
+                <label class="lbl" style="margin-bottom:4px;display:block">Costo base</label>
+                <input class="inp" type="number" id="pe-calc-cost-${i}" placeholder="0.00" value="${s._calcCost||''}" oninput="onPVPCalcChange(${i})">
+              </div>
+              <div>
+                <label class="lbl" style="margin-bottom:4px;display:block">Moneda</label>
+                <select class="inp" id="pe-calc-cur-${i}" style="width:70px;padding:5px 4px;font-size:11px" onchange="onPVPCalcChange(${i})">
+                  <option value="MXN" ${(s._calcCur||'MXN')==='MXN'?'selected':''}>MXN</option>
+                  <option value="USD" ${(s._calcCur||'MXN')==='USD'?'selected':''}>USD</option>
+                </select>
+              </div>
+              <div>
+                <label class="lbl" style="margin-bottom:4px;display:block">Unidad</label>
+                <select class="inp" id="pe-calc-unit-${i}" style="width:70px;padding:5px 4px;font-size:11px" onchange="onPVPCalcChange(${i})">
+                  ${getAllUnits().map(u=>`<option value="${u.v}" ${(s._calcUnit||s.priceUnit||'caja')===u.v?'selected':''}>${u.l}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;align-items:end;margin-bottom:10px">
+              <div>
+                <label class="lbl" style="margin-bottom:4px;display:block">Margen deseado %</label>
+                <input class="inp" type="number" id="pe-calc-margin-${i}" placeholder="50" min="0" max="99" value="${s._calcMargin!==undefined?s._calcMargin:50}" oninput="onPVPCalcChange(${i})">
+              </div>
+              <div id="pe-calc-result-${i}" style="font-family:var(--mono);font-size:13px;font-weight:700;color:var(--accent);align-self:center;padding-left:4px">
+                ${s._calcResult?'PVP: '+mxn(s._calcResult):'—'}
+              </div>
+            </div>
+            <button type="button" id="pe-calc-apply-${i}" onclick="applyPVPCalc(${i})" style="width:100%;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px;font-size:12px;font-weight:700;cursor:pointer;${s._calcResult?'':'opacity:.4;pointer-events:none'}">
+              ✓ Aplicar PVP ${s._calcResult?mxn(s._calcResult):''}
+            </button>
+          </div>
+        </div>
+      </div>
       <div id="pe-sup-preview-${i}" style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px">
         ${calc.costoNetoMXN?`<div><div class="lbl">Costo neto</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(calc.costoNetoMXN)}</div></div>`:''}
-        ${calc.pvpM2MXN?`<div><div class="lbl">PVP/m²</div><div style="font-family:var(--mono)">${mxn(calc.pvpM2MXN)}</div></div>`:''}
+        ${calc.pvpM2MXN?`<div><div class="lbl">${calc.pvpUSD?`PVP/m² (USD→MXN)`:'PVP/m²'}</div><div style="font-family:var(--mono)">${mxn(calc.pvpM2MXN)}</div></div>`:''}
         ${calc.costoM2MXN?`<div><div class="lbl">Costo/m²</div><div style="color:var(--orange);font-family:var(--mono)">${mxn(calc.costoM2MXN)}</div></div>`:''}
         ${(calc.pvpM2MXN&&calc.costoM2MXN)?`<div><div class="lbl">Margen</div>${mbadge(calc.pvpM2MXN?(calc.pvpM2MXN-calc.costoM2MXN)/calc.pvpM2MXN:0)}</div>`:''}
       </div>
@@ -1189,6 +1405,76 @@ function removePESupplier(i){
   _peSuppliers.splice(i,1);
   renderPESuppliers();
 }
+// ── PVP CALCULATOR ──
+function togglePVPCalc(i){
+  const s=_peSuppliers[i]; if(!s) return;
+  s._calcOpen=!s._calcOpen;
+  const body=document.getElementById('pe-sup-calc-body-'+i);
+  const arrow=document.getElementById('pe-sup-calc-arrow-'+i);
+  if(body) body.style.display=s._calcOpen?'block':'none';
+  if(arrow) arrow.textContent=s._calcOpen?'▲':'▼';
+}
+
+function onPVPCalcChange(i){
+  const s=_peSuppliers[i]; if(!s) return;
+  const costRaw=parseFloat(document.getElementById('pe-calc-cost-'+i)?.value)||0;
+  const cur=document.getElementById('pe-calc-cur-'+i)?.value||'MXN';
+  const unit=document.getElementById('pe-calc-unit-'+i)?.value||s.priceUnit||'caja';
+  const margin=(parseFloat(document.getElementById('pe-calc-margin-'+i)?.value)||0)/100;
+
+  // Guardar en el supplier para que al re-render no se pierdan
+  s._calcCost=costRaw; s._calcCur=cur; s._calcUnit=unit;
+  s._calcMargin=parseFloat(document.getElementById('pe-calc-margin-'+i)?.value)||0;
+
+  // PVP se expresa en la MISMA moneda que el costo introducido
+  // costo / (1 - margen) en la moneda original, sin conversión
+  const pvp=(costRaw>0&&margin<1)?round(costRaw/(1-margin),2):0;
+  s._calcResult=pvp||null;
+  s._calcResultCur=cur; // guardamos la moneda del resultado
+
+  const resultEl=document.getElementById('pe-calc-result-'+i);
+  const applyBtn=document.getElementById('pe-calc-apply-'+i);
+  const pvpLabel=pvp?(cur==='USD'?'USD '+pvp.toLocaleString('es-MX',{minimumFractionDigits:2}):mxn(pvp)):'—';
+  if(resultEl) resultEl.textContent=pvp?'PVP: '+pvpLabel:'—';
+  if(applyBtn){
+    applyBtn.style.opacity=pvp?'1':'0.4';
+    applyBtn.style.pointerEvents=pvp?'auto':'none';
+    applyBtn.textContent='✓ Aplicar PVP '+pvpLabel;
+  }
+}
+
+function applyPVPCalc(i){
+  const s=_peSuppliers[i]; if(!s||!s._calcResult) return;
+  s.pvp=s._calcResult;
+  s._pvpManual=true;
+  // El campo "Precio lista" debe mostrar el PVP en la misma moneda que lo calculamos
+  // Actualizamos currency del proveedor para que coincida con la moneda del PVP
+  if(s._calcResultCur && s._calcResultCur!==s.currency){
+    s.currency=s._calcResultCur;
+  }
+  const pvpInput=document.getElementById('pe-sup-pvp-'+i);
+  if(pvpInput) pvpInput.value=s.pvp;
+  // currency cambió → full render para actualizar labels y selectores
+  renderPESuppliers();
+}
+
+function resetPVPAuto(i){
+  const s=_peSuppliers[i]; if(!s) return;
+  s._pvpManual=false;
+  const tmpProduct={unit:document.getElementById('pe-unit')?.value||'caja',priceUnit:'',m2perUnit:parseFloat(document.getElementById('pe-conversion')?.value)||(document.getElementById('pe-unit')?.value==='m2'?1:0)};
+  const costRaw=parseFloat(s.cost)||0;
+  const d1v=(parseFloat(s.d1)||0)/100;
+  const d2v=(parseFloat(s.d2)||0)/100;
+  const costoNeto=round(costRaw*(1-d1v)*(1-d2v),2);
+  if(costoNeto>0){
+    s.pvp=round(costoNeto*2,2);
+    const pvpInput=document.getElementById('pe-sup-pvp-'+i);
+    if(pvpInput) pvpInput.value=s.pvp;
+    const bestIdx=_peRecalcAll();
+    _peRefreshPreviews(bestIdx);
+  }
+}
+
 // Campos cuyo cambio requiere reconstruir todo el bloque (cambian estructura/labels/visibilidad)
 const _PE_FULL_RENDER_FIELDS=['providerId','priceUnit','currency'];
 
@@ -1218,12 +1504,14 @@ function updatePESupplier(i,field,value){
     s[field]=value;
   }
 
-  // PVP automático = costo neto × 2, salvo que el usuario ya lo haya editado manualmente
+  // PVP automático = costo neto × 2 en la misma moneda del costo, salvo que el usuario ya lo haya editado manualmente
   if(['cost','d1','d2','tc','currency'].includes(field) && !s._pvpManual){
-    const tmpProduct={unit:document.getElementById('pe-unit')?.value||'caja', priceUnit:'', m2perUnit:parseFloat(document.getElementById('pe-conversion')?.value)||(document.getElementById('pe-unit')?.value==='m2'?1:0)};
-    const calc=computeSupplierPrices(tmpProduct,s);
-    if(calc.costoNetoMXN){
-      s.pvp=round(calc.costoNetoMXN*2,2);
+    const costRaw=parseFloat(s.cost)||0;
+    const d1v=(parseFloat(s.d1)||0)/100;
+    const d2v=(parseFloat(s.d2)||0)/100;
+    const costoNeto=round(costRaw*(1-d1v)*(1-d2v),2);
+    if(costoNeto>0){
+      s.pvp=round(costoNeto*2,2);
       const pvpInput=document.getElementById('pe-sup-pvp-'+i);
       if(pvpInput) pvpInput.value=s.pvp;
     }
@@ -1259,15 +1547,19 @@ function computeSupplierPrices(p, supplier){
   }
 
   const pvpUnit=parseFloat(supplier.pvp)||null;
+  // Convertir PVP a MXN para comparaciones internas (margen, costoM2MXN, etc.)
+  // El PVP en moneda original se conserva en supplier.pvp y se muestra en el campo
+  const pvpUnitMXN=pvpUnit?(currency==='USD'?round(pvpUnit*tc,2):pvpUnit):null;
+
   let pvpM2MXN=null, costoM2MXN=null;
   if(priceUnit==='m2'){
-    pvpM2MXN=pvpUnit;
+    pvpM2MXN=pvpUnitMXN;
     costoM2MXN=costoNetoRaw||null;
   } else if(unit==='m2'){
-    pvpM2MXN=pvpUnit;
+    pvpM2MXN=pvpUnitMXN;
     costoM2MXN=costoNetoSaleUnit||null;
-  } else if(m2perUnit&&pvpUnit){
-    pvpM2MXN=round(pvpUnit/m2perUnit,2);
+  } else if(m2perUnit&&pvpUnitMXN){
+    pvpM2MXN=round(pvpUnitMXN/m2perUnit,2);
     if(costoNetoSaleUnit) costoM2MXN=round(costoNetoSaleUnit/m2perUnit,2);
   }
 
@@ -1275,11 +1567,12 @@ function computeSupplierPrices(p, supplier){
     currency,
     costoMXN,
     costoUSD: currency==='USD'?costRaw:null,
+    pvpUSD: currency==='USD'?pvpUnit:null,
     tcUsado: currency==='USD'?tc:null,
     descD1: parseFloat(supplier.d1)||0,
     descD2: parseFloat(supplier.d2)||0,
     costoNetoMXN: costoNetoSaleUnit||null,
-    pvpCajaMXN: pvpUnit,
+    pvpCajaMXN: pvpUnitMXN,   // siempre MXN para cálculos internos
     pvpM2MXN,
     costoM2MXN
   };
@@ -1353,7 +1646,8 @@ function _paApplySupplierValues(p, supplierData){
     const costoM2_=parseFloat(supplierData.costoM2MXN)||0;
     pvpVal=m2pu?round(pvpM2_*m2pu,2):round(parseFloat(supplierData.pvpCajaMXN)||0,2);
     costoVal=m2pu?round(costoM2_*m2pu,2):round(parseFloat(supplierData.costoNetoMXN)||0,2);
-    unitLabel='PVP por pieza (MXN)';
+    const esCurUSD=supplierData.currency==='USD';
+    unitLabel=esCurUSD?'PVP por pieza (MXN — convertido de USD)':'PVP por pieza (MXN)';
     costLabel='Costo por pieza (solo Luis)';
     if(volLbl) volLbl.textContent='Cantidad (piezas)';
     if(boxesWrap) boxesWrap.style.display='none';
@@ -1377,7 +1671,10 @@ function _paApplySupplierValues(p, supplierData){
     } else if(supplierData.costoMXN){
       costoVal=round(parseFloat(supplierData.costoMXN),2);
     }
-    unitLabel = m2pb ? 'PVP por m² (MXN)' : `PVP por ${p.unit||'ud.'} (MXN)`;
+    const _esCurUSD=supplierData.currency==='USD';
+    unitLabel = m2pb
+      ? (_esCurUSD?'PVP por m² (MXN — convertido de USD)':'PVP por m² (MXN)')
+      : (_esCurUSD?`PVP por ${p.unit||'ud.'} (MXN — convertido de USD)`:`PVP por ${p.unit||'ud.'} (MXN)`);
     costLabel = m2pb ? 'Costo por m² (solo Luis)' : `Costo por ${p.unit||'ud.'} (solo Luis)`;
     if(volLbl) volLbl.textContent='Volumen m²';
     if(boxesWrap) boxesWrap.style.display='';
@@ -1389,7 +1686,7 @@ function _paApplySupplierValues(p, supplierData){
   if(costLbl) costLbl.textContent=costLabel;
   document.getElementById('pa-pvp').value=pvpVal||'';
   document.getElementById('pa-cost').value=costoVal||'';
-  PA_SELECTED_CURRENCY=supplierData.currency||'MXN';
+  PA_SELECTED_CURRENCY='MXN'; // pvpCajaMXN/pvpM2MXN ya están en MXN
   calcPA();
 }
 
@@ -1504,7 +1801,7 @@ function confirmAddToQuote(){
   }
   if(!vol||!pvpVal){toast('Ingresa volumen y PVP','⚠️');return;}
   // pvp y cost se guardan en la unidad de venta (vol*pvp = subtotal)
-  CURRENT_Q[table].push({id:uid(),desc:p.description||p.model,vol,unit,pvp:pvpVal,cost:costVal,currency:PA_SELECTED_CURRENCY||'MXN',tcRef:p.tcUsado||_TC||0});
+  CURRENT_Q[table].push({id:uid(),catalogId:p.id,desc:p.description||p.model,vol,unit,pvp:pvpVal,cost:costVal,currency:PA_SELECTED_CURRENCY||'MXN',tcRef:p.tcUsado||_TC||0});
   closeModal('modal-prod-add');
   renderQuoteTables(); recalcAll(); markDirty();
   toast('Producto añadido','✅','success');
@@ -1513,6 +1810,7 @@ function confirmAddToQuote(){
 // ── MANUAL ──
 function openManual(table){
   CAT_TARGET_TABLE=table;
+  populateUnitSelects();
   ['man-desc','man-vol','man-pvp','man-cost'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   document.getElementById('man-table').value=table;
   document.getElementById('modal-manual').classList.remove('hidden');
@@ -1536,7 +1834,7 @@ function addManualProduct(){
 function newQuote(){
   const year=new Date().getFullYear();
   const q={id:uid(),num:`P${String(100+QUOTES.length).padStart(3,'0')}/C001/${year}`,
-    date:today(),project:'',client:'',pricelist:'',discVol:0,discPP:0,
+    date:today(),project:'',client:'',pricelist:'',discPP:0,realExtras:[],
     supply:[],labor:[],extraCosts:[],text:'',_createdAt:Date.now()};
   QUOTES.unshift(q);
   renderQuoteList();
@@ -1560,8 +1858,10 @@ function loadQuoteToForm(){
   setValue('q-num',q.num); setValue('q-date',q.date);
   setValue('q-project',q.project); setValue('q-client',q.client);
   setValue('q-pricelist',q.pricelist);
-  setValue('q-disc-vol',q.discVol||0); setValue('q-disc-pp',q.discPP||0);
+  setValue('q-disc-pp',q.discPP||0);
+  const notesEl=document.getElementById('q-notes'); if(notesEl) notesEl.value=q.notes||'';
   if(!q.extraCosts) q.extraCosts=[];
+  if(!q.realExtras) q.realExtras=[];
   renderExtraCosts();
   document.getElementById('proposal-text').innerHTML=q.text||'';
 }
@@ -1570,8 +1870,8 @@ async function saveQuote(){
   const q=CURRENT_Q;
   q.num=val('q-num'); q.date=val('q-date'); q.project=val('q-project');
   q.client=val('q-client'); q.pricelist=val('q-pricelist');
-  q.discVol=parseFloat(val('q-disc-vol'))||0;
   q.discPP=parseFloat(val('q-disc-pp'))||0;
+  q.notes=document.getElementById('q-notes')?.value||'';
   q.text=document.getElementById('proposal-text').innerHTML;
   q._updatedAt=Date.now();
   const idx=QUOTES.findIndex(x=>x.id===q.id);
@@ -1600,7 +1900,10 @@ function renderQuoteList(){
     <div class="quote-item" data-id="${q.id}" onclick="selectQuote('${q.id}')">
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div class="quote-num">${esc(q.num||'Sin número')}</div>
-        <button class="btn-icon" onclick="deleteQuote('${q.id}',event)">🗑</button>
+        <div style="display:flex;gap:2px">
+          <button class="btn-icon" title="Duplicar" onclick="selectQuote('${q.id}');setTimeout(duplicateQuote,100);event.stopPropagation()">⧉</button>
+          <button class="btn-icon" onclick="deleteQuote('${q.id}',event)">🗑</button>
+        </div>
       </div>
       <div class="quote-client">${esc(q.client||'Sin cliente')}</div>
       <div class="quote-date">${esc(q.date||'')}</div>
@@ -1621,7 +1924,10 @@ function renderQTable(tbodyId,items,table){
     tbody.innerHTML=`<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px;font-size:12px">Sin partidas</td></tr>`;
     return;
   }
-  tbody.innerHTML=items.map((x,i)=>`
+  tbody.innerHTML=items.map((x,i)=>{
+    const disc=(parseFloat(x.disc)||0)/100;
+    const sub=round(x.vol*x.pvp,2); // subtotal bruto sin descuento
+    return `
     <tr>
       <td><textarea class="desc-inp" rows="2" onchange="CURRENT_Q['${table}'][${i}].desc=this.value;markDirty()">${esc(x.desc)}</textarea></td>
       <td><input class="mini-inp" type="number" value="${x.vol}" style="width:65px" onchange="CURRENT_Q['${table}'][${i}].vol=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()"></td>
@@ -1630,18 +1936,113 @@ function renderQTable(tbodyId,items,table){
         <input class="mini-inp" type="number" value="${x.pvp}" style="width:72px" onchange="CURRENT_Q['${table}'][${i}].pvp=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()">
         ${x.currency==='USD'?'<span style="font-size:9px;font-weight:700;background:#2563eb22;color:#60a5fa;border-radius:3px;padding:1px 4px;margin-left:2px">USD</span>':''}
       </td>
-      <td class="num">${x.currency==='USD'?'<span style="color:#60a5fa">USD '+fmtUSD(x.vol*x.pvp)+'</span>':mxn(x.vol*x.pvp)}</td>
-      <td><button class="btn-icon" onclick="removeItem('${table}',${i})">✕</button></td>
-    </tr>`).join('');
+      <td><input class="mini-inp" type="number" value="${x.disc||0}" min="0" max="100" style="width:46px;text-align:center" onchange="CURRENT_Q['${table}'][${i}].disc=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()"></td>
+      <td class="num">${x.currency==='USD'?'<span style="color:#60a5fa">USD '+fmtUSD(sub)+'</span>':mxn(sub)}</td>
+      <td style="display:flex;gap:2px;align-items:center">
+        <button class="btn-icon" title="${x.catalogId?'Sincronizar con catálogo':'Vincular a catálogo'}" onclick="syncItemFromCatalog('${table}',${i})" style="font-size:11px;opacity:${x.catalogId?'1':'0.45'}">🔄</button>
+        <button class="btn-icon" onclick="removeItem('${table}',${i})">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
 }
 function removeItem(table,i){ CURRENT_Q[table].splice(i,1); renderQuoteTables(); recalcAll(); markDirty(); }
+
+function syncItemFromCatalog(table,i){
+  const item=CURRENT_Q[table][i];
+  if(!item) return;
+  if(!item.catalogId){
+    // Sin vínculo — mostrar selector para vincular
+    openLinkToCatalog(table,i);
+    return;
+  }
+  const p=CATALOG.find(x=>x.id===item.catalogId);
+  if(!p){ toast('Producto no encontrado en catálogo','⚠️'); return; }
+  // Recalcular pvp con el mejor proveedor
+  PA_PRODUCT=p;
+  const bestSupplier=p.suppliers?.reduce((best,s)=>{
+    const calc=computeSupplierPrices({unit:p.unit,priceUnit:s.priceUnit||p.priceUnit||p.unit,m2perUnit:p.m2perUnit},s);
+    s._calc=calc;
+    if(!best||((calc.costoNetoMXN||Infinity)<(best._calc?.costoNetoMXN||Infinity))) return s;
+    return best;
+  },null);
+  if(!bestSupplier){ toast('Sin proveedores en el producto','⚠️'); return; }
+  const calc=bestSupplier._calc||computeSupplierPrices({unit:p.unit,priceUnit:bestSupplier.priceUnit||p.unit,m2perUnit:p.m2perUnit},bestSupplier);
+  const m2pb=parseFloat(p.m2perUnit)||0;
+  let pvpVal=0, costVal=0;
+  if(p.unit==='pieza'){
+    pvpVal=m2pb?(calc.pvpM2MXN?round(calc.pvpM2MXN*m2pb,2):0):(calc.pvpCajaMXN||0);
+    costVal=m2pb?(calc.costoM2MXN?round(calc.costoM2MXN*m2pb,2):0):(calc.costoNetoMXN||0);
+  } else {
+    pvpVal=calc.pvpM2MXN||calc.pvpCajaMXN||0;
+    if(calc.costoM2MXN) costVal=calc.costoM2MXN;
+    else if(calc.costoNetoMXN&&m2pb) costVal=round(calc.costoNetoMXN/m2pb,2);
+    else costVal=calc.costoNetoMXN||0;
+  }
+  const oldPvp=item.pvp;
+  item.desc=p.description||p.model;
+  item.pvp=pvpVal||item.pvp;
+  item.cost=costVal||item.cost;
+  item.unit=p.unit||item.unit;
+  item.currency='MXN';
+  item.tcRef=p.tcUsado||_TC||0;
+  renderQuoteTables(); recalcAll(); markDirty();
+  toast(`Partida sincronizada${pvpVal&&pvpVal!==oldPvp?' — PVP actualizado':''}`,'🔄','success');
+}
+
+let _lcTable=null, _lcIdx=null;
+function openLinkToCatalog(table,i){
+  _lcTable=table; _lcIdx=i;
+  const item=CURRENT_Q[table][i];
+  const descEl=document.getElementById('lc-item-desc');
+  if(descEl) descEl.textContent='Partida: '+(item.desc||'').substring(0,80)+(item.desc?.length>80?'...':'');
+  document.getElementById('lc-input').value='';
+  document.getElementById('lc-results').innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Escribe para buscar...</div>';
+  document.getElementById('modal-link-catalog').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('lc-input').focus(),80);
+}
+function onLinkCatalogSearch(){
+  const q=(document.getElementById('lc-input').value||'').toLowerCase().trim();
+  const res=document.getElementById('lc-results');
+  if(q.length<2){ res.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Escribe al menos 2 caracteres...</div>'; return; }
+  const matches=CATALOG.filter(p=>((p.brand||'')+(p.model||'')+(p.description||'')).toLowerCase().includes(q)).slice(0,12);
+  if(!matches.length){ res.innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Sin resultados</div>'; return; }
+  res.innerHTML=matches.map(p=>`
+    <div class="autocomplete-item" style="border-radius:var(--r);margin-bottom:3px;border:1px solid var(--border);cursor:pointer" onclick="selectLinkCatalog('${p.id}')">
+      <div class="ac-name">${esc((p.brand?p.brand+' — ':'')+p.model)}</div>
+      <div class="ac-sub">${esc(p.category||'')} · ${esc(p.unit||'')} · PVP ${p.pvpM2MXN?mxn(p.pvpM2MXN)+'/m²':p.pvpCajaMXN?mxn(p.pvpCajaMXN):'-'}</div>
+    </div>`).join('');
+}
+function selectLinkCatalog(catalogId){
+  if(_lcTable===null||_lcIdx===null) return;
+  CURRENT_Q[_lcTable][_lcIdx].catalogId=catalogId;
+  closeModal('modal-link-catalog');
+  // Sincronizar inmediatamente
+  syncItemFromCatalog(_lcTable,_lcIdx);
+}
+
+function duplicateQuote(){
+  if(!CURRENT_Q){ toast('Sin cotización activa','⚠️'); return; }
+  const newNum=prompt('Número de la nueva cotización:',CURRENT_Q.num+' (copia)');
+  if(newNum===null) return; // cancelado
+  const copy=JSON.parse(JSON.stringify(CURRENT_Q));
+  copy.id=uid();
+  copy.num=newNum.trim()||CURRENT_Q.num+' (copia)';
+  copy.date=today();
+  copy._createdAt=Date.now();
+  copy._updatedAt=Date.now();
+  QUOTES.unshift(copy);
+  renderQuoteList();
+  selectQuote(copy.id);
+  markDirty();
+  toast('Cotización duplicada','✅','success');
+}
 
 // ── RECALC ──
 function recalcAll(skipExtraCostsRender){
   if(!CURRENT_Q) return;
-  const discVol=(parseFloat(val('q-disc-vol'))||0)/100;
   const discPP=(parseFloat(val('q-disc-pp'))||0)/100;
   const extraCosts=CURRENT_Q.extraCosts||[];
+
   // Separar items por moneda
   const supMXN=CURRENT_Q.supply.filter(x=>(x.currency||'MXN')==='MXN');
   const supUSD=CURRENT_Q.supply.filter(x=>x.currency==='USD');
@@ -1649,26 +2050,42 @@ function recalcAll(skipExtraCostsRender){
   const labUSD=CURRENT_Q.labor.filter(x=>x.currency==='USD');
   const hasUSD=supUSD.length>0||labUSD.length>0;
 
-  // Totales MXN
-  const supRawMXN=supMXN.reduce((s,x)=>s+x.vol*x.pvp,0);
-  const dVolAmt=supRawMXN*discVol, afterVol=supRawMXN-dVolAmt;
-  const dPPAmt=afterVol*discPP, supNetMXN=afterVol-dPPAmt;
-  // Totales USD
-  const supRawUSD=supUSD.reduce((s,x)=>s+x.vol*x.pvp,0);
-  const labRawUSD=labUSD.reduce((s,x)=>s+x.vol*x.pvp,0);
-  const totalUSD=supRawUSD+labRawUSD;
-  // TC de referencia: promedio de tcRef de items USD, o _TC
+  // TC de referencia
   const tcItems=[...supUSD,...labUSD].map(x=>x.tcRef||_TC||17.5);
   const tcRef=tcItems.length?tcItems.reduce((a,b)=>a+b,0)/tcItems.length:(_TC||17.5);
 
-  const supRaw=supRawMXN; // para compatibilidad con recalcRent
+  // Subtotales brutos por sección (vol×pvp, sin descuento por artículo)
+  const supRawMXN=supMXN.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const labRawMXN=labMXN.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const supRawUSD=supUSD.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const labRawUSD=labUSD.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const totalUSD=supRawUSD+labRawUSD;
+
+  // Descuento por volumen acumulado de todos los artículos (suministro + instalación)
+  const discVolAmt=round(
+    [...CURRENT_Q.supply,...CURRENT_Q.labor]
+      .filter(x=>(x.currency||'MXN')==='MXN')
+      .reduce((s,x)=>s+x.vol*x.pvp*(parseFloat(x.disc)||0)/100,0),2);
+
+  // Base para pronto pago = (supRaw + labRaw) − descuento volumen
+  const baseAfterVol=round(supRawMXN+labRawMXN-discVolAmt,2);
+  const dPPAmt=round(baseAfterVol*discPP,2);
+  const subtotalProyecto=round(baseAfterVol-dPPAmt,2);
+
+  // Secciones individuales
   setText('sup-sub',mxn(supRawMXN));
-  setText('dv-pct',(discVol*100).toFixed(1)+'%'); setText('dv-amt','−'+mxn(dVolAmt));
-  setText('dp-pct',(discPP*100).toFixed(1)+'%'); setText('dp-amt','−'+mxn(dPPAmt));
-  setText('sup-net',mxn(supNetMXN)); setText('sup-iva',mxn(supNetMXN*0.16)); setText('sup-total',mxn(supNetMXN*1.16));
-  const labRaw=CURRENT_Q.labor.reduce((s,x)=>s+(x.currency==='USD'?0:x.vol*x.pvp),0);
-  setText('lab-sub',mxn(labRaw)); setText('lab-iva',mxn(labRaw*0.16)); setText('lab-total',mxn(labRaw*1.16));
-  setText('gt-sup',mxn(supNetMXN*1.16)); setText('gt-lab',mxn(labRaw*1.16)); setText('gt-total',mxn(supNetMXN*1.16+labRaw*1.16));
+  setText('lab-sub',mxn(labRawMXN));
+
+  // Grand total
+  setText('gt-sup-raw',mxn(supRawMXN));
+  setText('gt-lab-raw',mxn(labRawMXN));
+  setText('gt-dv-amt',discVolAmt?'−'+mxn(discVolAmt):'$0.00');
+  setText('gt-dp-pct',(discPP*100).toFixed(1)+'%');
+  setText('gt-dp-amt',dPPAmt?'−'+mxn(dPPAmt):'$0.00');
+  setText('gt-sub-proyecto',mxn(subtotalProyecto));
+  setText('gt-iva',mxn(subtotalProyecto*0.16));
+  setText('gt-total',mxn(subtotalProyecto*1.16));
+
   // Desglose por moneda
   const mcEl=document.getElementById('gt-multicur');
   if(mcEl){
@@ -1676,29 +2093,39 @@ function recalcAll(skipExtraCostsRender){
     if(hasUSD){
       setText('gt-usd','USD $'+fmtUSD(totalUSD*1.16));
       setText('gt-usd-ref',mxn(totalUSD*1.16*tcRef)+' (TC: $'+tcRef.toFixed(2)+')');
-      setText('gt-mxn',mxn((supNetMXN+labRaw)*1.16));
+      setText('gt-mxn',mxn(subtotalProyecto*1.16));
     }
   }
   if(!skipExtraCostsRender) renderExtraCosts();
-  if(IS_ADMIN) recalcRent(supNetMXN,labRaw,extraCosts);
+  if(IS_ADMIN) recalcRent(subtotalProyecto,0,extraCosts);
 }
 function renderExtraCosts(){
   const list=document.getElementById('extra-costs-list');
-  if(!list) return;
-  const items=CURRENT_Q?.extraCosts||[];
-  if(!items.length){
-    list.innerHTML='<div style="font-size:12px;color:var(--text3);text-align:center;padding:8px">Sin gastos adicionales</div>';
-    return;
+  if(list){
+    const items=CURRENT_Q?.extraCosts||[];
+    list.innerHTML=items.length?items.map((e,i)=>`
+      <div class="disc-row" style="gap:8px">
+        <input class="mini-inp" type="text" placeholder="Descripción (ej. Comisión arquitecto)" value="${esc(e.desc||'')}" style="flex:1" oninput="updateExtraCost(${i},'desc',this.value)">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:11px;color:var(--text3)">$</span>
+          <input class="mini-inp" type="number" value="${e.amount||0}" style="width:90px" oninput="updateExtraCost(${i},'amount',this.value)">
+          <button class="btn-icon" style="color:var(--accent)" title="Eliminar" onclick="removeExtraCost(${i})">✕</button>
+        </div>
+      </div>`).join(''):'<div style="font-size:12px;color:var(--text3);text-align:center;padding:8px">Sin gastos adicionales</div>';
   }
-  list.innerHTML=items.map((e,i)=>`
-    <div class="disc-row" style="gap:8px">
-      <input class="mini-inp" type="text" placeholder="Descripción (ej. Comisión arquitecto)" value="${esc(e.desc||'')}" style="flex:1" oninput="updateExtraCost(${i},'desc',this.value)">
-      <div style="display:flex;align-items:center;gap:4px">
-        <span style="font-size:11px;color:var(--text3)">$</span>
-        <input class="mini-inp" type="number" value="${e.amount||0}" style="width:90px" oninput="updateExtraCost(${i},'amount',this.value)">
-        <button class="btn-icon" style="color:var(--accent)" title="Eliminar" onclick="removeExtraCost(${i})">✕</button>
-      </div>
-    </div>`).join('');
+  const realList=document.getElementById('real-extras-list');
+  if(realList){
+    const realItems=CURRENT_Q?.realExtras||[];
+    realList.innerHTML=realItems.length?realItems.map((e,i)=>`
+      <div class="disc-row" style="gap:8px">
+        <input class="mini-inp" type="text" placeholder="Descripción del gasto real" value="${esc(e.desc||'')}" style="flex:1" oninput="updateRealExtra(${i},'desc',this.value)">
+        <div style="display:flex;align-items:center;gap:4px">
+          <span style="font-size:11px;color:var(--text3)">$</span>
+          <input class="mini-inp" type="number" value="${e.amount||0}" style="width:90px;color:var(--accent)" oninput="updateRealExtra(${i},'amount',this.value)">
+          <button class="btn-icon" style="color:var(--accent)" title="Eliminar" onclick="removeRealExtra(${i})">✕</button>
+        </div>
+      </div>`).join(''):'<div style="font-size:12px;color:var(--text3);text-align:center;padding:8px">Sin gastos extra reales</div>';
+  }
 }
 function addExtraCost(){
   if(!CURRENT_Q) return;
@@ -1722,32 +2149,188 @@ function updateExtraCost(i,field,value){
 }
 
 function recalcRent(supNet,labRaw,extraCosts){
-  const discVol=(parseFloat(val('q-disc-vol'))||0)/100;
   const discPP=(parseFloat(val('q-disc-pp'))||0)/100;
-  const income=supNet+labRaw; // supNet ya lleva descVol y descPP; labRaw sin descuentos
+  const income=supNet;
   const allItems=[...CURRENT_Q.supply,...CURRENT_Q.labor];
   const extraTotal=(extraCosts||[]).reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
-  let totalCost=extraTotal;
+  // Gastos extra reales
+  const realExtras=CURRENT_Q.realExtras||[];
+  const realExtraTotal=realExtras.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  let totalCostExp=extraTotal, totalCostReal=realExtraTotal;
+
   document.getElementById('rent-tbody').innerHTML=allItems.map((x,i)=>{
     const isSupply=i<CURRENT_Q.supply.length;
-    // PVP neto por partida: aplicar descuentos solo a suministro
     const pvpBruto=x.vol*x.pvp;
-    const pvpNeto=isSupply ? pvpBruto*(1-discVol)*(1-discPP) : pvpBruto;
-    const cost=x.cost||0; // costo ya neto desde el catálogo, sin descuentos adicionales
-    const costT=x.vol*cost;
-    totalCost+=costT;
-    const margin=pvpNeto-costT, pct=pvpNeto?margin/pvpNeto:0;
+    const discItem=(parseFloat(x.disc)||0)/100;
+    const pvpNeto=round(pvpBruto*(1-discItem)*(1-discPP),2);
+    // Costo presupuestado
+    const cost=x.costAdj!==undefined?x.costAdj:(x.cost||0);
+    const costOriginal=x.cost||0;
+    const isAdjusted=x.costAdj!==undefined;
+    const costT=round(x.vol*cost,2);
+    totalCostExp+=costT;
+    // Costo real
+    const costReal=x.costReal!==undefined?x.costReal:cost;
+    const costRealT=round(x.vol*costReal,2);
+    totalCostReal+=costRealT;
+    const diff=round(costRealT-costT,2);
+    const margin=round(pvpNeto-costT,2), pct=pvpNeto?margin/pvpNeto:0;
+    const table=isSupply?'supply':'labor';
+    const idx=isSupply?i:i-CURRENT_Q.supply.length;
     return`<tr>
       <td class="lft" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.desc)}">${esc(x.desc.substring(0,60)+(x.desc.length>60?'…':''))}</td>
       <td>${x.vol}</td><td style="color:var(--text3)">${x.unit}</td>
-      <td>${mxn(x.pvp)}</td><td style="color:var(--orange)">${mxn(cost)}</td>
+      <td>${mxn(x.pvp)}</td>
+      <td style="color:var(--orange)">
+        <div style="display:flex;align-items:center;gap:4px">
+          <input class="mini-inp" type="number" value="${cost}" style="width:72px;color:var(--orange)" title="${isAdjusted?'Ajustado (catálogo: '+mxn(costOriginal)+')':'Costo del catálogo'}"
+            onchange="setItemCostAdj('${table}',${idx},this.value)">
+          ${isAdjusted?`<button class="btn-icon" title="Restaurar (${mxn(costOriginal)})" onclick="resetItemCostAdj('${table}',${idx})" style="font-size:10px;color:var(--text3)">↩</button>`:''}
+        </div>
+      </td>
+      <td style="color:var(--accent)">
+        <input class="mini-inp" type="number" value="${costReal}" style="width:72px;color:var(--accent)"
+          onchange="setItemCostReal('${table}',${idx},this.value)">
+      </td>
+      <td style="font-family:var(--mono);font-size:11px;${diff>0?'color:var(--accent)':diff<0?'color:var(--green)':'color:var(--text3)'}">
+        ${diff>0?'+':''}${diff!==0?mxn(Math.abs(diff)):'-'}
+      </td>
       <td>${mxn(pvpNeto)}</td><td style="color:var(--orange)">${mxn(costT)}</td>
       <td>${mxn(margin)}</td><td>${mbadge(pct)}</td>
     </tr>`;
   }).join('');
-  const gross=income-totalCost, pct=income?gross/income:0;
-  setText('r-income',mxn(income)); setText('r-cost',mxn(totalCost)); setText('r-margin',mxn(gross));
+
+  const gross=income-totalCostExp, pct=income?gross/income:0;
+  const grossReal=income-totalCostReal, pctReal=income?grossReal/income:0;
+  setText('r-income',mxn(income)); setText('r-cost',mxn(totalCostExp)); setText('r-margin',mxn(gross));
   document.getElementById('r-mbadge').innerHTML=mbadge(pct);
+
+  // KPIs
+  const costDiff=round(totalCostReal-totalCostExp,2);
+  setText('rk-pvp',mxn(income));
+  setText('rk-cost-exp',mxn(totalCostExp));
+  setText('rk-margin-exp-pct',(pct*100).toFixed(1)+'%');
+  setText('rk-cost-real',mxn(totalCostReal));
+  const diffEl=document.getElementById('rk-cost-diff');
+  if(diffEl) diffEl.innerHTML=costDiff===0?'igual al presupuesto':`<span style="color:${costDiff>0?'var(--accent)':'var(--green)'}">${costDiff>0?'+':''}${mxn(Math.abs(costDiff))} vs presup.</span>`;
+  setText('rk-margin-real',mxn(grossReal));
+  const realBadgeEl=document.getElementById('rk-margin-real-badge');
+  if(realBadgeEl) realBadgeEl.innerHTML=mbadge(pctReal)+`<span style="font-size:10px;color:var(--text3);margin-left:4px">vs esp. ${(pct*100).toFixed(1)}%</span>`;
+
+  // Preview apunte contabilidad
+  const prevEl=document.getElementById('rent-acc-preview');
+  if(prevEl) prevEl.textContent=`Se registrará un ingreso de ${mxn(income)} y gastos reales por ${mxn(totalCostReal)} en el centro seleccionado.`;
+
+  // Auto-rellenar concepto
+  const concEl=document.getElementById('rent-acc-concept');
+  if(concEl&&!concEl.value) concEl.value='Resultado proyecto '+(CURRENT_Q.num||'');
+}
+
+function setItemCostReal(table,i,value){
+  if(!CURRENT_Q||!CURRENT_Q[table]||!CURRENT_Q[table][i]) return;
+  CURRENT_Q[table][i].costReal=parseFloat(value)||0;
+  markDirty();
+  recalcAll(true);
+}
+
+// ── GASTOS EXTRA REALES ──
+function addRealExtra(){
+  if(!CURRENT_Q.realExtras) CURRENT_Q.realExtras=[];
+  CURRENT_Q.realExtras.push({desc:'',amount:0});
+  renderExtraCosts(); recalcAll(true); markDirty();
+}
+function removeRealExtra(i){
+  if(!CURRENT_Q?.realExtras) return;
+  CURRENT_Q.realExtras.splice(i,1);
+  renderExtraCosts(); recalcAll(true); markDirty();
+}
+function updateRealExtra(i,field,value){
+  if(!CURRENT_Q?.realExtras?.[i]) return;
+  CURRENT_Q.realExtras[i][field]=field==='amount'?(parseFloat(value)||0):value;
+  recalcAll(true); markDirty();
+}
+
+// ── ENVÍO A CONTABILIDAD ──
+async function loadAccountingEntities(){
+  const sel=document.getElementById('rent-acc-entity');
+  if(!sel) return;
+  try{
+    const r=await fetch(WORKER+'/accounting?t='+Date.now(),{cache:'no-store'});
+    const data=await r.json();
+    const projects=data.projects||[];
+    const units=data.units||[];
+    const businesses=data.businesses||[];
+    let opts='<option value="">— Seleccionar centro —</option>';
+    businesses.forEach(b=>{
+      const bUnits=units.filter(u=>u.businessId===b.id);
+      bUnits.forEach(u=>{
+        const uProjs=projects.filter(p=>p.unitId===u.id&&p.status!=='closed');
+        uProjs.forEach(p=>{
+          opts+=`<option value="${p.id}" data-income="${data.transactions?.filter(t=>t.entityId===p.id&&t.type==='income').reduce((s,t)=>s+t.net,0)||0}">${p.name} (${u.name} · ${b.name})</option>`;
+        });
+      });
+    });
+    sel.innerHTML=opts;
+    // Restaurar selección guardada
+    if(CURRENT_Q.accEntityId) sel.value=CURRENT_Q.accEntityId;
+  }catch(e){ sel.innerHTML='<option value="">Error al cargar centros</option>'; }
+}
+
+async function sendResultToAccounting(){
+  const entityId=document.getElementById('rent-acc-entity')?.value;
+  const concept=document.getElementById('rent-acc-concept')?.value?.trim();
+  if(!entityId){ toast('Selecciona un centro contable','⚠️'); return; }
+  if(!concept){ toast('Escribe el concepto del apunte','⚠️'); return; }
+  // Calcular totales reales
+  const discPP=(parseFloat(val('q-disc-pp'))||0)/100;
+  const allItems=[...CURRENT_Q.supply,...CURRENT_Q.labor];
+  const realExtras=CURRENT_Q.realExtras||[];
+  const realExtraTotal=realExtras.reduce((s,e)=>s+(parseFloat(e.amount)||0),0);
+  let totalCostReal=realExtraTotal;
+  allItems.forEach(x=>{
+    const cost=x.costReal!==undefined?x.costReal:(x.costAdj!==undefined?x.costAdj:(x.cost||0));
+    totalCostReal+=round(x.vol*cost,2);
+  });
+  const pvp=parseFloat(document.getElementById('rk-pvp')?.textContent?.replace(/[^0-9.]/g,'')||0);
+  // Guardar referencia del centro
+  CURRENT_Q.accEntityId=entityId;
+  markDirty();
+  // Crear transacciones en contabilidad via Worker
+  const now=Date.now();
+  const txIncome={
+    id:'tx-'+now+'-i', entityId, type:'income',
+    concept, net:pvp, iva:0,
+    date:today(), _quoteId:CURRENT_Q.id, _quotedAt:now
+  };
+  const txExpense={
+    id:'tx-'+now+'-e', entityId, type:'expense',
+    concept:'Costos reales: '+concept, net:totalCostReal, iva:0,
+    date:today(), _quoteId:CURRENT_Q.id, _quotedAt:now
+  };
+  try{
+    // Leer datos actuales de contabilidad
+    const r=await fetch(WORKER+'/accounting?t='+Date.now(),{cache:'no-store'});
+    const accData=await r.json();
+    if(!accData.transactions) accData.transactions=[];
+    accData.transactions.push(txIncome,txExpense);
+    const res=await fetch(WORKER+'/accounting',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(accData)});
+    if(!res.ok) throw new Error('Error al guardar');
+    toast('Resultado registrado en contabilidad ✓','✅','success');
+  }catch(e){ toast('Error: '+e.message,'❌'); }
+}
+
+function setItemCostAdj(table,i,value){
+  if(!CURRENT_Q||!CURRENT_Q[table]||!CURRENT_Q[table][i]) return;
+  CURRENT_Q[table][i].costAdj=parseFloat(value)||0;
+  markDirty();
+  recalcAll(true);
+}
+
+function resetItemCostAdj(table,i){
+  if(!CURRENT_Q||!CURRENT_Q[table]||!CURRENT_Q[table][i]) return;
+  delete CURRENT_Q[table][i].costAdj;
+  markDirty();
+  recalcAll(true);
 }
 
 // ── GENERATE TEXT ──
@@ -1776,7 +2359,6 @@ async function generateText(){
 // ── COPY TABLE ──
 async function exportExcel(){
   if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
-  const dv=(parseFloat(val('q-disc-vol'))||0)/100;
   const dp=(parseFloat(val('q-disc-pp'))||0)/100;
 
   const supMXN=CURRENT_Q.supply.filter(x=>(x.currency||'MXN')==='MXN');
@@ -1785,13 +2367,17 @@ async function exportExcel(){
   const labUSD=CURRENT_Q.labor.filter(x=>x.currency==='USD');
   const hasUSD=supUSD.length>0||labUSD.length>0;
   const supRawMXN=supMXN.reduce((s,x)=>s+x.vol*x.pvp,0);
-  const afterVol=supRawMXN*(1-dv), supNetMXN=afterVol*(1-dp);
   const labRawMXN=labMXN.reduce((s,x)=>s+x.vol*x.pvp,0);
+  const discVolAmtE=round([...CURRENT_Q.supply,...CURRENT_Q.labor].filter(x=>(x.currency||'MXN')==='MXN').reduce((s,x)=>s+x.vol*x.pvp*(parseFloat(x.disc)||0)/100,0),2);
+  const baseAfterVolE=round(supRawMXN+labRawMXN-discVolAmtE,2);
+  const supNetMXN=round(baseAfterVolE*(1-dp),2);
   const supRawUSD=supUSD.reduce((s,x)=>s+x.vol*x.pvp,0);
   const labRawUSD=labUSD.reduce((s,x)=>s+x.vol*x.pvp,0);
   const totalUSD=supRawUSD+labRawUSD;
   const tcItems=[...supUSD,...labUSD].map(x=>x.tcRef||_TC||17.5);
   const tcRef=tcItems.length?tcItems.reduce((a,b)=>a+b,0)/tcItems.length:(_TC||17.5);
+  const supRawUSDinMXN=round(supRawUSD*tcRef,2);
+  const labRawUSDinMXN=round(labRawUSD*tcRef,2);
 
   const FONT='Pragmatica', SIZE=11;
   const BLACK_FILL={type:'pattern',pattern:'solid',fgColor:{argb:'FF000000'}};
@@ -1811,16 +2397,16 @@ async function exportExcel(){
   function addSectionRow(title){
     const row=addRow([title,'','','','']);
     ws.mergeCells(r,1,r,5);
-    row.eachCell(cell=>{
-      cell.fill=BLACK_FILL; cell.font=WHITE_FONT;
-      cell.alignment={horizontal:'center',vertical:'middle'};
-    });
+    const mc=row.getCell(1);
+    mc.fill=BLACK_FILL; mc.font=WHITE_FONT;
+    mc.alignment={horizontal:'center',vertical:'middle'};
     row.height=18;
   }
 
   function addHeaderRow(){
     const row=addRow(['PARTIDA','VOLUMEN','UD.','PVP','SUBTOTAL']);
-    row.eachCell((cell,col)=>{
+    [1,2,3,4,5].forEach(col=>{
+      const cell=row.getCell(col);
       cell.fill=BLACK_FILL; cell.font=WHITE_FONT;
       cell.alignment={horizontal:col===1?'left':'center',vertical:'middle'};
     });
@@ -1838,14 +2424,16 @@ async function exportExcel(){
   }
 
   function addTotalRow(label, value){
-    const row=addRow(['','','',label,value]);
+    // Merge cols 1-4 for label, col 5 for value
+    const row=addRow(['','','','',value]);
     ws.mergeCells(r,1,r,4);
-    [1,2,3,4,5].forEach(c=>{
-      row.getCell(c).fill=BLACK_FILL;
-      row.getCell(c).font=WHITE_FONT;
-    });
-    row.getCell(4).alignment={horizontal:'right',vertical:'middle'};
-    row.getCell(5).numFmt=MONEY_FMT; row.getCell(5).alignment={horizontal:'right',vertical:'middle'};
+    const labelCell=row.getCell(1); // master cell after merge
+    labelCell.value=label;
+    labelCell.fill=BLACK_FILL; labelCell.font=WHITE_FONT;
+    labelCell.alignment={horizontal:'right',vertical:'middle'};
+    const valCell=row.getCell(5);
+    valCell.fill=BLACK_FILL; valCell.font=WHITE_FONT;
+    valCell.numFmt=MONEY_FMT; valCell.alignment={horizontal:'right',vertical:'middle'};
     row.height=16;
   }
 
@@ -1853,8 +2441,6 @@ async function exportExcel(){
   addHeaderRow();
   [...supMXN,...supUSD].forEach(x=>addDataRow(x));
   addTotalRow('SUBTOTAL MATERIALES', supRawMXN);
-  if(dv>0) addTotalRow('DESCUENTO POR VOLUMEN ('+(dv*100).toFixed(0)+'%)', -(supRawMXN*dv));
-  if(dp>0) addTotalRow('DESCUENTO PRONTO PAGO ('+(dp*100).toFixed(0)+'%)', -(afterVol*dp));
   if(hasUSD&&supUSD.length){
     addTotalRow('SUBTOTAL SUMINISTRO USD', supRawUSD);
     addTotalRow('Ref. MXN (TC $'+tcRef.toFixed(2)+')', supRawUSD*tcRef);
@@ -1869,8 +2455,11 @@ async function exportExcel(){
     addTotalRow('Ref. MXN (TC $'+tcRef.toFixed(2)+')', labRawUSD*tcRef);
   }
 
-  const subtotalFinal=supNetMXN+labRawMXN;
-  addTotalRow('SUBTOTAL', subtotalFinal);
+  if(discVolAmtE>0) addTotalRow('DESCUENTO POR VOLUMEN', -discVolAmtE);
+  if(dp>0) addTotalRow('DESCUENTO PRONTO PAGO ('+(dp*100).toFixed(0)+'%)', -round(baseAfterVolE*dp,2));
+
+  const subtotalFinal=supNetMXN;
+  addTotalRow('SUBTOTAL PROYECTO', subtotalFinal);
   addTotalRow('IVA (16%)', subtotalFinal*0.16);
   addTotalRow('TOTAL A PAGAR', subtotalFinal*1.16);
   if(hasUSD){
@@ -1909,7 +2498,7 @@ function switchTabById(id){
     const match=btn.getAttribute('onclick')||'';
     btn.classList.toggle('active', match.includes("'"+nameMap[id]+"'"));
   });
-  if(id==='tab-rent') recalcAll();
+  if(id==='tab-rent'){ recalcAll(); loadAccountingEntities(); }
   if(id==='tab-catalog-tab') renderCatalogTabTable();
 }
 
