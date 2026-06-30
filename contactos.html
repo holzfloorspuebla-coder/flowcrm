@@ -244,6 +244,20 @@ tr.selected td{background:var(--accentDim);}
           <option value="COL">Colombia</option>
         </select>
       </div>
+      <div><label style="font-size:11px;color:var(--text3);font-weight:600">TIPO DE CLIENTE (TRACKER)</label>
+        <select id="es-client-type" class="inp" style="width:100%;margin-top:4px">
+          <option value="">— Sin clasificar —</option>
+          <option value="dealer">Dealer</option>
+          <option value="specialized_chain">Cadena especializada</option>
+          <option value="project_manager">Project Manager</option>
+          <option value="developer">Developer</option>
+          <option value="importer">Importador</option>
+          <option value="installer">Instalador</option>
+          <option value="architecture_firm">Estudio de arquitectura</option>
+          <option value="general_contractor">General contractor</option>
+          <option value="end_user">End user</option>
+        </select>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL</label><input autocomplete="off" id="es-email" class="inp" style="width:100%;margin-top:4px"></div>
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL 2</label><input autocomplete="off" id="es-email2" class="inp" style="width:100%;margin-top:4px"></div>
@@ -1814,6 +1828,7 @@ function openStudioEdit(studioId){
   document.getElementById('es-city').value=s.city||'';
   document.getElementById('es-state').value=s.state||'';
   document.getElementById('es-country').value=s.country||'';
+  document.getElementById('es-client-type').value=s.client_type||'';
   document.getElementById('es-email').value=s.email||'';
   document.getElementById('es-email2').value=s.email2||'';
   document.getElementById('es-phone').value=s.phone||'';
@@ -1836,7 +1851,7 @@ function openStudioEdit(studioId){
 function openNewStudioModal(){
   _editStudioName = null;
   document.getElementById('edit-studio-title').textContent='➕ Nuevo estudio';
-  ['es-name','es-city','es-state','es-country','es-email','es-email2','es-phone','es-whatsapp',
+  ['es-name','es-city','es-state','es-country','es-client-type','es-email','es-email2','es-phone','es-whatsapp',
    'es-web','es-instagram','es-linkedin','es-origin','es-segment','es-notes']
     .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const agentSel=document.getElementById('es-agent');
@@ -3094,8 +3109,7 @@ function ncNext(){
     }
   }
   if(_ncTab===1){
-    const name=(document.getElementById('nc-c-name').value||'').trim();
-    if(!name){toast('El nombre del contacto es obligatorio','⚠️');document.getElementById('nc-c-name').focus();return;}
+    // El contacto es opcional — el usuario puede crear solo el estudio
   }
   switchNcTab(_ncTab+1);
 }
@@ -3140,7 +3154,12 @@ function clearNcStudio(){
 
 async function saveNewContact(){
   const contactName=(document.getElementById('nc-c-name').value||'').trim();
-  if(!contactName){toast('El nombre del contacto es obligatorio','⚠️');switchNcTab(1);return;}
+  const studioNameCheck=(document.getElementById('nc-s-name').value||'').trim();
+  if(!contactName && !_ncSelectedStudio && !studioNameCheck){
+    toast('Debes crear al menos un estudio o un contacto','⚠️');
+    switchNcTab(0);
+    return;
+  }
 
   const WORKER='https://flowcrm-api.luis-castroman-fraga.workers.dev';
   setSyncDot('loading'); setText('sync-lbl','Guardando...');
@@ -3180,50 +3199,53 @@ async function saveNewContact(){
       }
     }
 
-    // ── 2. CONTACT ──
+    // ── 2. CONTACT (opcional) ──
     const newCrmId=Date.now()+Math.floor(Math.random()*10000);
-    const agentSel=document.getElementById('nc-c-agent');
-    const agentName=agentSel.options[agentSel.selectedIndex]?.text||'';
-    const users=window._gestorUsers||{};
-    const agentEntry=Object.entries(users).find(([,n])=>n===agentName);
-    const newContact={
-      id: newCrmId,
-      name: contactName,
-      mailingName: (document.getElementById('nc-c-mailing').value||'').trim()||contactName,
-      phone: (document.getElementById('nc-c-phone').value||'').trim(),
-      email: (document.getElementById('nc-c-email').value||'').trim(),
-      email2: (document.getElementById('nc-c-email2').value||'').trim(),
-      whatsapp: (document.getElementById('nc-c-whatsapp').value||'').trim(),
-      studio: studioName,
-      studioId: studioId,
-      type: document.getElementById('nc-c-type').value||'',
-      priceList: document.getElementById('nc-c-pricelist').value||'',
-      city: (document.getElementById('nc-c-city').value||'').trim(),
-      state: (document.getElementById('nc-c-state').value||'').trim(),
-      instagram: (document.getElementById('nc-c-instagram').value||'').trim(),
-      linkedin: (document.getElementById('nc-c-linkedin').value||'').trim(),
-      web: (document.getElementById('nc-c-web').value||'').trim(),
-      segment: (document.getElementById('nc-c-segment').value||'').trim(),
-      origin: (document.getElementById('nc-c-origin').value||'').trim(),
-      notes: (document.getElementById('nc-c-notes').value||'').trim(),
-      agent: agentEntry?parseInt(agentEntry[0])||agentEntry[0]:agentName,
-      stage: '',
-      inPipeline: false,
-      tags: [],
-      notesList: [],
-      _updatedAt: Date.now()
-    };
+    let newContact=null;
+    if(contactName){
+      const agentSel=document.getElementById('nc-c-agent');
+      const agentName=agentSel.options[agentSel.selectedIndex]?.text||'';
+      const users=window._gestorUsers||{};
+      const agentEntry=Object.entries(users).find(([,n])=>n===agentName);
+      newContact={
+        id: newCrmId,
+        name: contactName,
+        mailingName: (document.getElementById('nc-c-mailing').value||'').trim()||contactName,
+        phone: (document.getElementById('nc-c-phone').value||'').trim(),
+        email: (document.getElementById('nc-c-email').value||'').trim(),
+        email2: (document.getElementById('nc-c-email2').value||'').trim(),
+        whatsapp: (document.getElementById('nc-c-whatsapp').value||'').trim(),
+        studio: studioName,
+        studioId: studioId,
+        type: document.getElementById('nc-c-type').value||'',
+        priceList: document.getElementById('nc-c-pricelist').value||'',
+        city: (document.getElementById('nc-c-city').value||'').trim(),
+        state: (document.getElementById('nc-c-state').value||'').trim(),
+        instagram: (document.getElementById('nc-c-instagram').value||'').trim(),
+        linkedin: (document.getElementById('nc-c-linkedin').value||'').trim(),
+        web: (document.getElementById('nc-c-web').value||'').trim(),
+        segment: (document.getElementById('nc-c-segment').value||'').trim(),
+        origin: (document.getElementById('nc-c-origin').value||'').trim(),
+        notes: (document.getElementById('nc-c-notes').value||'').trim(),
+        agent: agentEntry?parseInt(agentEntry[0])||agentEntry[0]:agentName,
+        stage: '',
+        inPipeline: false,
+        tags: [],
+        notesList: [],
+        _updatedAt: Date.now()
+      };
 
-    // ── PIPELINE desde pestaña Contacto ──
-    const contactStage=(document.getElementById('nc-c-stage').value||'').trim();
-    const contactActivity=(document.getElementById('nc-c-activity').value||'').trim();
-    if(contactStage){
-      newContact.stage=contactStage;
-      newContact.inPipeline=true;
-      newContact.stageDate=new Date().toISOString().split('T')[0];
-    }
-    if(contactActivity){
-      newContact.notesList=[{text:contactActivity, date:new Date().toISOString().split('T')[0], author:'Luis'}];
+      // ── PIPELINE desde pestaña Contacto ──
+      const contactStage=(document.getElementById('nc-c-stage').value||'').trim();
+      const contactActivity=(document.getElementById('nc-c-activity').value||'').trim();
+      if(contactStage){
+        newContact.stage=contactStage;
+        newContact.inPipeline=true;
+        newContact.stageDate=new Date().toISOString().split('T')[0];
+      }
+      if(contactActivity){
+        newContact.notesList=[{text:contactActivity, date:new Date().toISOString().split('T')[0], author:'Luis'}];
+      }
     }
 
     // ── 3. OPORTUNIDAD ──
@@ -3232,12 +3254,14 @@ async function saveNewContact(){
     if(projName){
       const today=new Date().toISOString().split('T')[0];
       const projNotes=(document.getElementById('nc-p-notes').value||'').trim();
-      // Añadir nota de oportunidad al contacto si hay notas
-      if(projNotes){
+      // Añadir nota de oportunidad al contacto si hay notas (solo si existe contacto)
+      if(projNotes && newContact){
         const oppNote={text:projNotes, date:today, author:'Luis'};
         newContact.notesList=[...(newContact.notesList||[]), oppNote];
       }
-      const agentEntry=Object.entries(window._gestorUsers||{}).find(([,n])=>n===agentName);
+      const projAgentSel=document.getElementById('nc-p-agent')||document.getElementById('nc-s-agent');
+      const projAgentName=projAgentSel?.options[projAgentSel.selectedIndex]?.text||'';
+      const agentEntry=Object.entries(window._gestorUsers||{}).find(([,n])=>n===projAgentName);
       const agentId=agentEntry?parseInt(agentEntry[0]):1;
       const newProj={
         id: Date.now()+Math.floor(Math.random()*10000),
@@ -3247,13 +3271,13 @@ async function saveNewContact(){
         date: today,
         value: parseFloat(document.getElementById('nc-p-value').value)||0,
         notes: projNotes,
-        city: newContact.city||'',
+        city: (newContact && newContact.city) || '',
         agent: agentId,
         segment: '',
         tags: [],
         closeDate: '',
         actLog: [],
-        contactIds: [newCrmId],
+        contactIds: newContact ? [newCrmId] : [],
         _updatedAt: Date.now()
       };
       newProjects.push(newProj);
@@ -3261,7 +3285,7 @@ async function saveNewContact(){
 
     // ── SAVE — mandar contacto, estudio y proyecto si aplica ──
     const payload={
-      contacts: [newContact],
+      contacts: newContact ? [newContact] : [],
       studios: newStudios,
       projects: newProjects,
       _savedAt: Date.now()+30000
@@ -3269,39 +3293,41 @@ async function saveNewContact(){
     await fetch(WORKER+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
 
     // ── UPDATE LOCAL STATE ──
-    const localContact={
-      _i: ALL.length,
-      id: newCrmId,
-      _crmId: newCrmId,
-      _updatedAt: newContact._updatedAt,
-      name: newContact.name,
-      mailingName: newContact.mailingName,
-      phone: newContact.phone,
-      email: newContact.email,
-      email2: newContact.email2||'',
-      whatsapp: newContact.whatsapp||'',
-      studio: studioName,
-      studioId: studioId,
-      type: newContact.type,
-      priceList: newContact.priceList,
-      city: newContact.city,
-      state: newContact.state,
-      instagram: newContact.instagram||'',
-      linkedin: newContact.linkedin||'',
-      web: newContact.web||'',
-      segment: newContact.segment||'',
-      origin: newContact.origin||'',
-      notes: newContact.notes||'',
-      agent: agentName,
-      _agentId: agentEntry?parseInt(agentEntry[0])||agentEntry[0]:null,
-      stage: newContact.stage||'',
-      inPipeline: newContact.inPipeline||false,
-      tags: [],
-      notesList: newContact.notesList||[],
-    };
-    ALL.push(localContact);
-    // Re-index _i for all
-    ALL.forEach((c,i)=>c._i=i);
+    if(newContact){
+      const localContact={
+        _i: ALL.length,
+        id: newCrmId,
+        _crmId: newCrmId,
+        _updatedAt: newContact._updatedAt,
+        name: newContact.name,
+        mailingName: newContact.mailingName,
+        phone: newContact.phone,
+        email: newContact.email,
+        email2: newContact.email2||'',
+        whatsapp: newContact.whatsapp||'',
+        studio: studioName,
+        studioId: studioId,
+        type: newContact.type,
+        priceList: newContact.priceList,
+        city: newContact.city,
+        state: newContact.state,
+        instagram: newContact.instagram||'',
+        linkedin: newContact.linkedin||'',
+        web: newContact.web||'',
+        segment: newContact.segment||'',
+        origin: newContact.origin||'',
+        notes: newContact.notes||'',
+        agent: newContact.agent,
+        _agentId: typeof newContact.agent==='number'?newContact.agent:null,
+        stage: newContact.stage||'',
+        inPipeline: newContact.inPipeline||false,
+        tags: [],
+        notesList: newContact.notesList||[],
+      };
+      ALL.push(localContact);
+      // Re-index _i for all
+      ALL.forEach((c,i)=>c._i=i);
+    }
 
     closeModal('modal-new-contact');
     populateStateFilter();
@@ -3309,7 +3335,8 @@ async function saveNewContact(){
     renderStudios();
     setSyncDot('ok'); setText('sync-lbl','Guardado en Worker ✓');
     setTimeout(()=>setText('sync-lbl','Datos cargados · '+ALL.length.toLocaleString('es')+' contactos'),3000);
-    toast('✅ '+contactName+(studioName?' · '+studioName:'')+(projName?' · Oportunidad creada':''),'✅','success');
+    const parts=[studioName?'Estudio: '+studioName:null, contactName?'Contacto: '+contactName:null, projName?'Oportunidad creada':null].filter(Boolean);
+    toast('✅ '+(parts.join(' · ')||'Guardado'),'✅','success');
   } catch(e){
     setSyncDot('err'); setText('sync-lbl','Error: '+e.message);
     toast('Error guardando: '+e.message,'❌');
