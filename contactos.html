@@ -497,7 +497,7 @@ tr.selected td{background:var(--accentDim);}
       <table>
         <thead><tr>
           <th style="width:28px"></th>
-          <th>Estudio</th><th>Ciudad</th><th>Estado</th><th>Contactos</th><th>Vendedor</th><th>Email</th><th>Email 2</th><th>Teléfono</th><th>WhatsApp</th><th>Web</th><th>Instagram</th><th>LinkedIn</th><th>Origen</th><th>Segmento</th><th>Notas</th><th></th>
+          <th>Estudio</th><th>Ciudad</th><th>Estado</th><th>País</th><th>Contactos</th><th>Vendedor</th><th>Email</th><th>Email 2</th><th>Teléfono</th><th>WhatsApp</th><th>Web</th><th>Instagram</th><th>LinkedIn</th><th>Origen</th><th>Segmento</th><th>Tipo cliente</th><th>Notas</th><th></th>
         </tr></thead>
         <tbody id="studios-tbody"></tbody>
       </table>
@@ -2150,6 +2150,8 @@ function renderStudios(){
   updateStudioSelUI();
   const allCB=document.getElementById('studio-check-all');
   if(allCB) allCB.checked=false;
+  const COUNTRY_LABELS={MEX:'México',GTM:'Guatemala',BLZ:'Belice',SLV:'El Salvador',HND:'Honduras',NIC:'Nicaragua',CRI:'Costa Rica',PAN:'Panamá',DOM:'Rep. Dominicana',PRI:'Puerto Rico',JAM:'Jamaica',TTO:'Trinidad y Tobago',BHS:'Bahamas',BRB:'Barbados',ABW:'Aruba',CUW:'Curazao',COL:'Colombia'};
+  const CLIENT_TYPE_LABELS={dealer:'Dealer',specialized_chain:'Cadena especializada',project_manager:'Project Manager',developer:'Developer',importer:'Importador',installer:'Instalador',architecture_firm:'Estudio de arquitectura',general_contractor:'General contractor',end_user:'End user'};
   el.innerHTML=studios.map(s=>{
     const cnt=countMap[String(s.id)]||0;
     const agentName=users[s.agent]||s.agent||'—';
@@ -2157,6 +2159,7 @@ function renderStudios(){
       <td><input autocomplete="off" type="checkbox" class="studio-cb" data-id="${s.id}" onchange="toggleStudioSel('${s.id}',this.checked)" style="accent-color:var(--accent)"></td>
       <td class="name-cell"><span onclick="openStudioEdit(${s.id})" style="cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${esc(s.name||'—')}</span></td>
       <td>${esc(s.city||'—')}</td><td>${esc(s.state||'—')}</td>
+      <td style="font-size:12px">${esc(COUNTRY_LABELS[s.country]||'—')}</td>
       <td style="color:var(--text3);font-size:12px">${cnt} contacto${cnt!==1?'s':''}</td>
       <td style="font-size:12px">${esc(agentName)}</td>
       <td style="font-size:12px">${esc(s.email||'—')}</td>
@@ -2168,6 +2171,7 @@ function renderStudios(){
       <td style="font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.linkedin?`<a href="${esc(s.linkedin)}" target="_blank" style="color:var(--accent)">${esc(s.linkedin)}</a>`:'—'}</td>
       <td style="font-size:12px">${esc(s.origin||'—')}</td>
       <td style="font-size:12px">${esc(s.segment||'—')}</td>
+      <td style="font-size:12px">${esc(CLIENT_TYPE_LABELS[s.client_type]||'—')}</td>
       <td style="font-size:12px;color:var(--text3);max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.notes||'—')}</td>
       <td style="white-space:nowrap;display:flex;gap:4px">
         <button class="btn btn-ghost" onclick="openStudioEdit(${s.id})" style="font-size:11px;padding:3px 8px" title="Editar">✏️</button>
@@ -2912,6 +2916,28 @@ function _doConvertStudio(s){
               <div><label style="font-size:11px;color:var(--text3);font-weight:600">CIUDAD</label><input autocomplete="off" id="nc-s-city" class="inp" style="width:100%;margin-top:4px"></div>
               <div><label style="font-size:11px;color:var(--text3);font-weight:600">ESTADO</label><input autocomplete="off" id="nc-s-state" class="inp" style="width:100%;margin-top:4px"></div>
             </div>
+            <div><label style="font-size:11px;color:var(--text3);font-weight:600">PAÍS</label>
+              <select id="nc-s-country" class="inp" style="width:100%;margin-top:4px">
+                <option value="">— Seleccionar —</option>
+                <option value="MEX">México</option>
+                <option value="GTM">Guatemala</option>
+                <option value="BLZ">Belice</option>
+                <option value="SLV">El Salvador</option>
+                <option value="HND">Honduras</option>
+                <option value="NIC">Nicaragua</option>
+                <option value="CRI">Costa Rica</option>
+                <option value="PAN">Panamá</option>
+                <option value="DOM">República Dominicana</option>
+                <option value="PRI">Puerto Rico</option>
+                <option value="JAM">Jamaica</option>
+                <option value="TTO">Trinidad y Tobago</option>
+                <option value="BHS">Bahamas</option>
+                <option value="BRB">Barbados</option>
+                <option value="ABW">Aruba</option>
+                <option value="CUW">Curazao</option>
+                <option value="COL">Colombia</option>
+              </select>
+            </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
               <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL</label><input autocomplete="off" id="nc-s-email" class="inp" style="width:100%;margin-top:4px" type="email"></div>
               <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL 2</label><input autocomplete="off" id="nc-s-email2" class="inp" style="width:100%;margin-top:4px" type="email"></div>
@@ -2930,7 +2956,20 @@ function _doConvertStudio(s){
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
               <div><label style="font-size:11px;color:var(--text3);font-weight:600">SEGMENTO</label><input autocomplete="off" id="nc-s-segment" class="inp" style="width:100%;margin-top:4px"></div>
-              <div></div>
+              <div><label style="font-size:11px;color:var(--text3);font-weight:600">TIPO DE CLIENTE (TRACKER)</label>
+                <select id="nc-s-client-type" class="inp" style="width:100%;margin-top:4px">
+                  <option value="">— Sin clasificar —</option>
+                  <option value="dealer">Dealer</option>
+                  <option value="specialized_chain">Cadena especializada</option>
+                  <option value="project_manager">Project Manager</option>
+                  <option value="developer">Developer</option>
+                  <option value="importer">Importador</option>
+                  <option value="installer">Instalador</option>
+                  <option value="architecture_firm">Estudio de arquitectura</option>
+                  <option value="general_contractor">General contractor</option>
+                  <option value="end_user">End user</option>
+                </select>
+              </div>
             </div>
             <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOTAS</label><textarea id="nc-s-notes" class="inp" style="width:100%;margin-top:4px;min-height:50px;resize:vertical"></textarea></div>
           </div>
@@ -3070,7 +3109,7 @@ function openNewContactModal(){
    'nc-c-city','nc-c-state','nc-c-instagram','nc-c-linkedin','nc-c-web','nc-c-segment','nc-c-origin','nc-c-notes',
    'nc-p-name','nc-p-value','nc-p-notes','nc-studio-search','nc-c-activity'
   ].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
-  ['nc-c-type','nc-c-pricelist','nc-c-agent','nc-s-agent','nc-c-stage'].forEach(id=>{ const el=document.getElementById(id); if(el) el.selectedIndex=0; });
+  ['nc-c-type','nc-c-pricelist','nc-c-agent','nc-s-agent','nc-c-stage','nc-s-country','nc-s-client-type'].forEach(id=>{ const el=document.getElementById(id); if(el) el.selectedIndex=0; });
   document.getElementById('nc-p-stage').value='c-lead';
   // Populate agent selects from _gestorUsers
   const users=window._gestorUsers||{};
@@ -3179,6 +3218,8 @@ async function saveNewContact(){
           name: sName,
           city: (document.getElementById('nc-s-city').value||'').trim(),
           state: (document.getElementById('nc-s-state').value||'').trim(),
+          country: document.getElementById('nc-s-country').value||'',
+          client_type: document.getElementById('nc-s-client-type').value||'',
           email: (document.getElementById('nc-s-email').value||'').trim(),
           email2: (document.getElementById('nc-s-email2').value||'').trim(),
           phone: (document.getElementById('nc-s-phone').value||'').trim(),
