@@ -222,6 +222,28 @@ tr.selected td{background:var(--accentDim);}
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">CIUDAD</label><input autocomplete="off" id="es-city" class="inp" style="width:100%;margin-top:4px"></div>
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">ESTADO</label><input autocomplete="off" id="es-state" class="inp" style="width:100%;margin-top:4px"></div>
       </div>
+      <div><label style="font-size:11px;color:var(--text3);font-weight:600">PAÍS</label>
+        <select id="es-country" class="inp" style="width:100%;margin-top:4px">
+          <option value="">— Seleccionar —</option>
+          <option value="MEX">México</option>
+          <option value="GTM">Guatemala</option>
+          <option value="BLZ">Belice</option>
+          <option value="SLV">El Salvador</option>
+          <option value="HND">Honduras</option>
+          <option value="NIC">Nicaragua</option>
+          <option value="CRI">Costa Rica</option>
+          <option value="PAN">Panamá</option>
+          <option value="DOM">República Dominicana</option>
+          <option value="PRI">Puerto Rico</option>
+          <option value="JAM">Jamaica</option>
+          <option value="TTO">Trinidad y Tobago</option>
+          <option value="BHS">Bahamas</option>
+          <option value="BRB">Barbados</option>
+          <option value="ABW">Aruba</option>
+          <option value="CUW">Curazao</option>
+          <option value="COL">Colombia</option>
+        </select>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL</label><input autocomplete="off" id="es-email" class="inp" style="width:100%;margin-top:4px"></div>
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">EMAIL 2</label><input autocomplete="off" id="es-email2" class="inp" style="width:100%;margin-top:4px"></div>
@@ -1791,6 +1813,7 @@ function openStudioEdit(studioId){
   document.getElementById('es-name').value=s.name||'';
   document.getElementById('es-city').value=s.city||'';
   document.getElementById('es-state').value=s.state||'';
+  document.getElementById('es-country').value=s.country||'';
   document.getElementById('es-email').value=s.email||'';
   document.getElementById('es-email2').value=s.email2||'';
   document.getElementById('es-phone').value=s.phone||'';
@@ -1813,7 +1836,7 @@ function openStudioEdit(studioId){
 function openNewStudioModal(){
   _editStudioName = null;
   document.getElementById('edit-studio-title').textContent='➕ Nuevo estudio';
-  ['es-name','es-city','es-state','es-email','es-email2','es-phone','es-whatsapp',
+  ['es-name','es-city','es-state','es-country','es-email','es-email2','es-phone','es-whatsapp',
    'es-web','es-instagram','es-linkedin','es-origin','es-segment','es-notes']
     .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
   const agentSel=document.getElementById('es-agent');
@@ -1835,6 +1858,7 @@ function saveStudioEdit(){
       name: newName,
       city: document.getElementById('es-city').value.trim(),
       state: document.getElementById('es-state').value.trim(),
+      country: document.getElementById('es-country').value.trim(),
       email: document.getElementById('es-email').value.trim(),
       email2: document.getElementById('es-email2').value.trim(),
       phone: document.getElementById('es-phone').value.trim(),
@@ -1860,6 +1884,7 @@ function saveStudioEdit(){
   if(!newName){toast('El nombre es requerido','⚠️');return;}
   const city=document.getElementById('es-city').value.trim();
   const state=document.getElementById('es-state').value.trim();
+  const country=document.getElementById('es-country').value.trim();
   const email=document.getElementById('es-email').value.trim();
   const email2=document.getElementById('es-email2').value.trim();
   const phone=document.getElementById('es-phone').value.trim();
@@ -1872,7 +1897,7 @@ function saveStudioEdit(){
   const notes=document.getElementById('es-notes').value.trim();
   const agentSel=document.getElementById('es-agent');
   const agent=agentSel.value||'';
-  Object.assign(s, {name:newName, city, state, email, email2, phone, whatsapp, web, instagram, linkedin, origin, segment, notes, agent, _updatedAt:Date.now()});
+  Object.assign(s, {name:newName, city, state, country, email, email2, phone, whatsapp, web, instagram, linkedin, origin, segment, notes, agent, _updatedAt:Date.now()});
   ALL.forEach(c=>{ if(String(c.studioId)===String(s.id)) c.studio=newName; });
   closeModal('modal-edit-studio');
   renderStudios(); applyFilters();
