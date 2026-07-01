@@ -1993,7 +1993,7 @@ function confirmAddToQuote(){
   }
   if(!vol||!pvpVal){toast('Ingresa volumen y PVP','⚠️');return;}
   // pvp y cost se guardan en la unidad de venta (vol*pvp = subtotal)
-  CURRENT_Q[table].push({id:uid(),catalogId:p.id,desc:p.description||p.model,vol,unit,pvp:pvpVal,cost:costVal,currency:PA_SELECTED_CURRENCY||'MXN',tcRef:p.tcUsado||_TC||0});
+  CURRENT_Q[table].push({id:uid(),catalogId:p.id,desc:p.description||p.model,vol,unit,m2perUnit:parseFloat(p.m2perUnit)||0,pvp:pvpVal,cost:costVal,currency:PA_SELECTED_CURRENCY||'MXN',tcRef:p.tcUsado||_TC||0});
   closeModal('modal-prod-add');
   renderQuoteTables(); recalcAll(); markDirty();
   toast('Producto añadido','✅','success');
@@ -2223,7 +2223,12 @@ function renderQTable(tbodyId,items,table){
     return `
     <tr>
       <td><textarea class="desc-inp" rows="2" onchange="CURRENT_Q['${table}'][${i}].desc=this.value;markDirty()">${esc(x.desc)}</textarea></td>
-      <td><input class="mini-inp" type="number" value="${x.vol}" style="width:65px" onchange="CURRENT_Q['${table}'][${i}].vol=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()"></td>
+      <td>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:1px">
+          <input class="mini-inp" type="number" value="${x.vol}" style="width:65px" onchange="CURRENT_Q['${table}'][${i}].vol=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()">
+          ${x.m2perUnit&&x.unit!=='m2'?`<span style="font-size:10px;color:var(--text3)">${round(x.vol*(x.m2perUnit||0),2)} m²</span>`:''}
+        </div>
+      </td>
       <td style="font-size:11px;color:var(--text3);white-space:nowrap">${esc(x.unit)}</td>
       <td style="white-space:nowrap">
         <input class="mini-inp" type="number" value="${x.pvp}" style="width:72px" onchange="CURRENT_Q['${table}'][${i}].pvp=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()">
