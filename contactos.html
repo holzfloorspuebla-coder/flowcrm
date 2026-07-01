@@ -440,6 +440,7 @@ tr.selected td{background:var(--accentDim);}
     <input autocomplete="off" type="checkbox" id="sel-all-cb" onchange="toggleAllVisible(this.checked)" style="accent-color:var(--accent)">
     <span class="bulk-count"><span id="sel-count">0</span> seleccionados</span>
     <button class="btn btn-ghost" onclick="clearSelAll()" style="margin-left:auto">✕ Deseleccionar todo</button>
+    <button class="btn" id="btn-send-tracker" onclick="openSendTracker()" style="display:none;background:#1a56db;color:#fff;border:none;font-weight:500">🛰 Enviar al tracker</button>
   </div>
 
   <!-- TAB: CONTACTOS -->
@@ -586,7 +587,7 @@ function switchTab(tab){
   document.getElementById('tab-'+tab).classList.add('active');
   document.getElementById('panel-'+tab).classList.add('active');
   if(tab==='approvals') loadApprovals();
-  if(tab==='studios') renderStudios();
+  if(tab==='studios'){ renderStudios(); loadTrackerSyncStatus(); }
   if(tab==='providers') renderProviders();
   updateToolbar();
   selected.clear(); selectedStudios.clear(); updateSelUI();
@@ -1241,13 +1242,10 @@ function updateSelUI(){
   // Botones en toolbar
   const btnF = document.getElementById('btn-fusionar');
   const btnE = document.getElementById('tb-eliminar');
-  const btnCRM = document.getElementById('tb-send-crm');
+  const btnT = document.getElementById('btn-send-tracker');
   if(btnF) btnF.style.display = total>=2 ? '' : 'none';
   if(btnE) btnE.style.display = total>=1 ? '' : 'none';
-  // Enviar al CRM solo si hay contactos seleccionados
-  if(btnCRM && (_activeTab==='contacts'||_activeTab==='studios')){
-    btnCRM.style.display = n>=1 ? '' : 'none';
-  }
+  if(btnT) btnT.style.display = ns>=1 ? '' : 'none';
   ['sel-all-cb','header-cb'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=n>0&&n>=filtered.length;});
 }
 
@@ -2157,7 +2155,7 @@ function renderStudios(){
     const agentName=users[s.agent]||s.agent||'—';
     return `<tr id="strow-${s.id}">
       <td><input autocomplete="off" type="checkbox" class="studio-cb" data-id="${s.id}" onchange="toggleStudioSel('${s.id}',this.checked)" style="accent-color:var(--accent)"></td>
-      <td class="name-cell"><span onclick="openStudioEdit(${s.id})" style="cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${esc(s.name||'—')}</span></td>
+      <td class="name-cell"><span onclick="openStudioEdit(${s.id})" style="cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px" onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity='1'">${esc(s.name||'—')}</span>${_trackerSynced.has(String(s.id))?'<span title="Ya enviado al tracker" style="margin-left:6px;font-size:10px;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:8px;font-weight:500">🛰 tracker</span>':''}</td>
       <td>${esc(s.city||'—')}</td><td>${esc(s.state||'—')}</td>
       <td style="font-size:12px">${esc(COUNTRY_LABELS[s.country]||'—')}</td>
       <td style="color:var(--text3);font-size:12px">${cnt} contacto${cnt!==1?'s':''}</td>
@@ -3384,6 +3382,211 @@ async function saveNewContact(){
   }
 }
 
+// ══════════════════════════════════════════════════════════════
+// ENVIAR AL TRACKER
+// ══════════════════════════════════════════════════════════════
+const TRACKER_URL    = 'https://trackingcentralamerica.onrender.com';
+const TRACKER_APIKEY = 'd616e0fb7b8e48741102ccd239b8f17061e5e20cb344307befa3662e60a75a01';
+
+// IDs de estudios ya enviados al tracker (se carga al abrir la pestaña Estudios)
+const _trackerSynced = new Set(); // external_ids (= String(studio.id))
+
+async function loadTrackerSyncStatus(){
+  if(!ALL_STUDIOS || !ALL_STUDIOS.length) return;
+  const ids = ALL_STUDIOS.map(s=>String(s.id)).join(',');
+  try {
+    const res = await fetch(`${TRACKER_URL}/api/clients/sync/status?ids=${ids}`, {
+      headers: { 'X-API-Key': TRACKER_APIKEY }
+    });
+    if(!res.ok) return;
+    const rows = await res.json();
+    _trackerSynced.clear();
+    rows.forEach(r => _trackerSynced.add(String(r.external_id)));
+    renderStudios(); // re-render para mostrar badges
+  } catch(e){ console.warn('No se pudo consultar estado del tracker:', e.message); }
+}
+
+function openSendTracker(){
+  const ids = [...selectedStudios];
+  if(!ids.length){ toast('Selecciona al menos un estudio','⚠️'); return; }
+  const studios = ids.map(id => ALL_STUDIOS.find(s=>String(s.id)===id)).filter(Boolean);
+
+  // Separar los que necesitan datos adicionales
+  const incomplete = studios.filter(s => !s.country || !s.client_type);
+  const ready      = studios.filter(s =>  s.country &&  s.client_type);
+
+  // Construir listado del modal
+  const COUNTRY_NAMES = {MEX:'México',GTM:'Guatemala',BLZ:'Belice',SLV:'El Salvador',HND:'Honduras',NIC:'Nicaragua',CRI:'Costa Rica',PAN:'Panamá',DOM:'República Dominicana',PRI:'Puerto Rico',JAM:'Jamaica',TTO:'Trinidad y Tobago',BHS:'Bahamas',BRB:'Barbados',ABW:'Aruba',CUW:'Curazao',COL:'Colombia'};
+  const TYPE_NAMES = {dealer:'Dealer',specialized_chain:'Cadena especializada',project_manager:'Project Manager',developer:'Developer',importer:'Importador',installer:'Instalador',architecture_firm:'Estudio de arquitectura',general_contractor:'General contractor',end_user:'End user'};
+  const countryOpts = Object.entries(COUNTRY_NAMES).map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+  const typeOpts    = Object.entries(TYPE_NAMES).map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+
+  let incompleteHTML = '';
+  if(incomplete.length){
+    incompleteHTML = `<div style="margin-bottom:12px;padding:10px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e">
+      <strong>⚠️ ${incomplete.length} estudio${incomplete.length!==1?'s':''} sin país o tipo</strong> — completa los datos antes de enviar:
+    </div>
+    ${incomplete.map(s=>`
+      <div style="padding:10px 0;border-bottom:1px solid var(--border)" data-studio-id="${s.id}">
+        <div style="font-size:13px;font-weight:500;margin-bottom:8px">${esc(s.name)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label style="font-size:11px;color:var(--text3);font-weight:600">PAÍS</label>
+            <select class="inp tracker-country-fix" data-id="${s.id}" style="width:100%;margin-top:4px;font-size:12px">
+              <option value="">— Seleccionar —</option>${countryOpts}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text3);font-weight:600">TIPO DE CLIENTE</label>
+            <select class="inp tracker-type-fix" data-id="${s.id}" style="width:100%;margin-top:4px;font-size:12px">
+              <option value="">— Sin clasificar —</option>${typeOpts}
+            </select>
+          </div>
+        </div>
+      </div>`).join('')}`;
+  }
+
+  const readyHTML = ready.length ? `
+    <div style="margin-top:${incomplete.length?'12px':'0'}">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:6px">✅ Listos para enviar (${ready.length}):</div>
+      ${ready.map(s=>`<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)">${esc(s.name)} <span style="color:var(--text3)">· ${COUNTRY_NAMES[s.country]||s.country} · ${TYPE_NAMES[s.client_type]||s.client_type}</span></div>`).join('')}
+    </div>` : '';
+
+  document.getElementById('tracker-modal-body').innerHTML = incompleteHTML + readyHTML;
+
+  // Pre-llenar valores actuales si ya tienen algo
+  incomplete.forEach(s=>{
+    const cs = document.querySelector(`.tracker-country-fix[data-id="${s.id}"]`);
+    const ts = document.querySelector(`.tracker-type-fix[data-id="${s.id}"]`);
+    if(cs && s.country) cs.value = s.country;
+    if(ts && s.client_type) ts.value = s.client_type;
+  });
+
+  document.getElementById('tracker-prog').style.display = 'none';
+  document.getElementById('tracker-result').textContent = '';
+  document.getElementById('btn-confirm-tracker').disabled = false;
+  document.getElementById('modal-tracker').style.display = 'flex';
+}
+
+async function confirmSendTracker(){
+  const ids = [...selectedStudios];
+  const studios = ids.map(id => ALL_STUDIOS.find(s=>String(s.id)===id)).filter(Boolean);
+
+  // Recoger correcciones del modal para estudios incompletos
+  const fixes = {};
+  document.querySelectorAll('.tracker-country-fix').forEach(el=>{
+    if(!fixes[el.dataset.id]) fixes[el.dataset.id]={};
+    fixes[el.dataset.id].country = el.value;
+  });
+  document.querySelectorAll('.tracker-type-fix').forEach(el=>{
+    if(!fixes[el.dataset.id]) fixes[el.dataset.id]={};
+    fixes[el.dataset.id].client_type = el.value;
+  });
+
+  // Validar que ahora todos tienen país y tipo
+  const missing = studios.filter(s=>{
+    const fix = fixes[String(s.id)] || {};
+    return !(s.country || fix.country) || !(s.client_type || fix.client_type);
+  });
+  if(missing.length){
+    toast(`Faltan datos en: ${missing.map(s=>s.name).join(', ')}`, '⚠️');
+    return;
+  }
+
+  document.getElementById('btn-confirm-tracker').disabled = true;
+  document.getElementById('tracker-prog').style.display = '';
+  document.getElementById('tracker-result').textContent = '';
+
+  let ok=0, err=0, errs=[];
+  for(const s of studios){
+    const fix = fixes[String(s.id)] || {};
+    const country    = s.country    || fix.country    || '';
+    const clientType = s.client_type|| fix.client_type|| '';
+
+    // Aplicar correcciones al objeto local si se cambiaron aquí
+    if(fix.country    && !s.country)     { s.country=fix.country; }
+    if(fix.client_type&& !s.client_type) { s.client_type=fix.client_type; }
+
+    // Buscar el primer contacto del estudio para tener nombre/email/teléfono
+    const contact = ALL.find(c=>String(c.studioId)===String(s.id));
+
+    const payload = {
+      external_id:   String(s.id),
+      name:          s.name,
+      country_code:  country,
+      client_type:   clientType,
+      contact_name:  contact ? contact.name  : (s.contactName || null),
+      contact_email: contact ? contact.email : (s.email || null),
+      contact_phone: contact ? contact.phone : (s.phone || null),
+      notes:         s.notes || null,
+      has_stock:     s.has_stock    || false,
+      num_salespeople: s.salespeople|| 0,
+    };
+
+    try {
+      const res = await fetch(`${TRACKER_URL}/api/clients/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'X-API-Key': TRACKER_APIKEY },
+        body: JSON.stringify(payload)
+      });
+      if(res.ok){
+        ok++;
+        _trackerSynced.add(String(s.id));
+        // Actualizar estudio local con posibles correcciones para que se guarden
+        const si = ALL_STUDIOS.findIndex(st=>String(st.id)===String(s.id));
+        if(si>=0){ ALL_STUDIOS[si].country=country; ALL_STUDIOS[si].client_type=clientType; }
+      } else {
+        const e = await res.json();
+        err++; errs.push(`${s.name}: ${e.error||res.status}`);
+      }
+    } catch(e){ err++; errs.push(`${s.name}: ${e.message}`); }
+  }
+
+  document.getElementById('tracker-prog').style.display = 'none';
+
+  if(ok>0){
+    // Guardar correcciones de país/tipo en el Worker también
+    try {
+      const data = await fetch(WORKER+'/data').then(r=>r.json());
+      const updatedStudios = (data.studios||[]).map(s=>{
+        const local = ALL_STUDIOS.find(ls=>String(ls.id)===String(s.id));
+        return local ? {...s, country:local.country, client_type:local.client_type} : s;
+      });
+      await fetch(WORKER+'/data',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({...data, studios:updatedStudios, _savedAt:Date.now()+30000})});
+    } catch(e){ console.warn('No se pudieron guardar correcciones en Worker:', e.message); }
+
+    renderStudios();
+    toast(`✅ ${ok} estudio${ok!==1?'s':''} enviado${ok!==1?'s':''} al tracker`,'✅','success');
+  }
+  if(err>0) toast(`❌ ${err} error${err!==1?'es':''}: ${errs.join(' | ')}`, '❌');
+
+  document.getElementById('tracker-result').textContent =
+    `${ok} enviado${ok!==1?'s':''} correctamente${err?` · ${err} con error`:''}`;
+
+  if(ok>0 && err===0) setTimeout(()=>{ document.getElementById('modal-tracker').style.display='none'; clearSelStudios(); }, 1800);
+}
+
 </script>
+
+<!-- MODAL ENVIAR AL TRACKER -->
+<div id="modal-tracker" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:16px;padding:24px;width:540px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.25)">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-shrink:0">
+      <h2 style="font-size:15px;font-weight:600">🛰 Enviar al Tracker</h2>
+      <button onclick="document.getElementById('modal-tracker').style.display='none'" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--text3)">×</button>
+    </div>
+    <div id="tracker-modal-body" style="overflow-y:auto;flex:1;padding-right:4px"></div>
+    <div style="margin-top:16px;flex-shrink:0">
+      <div id="tracker-prog" style="display:none;font-size:12px;color:var(--text3);margin-bottom:8px">⏳ Enviando...</div>
+      <div id="tracker-result" style="font-size:12px;color:var(--text3);margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="document.getElementById('modal-tracker').style.display='none'">Cancelar</button>
+        <button class="btn" id="btn-confirm-tracker" onclick="confirmSendTracker()" style="background:#1a56db;color:#fff;border:none;font-weight:500">Enviar al tracker</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
