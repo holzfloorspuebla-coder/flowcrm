@@ -36,6 +36,22 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .quote-item{padding:9px 11px;border-radius:var(--r);cursor:pointer;border:1px solid transparent;margin-bottom:2px;transition:all .15s;}
 .quote-item:hover{background:var(--surface2);}
 .quote-item.active{background:var(--accentDim);border-color:rgba(230,51,41,.2);}
+.proj-group-hd{display:flex;align-items:center;gap:6px;padding:5px 8px;cursor:pointer;user-select:none;border-radius:4px;}
+.proj-group-hd:hover{background:var(--surface2);}
+.proj-group-lbl{font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;flex:1;}
+.proj-group-badge{font-size:9px;color:var(--text3);background:var(--surface3);border-radius:99px;padding:1px 5px;}
+.proj-hd{display:flex;align-items:center;gap:5px;padding:4px 8px;border-radius:4px;cursor:pointer;}
+.proj-hd:hover{background:var(--surface2);}
+.proj-num{font-size:11px;font-weight:600;color:var(--text);font-family:var(--mono);}
+.proj-client{font-size:11px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.q-row{display:flex;align-items:center;gap:5px;padding:3px 8px 3px 22px;border-radius:4px;cursor:pointer;margin-bottom:1px;}
+.q-row:hover{background:var(--surface2);}
+.q-row.active{background:var(--accentDim);}
+.q-row-num{font-size:11px;font-family:var(--mono);color:var(--text2);}
+.q-row.active .q-row-num{color:var(--accent);font-weight:600;}
+.q-row-name{font-size:11px;color:var(--text3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.q-row.active .q-row-name{color:var(--accent);}
+.badge-ant{font-size:9px;color:var(--text3);background:var(--surface3);border-radius:99px;padding:1px 5px;border:1px solid var(--border);}
 .quote-num{font-size:10px;font-weight:700;color:var(--accent);font-family:var(--mono);}
 .quote-client{font-size:13px;font-weight:600;}
 .quote-date{font-size:10px;color:var(--text3);}
@@ -426,7 +442,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           <div class="sec-hd"><div class="sec-title">Datos del proyecto</div></div>
           <div style="padding:14px 16px">
             <div class="form-grid">
-              <div class="fg"><label class="lbl">Número</label><input class="inp" id="q-num" placeholder="P046/C001/2026" oninput="updateTopbar();markDirty()"></div>
+              <div class="fg"><label class="lbl">Número</label>
+                <div style="display:flex;gap:4px;align-items:center">
+                  <input class="inp" id="q-proj-num" placeholder="P079" style="width:68px;font-family:var(--mono)" oninput="updateQuoteNum();markDirty()">
+                  <span style="color:var(--text3);font-size:13px">/</span>
+                  <input class="inp" id="q-cot-num" placeholder="C001" style="width:58px;font-family:var(--mono)" oninput="updateQuoteNum();markDirty()">
+                  <span style="color:var(--text3);font-size:13px">/</span>
+                  <input class="inp" id="q-year" placeholder="2026" style="width:54px;font-family:var(--mono)" oninput="updateQuoteNum();markDirty()">
+                </div>
+              </div>
               <div class="fg"><label class="lbl">Fecha</label><input class="inp" id="q-date" type="date" oninput="markDirty()"></div>
               <div class="fg">
                 <label class="lbl">Cliente</label>
@@ -445,6 +469,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
                   </div>
                 </div>
               </div>
+            </div>
+            <div class="form-grid" style="margin-top:10px">
+              <div class="fg"><label class="lbl">Estado del proyecto</label>
+                <select class="inp" id="q-proj-status" onchange="CURRENT_Q.projectStatus=this.value;renderQuoteList();markDirty()">
+                  <option value="active">En curso</option>
+                  <option value="won">Ganado</option>
+                  <option value="lost">Perdido</option>
+                </select>
+              </div>
+              <div></div>
             </div>
             <div class="form-grid-3">
               <div class="fg"><label class="lbl">Price List cliente</label>
@@ -875,6 +909,7 @@ async function loadAllFromCloud(){
     setSyncDot('ok');
     setSyncLbl(QUOTES.length+' cot. · '+t);
 
+    migrateQuoteNums();
     renderQuoteList();
     if(QUOTES.length) selectQuote(QUOTES[0].id);
   }catch(e){
@@ -1988,11 +2023,46 @@ function addManualProduct(){
 }
 
 // ── QUOTES ──
+function parseQuoteNum(num){
+  var m=(num||'').match(/^(P\d+)\/(C\d+)\/(\d+)$/i);
+  if(m) return {p:m[1],c:m[2],y:m[3]};
+  return {p:'',c:'',y:String(new Date().getFullYear())};
+}
+function getNextProjectNum(){
+  var nums=QUOTES.map(function(q){
+    var src=q.projectNum||(parseQuoteNum(q.num).p);
+    var m=(src||'').match(/P(\d+)/i);
+    return m?parseInt(m[1]):0;
+  });
+  return Math.max.apply(null,[0].concat(nums))+1;
+}
+function getNextCotNum(projNum){
+  var same=QUOTES.filter(function(q){return (q.projectNum||parseQuoteNum(q.num).p)===projNum;});
+  var nums=same.map(function(q){
+    var src=q.cotNum||(parseQuoteNum(q.num).c);
+    var m=(src||'').match(/C(\d+)/i);
+    return m?parseInt(m[1]):0;
+  });
+  return Math.max.apply(null,[0].concat(nums))+1;
+}
+function migrateQuoteNums(){
+  QUOTES.forEach(function(q){
+    if(!q.projectNum&&q.num){
+      var parsed=parseQuoteNum(q.num);
+      if(parsed.p){q.projectNum=parsed.p;q.cotNum=parsed.c;q.numYear=parsed.y;}
+    }
+    if(!q.projectStatus) q.projectStatus='active';
+  });
+}
 function newQuote(){
-  const year=new Date().getFullYear();
-  const q={id:uid(),num:`P${String(100+QUOTES.length).padStart(3,'0')}/C001/${year}`,
-    date:today(),project:'',client:'',pricelist:'',discPP:0,realExtras:[],realIncomes:[],
-    supply:[],labor:[],extraCosts:[],text:'',_createdAt:Date.now()};
+  var year=new Date().getFullYear();
+  var pn=getNextProjectNum();
+  var projNum='P'+String(pn).padStart(3,'0');
+  var cotNum='C001';
+  var num=projNum+'/'+cotNum+'/'+year;
+  var q={id:uid(),num:num,projectNum:projNum,cotNum:cotNum,numYear:String(year),
+    date:today(),project:'',client:'',pricelist:'',discPP:0,projectStatus:'active',
+    realExtras:[],realIncomes:[],supply:[],labor:[],extraCosts:[],text:'',_createdAt:Date.now()};
   QUOTES.unshift(q);
   renderQuoteList();
   selectQuote(q.id);
@@ -2021,6 +2091,10 @@ function selectQuote(id){
 function loadQuoteToForm(){
   const q=CURRENT_Q;
   setValue('q-num',q.num); setValue('q-date',q.date);
+  setValue('q-proj-num',q.projectNum||parseQuoteNum(q.num).p||'');
+  setValue('q-cot-num',q.cotNum||parseQuoteNum(q.num).c||'');
+  setValue('q-year',q.numYear||parseQuoteNum(q.num).y||String(new Date().getFullYear()));
+  var psEl=document.getElementById('q-proj-status'); if(psEl) psEl.value=q.projectStatus||'active';
   setValue('q-project',q.project); setValue('q-client',q.client);
   setValue('q-pricelist',q.pricelist);
   setValue('q-disc-pp',q.discPP||0);
@@ -2035,6 +2109,8 @@ async function saveQuote(){
   if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
   const q=CURRENT_Q;
   q.num=val('q-num'); q.date=val('q-date'); q.project=val('q-project');
+  q.projectNum=val('q-proj-num'); q.cotNum=val('q-cot-num'); q.numYear=val('q-year');
+  q.projectStatus=document.getElementById('q-proj-status')?.value||'active';
   q.client=val('q-client'); q.pricelist=val('q-pricelist');
   q.discPP=parseFloat(val('q-disc-pp'))||0;
   q.notes=document.getElementById('q-notes')?.value||'';
@@ -2059,22 +2135,73 @@ async function deleteQuote(id,e){
   await persistAll();
   toast('Cotización eliminada','🗑️');
 }
+let _collapsedGroups=new Set(), _collapsedProjects=new Set();
 function renderQuoteList(){
-  const q=(document.getElementById('q-search').value||'').toLowerCase();
-  const list=q?QUOTES.filter(x=>(x.client||x.num||'').toLowerCase().includes(q)):QUOTES;
-  document.getElementById('quote-list').innerHTML=list.length?list.map(q=>`
-    <div class="quote-item" data-id="${q.id}" onclick="selectQuote('${q.id}')">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div class="quote-num">${esc(q.num||'Sin número')} ${q.status==='closed'?'<span style="font-size:9px;color:var(--text3);font-weight:600">🔒</span>':''}</div>
-        <div style="display:flex;gap:2px">
-          <button class="btn-icon" title="Duplicar" onclick="selectQuote('${q.id}');setTimeout(duplicateQuote,100);event.stopPropagation()">⧉</button>
-          <button class="btn-icon" onclick="deleteQuote('${q.id}',event)">🗑</button>
-        </div>
-      </div>
-      <div class="quote-client">${esc(q.client||'Sin cliente')}</div>
-      <div class="quote-date">${esc(q.date||'')}</div>
-    </div>`).join(''):
-    `<div style="text-align:center;padding:20px 10px;color:var(--text3);font-size:12px">Sin cotizaciones</div>`;
+  const srch=(document.getElementById('q-search').value||'').toLowerCase();
+  let list=srch?QUOTES.filter(x=>((x.client||'')+(x.num||'')+(x.project||'')).toLowerCase().includes(srch)):QUOTES;
+  const groups=[
+    {key:'active',label:'En curso',icon:'🟡'},
+    {key:'won',label:'Ganados',icon:'🟢'},
+    {key:'lost',label:'Perdidos',icon:'🔴'}
+  ];
+  let html='';
+  groups.forEach(function(g){
+    const gQuotes=list.filter(function(q){return (q.projectStatus||'active')===g.key;});
+    if(!gQuotes.length) return;
+    const collapsed=_collapsedGroups.has(g.key);
+    const gk=g.key;
+    html+='<div>';
+    html+='<div class="proj-group-hd" onclick="'+
+      '_collapsedGroups.has(&quot;'+gk+'&quot;)?_collapsedGroups.delete(&quot;'+gk+'&quot;):_collapsedGroups.add(&quot;'+gk+'&quot;);renderQuoteList()">';
+    html+=g.icon+' <span class="proj-group-lbl">'+g.label+'</span><span class="proj-group-badge">'+gQuotes.length+'</span>';
+    html+='<span style="font-size:11px;color:var(--text3)">'+(collapsed?'▶':'▼')+'</span></div>';
+    if(!collapsed){
+      const projMap={};
+      gQuotes.forEach(function(q){
+        const pn=q.projectNum||parseQuoteNum(q.num).p||q.num||'—';
+        if(!projMap[pn]) projMap[pn]=[];
+        projMap[pn].push(q);
+      });
+      Object.keys(projMap).sort().reverse().forEach(function(pn){
+        const pQuotes=projMap[pn];
+        pQuotes.sort(function(a,b){
+          const an=parseInt((a.cotNum||parseQuoteNum(a.num).c||'C0').replace(/[^0-9]/g,''))||0;
+          const bn=parseInt((b.cotNum||parseQuoteNum(b.num).c||'C0').replace(/[^0-9]/g,''))||0;
+          return bn-an;
+        });
+        const client=pQuotes[0].client||'Sin cliente';
+        const projKey=gk+'|'+pn;
+        const pCollapsed=_collapsedProjects.has(projKey);
+        html+='<div class="project">';
+        html+='<div class="proj-hd" onclick="event.stopPropagation();'+
+          '_collapsedProjects.has(&quot;'+projKey+'&quot;)?_collapsedProjects.delete(&quot;'+projKey+'&quot;):_collapsedProjects.add(&quot;'+projKey+'&quot;);renderQuoteList()">';
+        html+='<span style="font-size:11px">📁</span><span class="proj-num">'+esc(pn)+'</span><span class="proj-client">'+esc(client)+'</span>';
+        html+='<span style="font-size:10px;color:var(--text3)">'+(pCollapsed?'▶':'▼')+'</span></div>';
+        if(!pCollapsed){
+          pQuotes.forEach(function(q,qi){
+            const isActive=qi===0;
+            const cn=q.cotNum||parseQuoteNum(q.num).c||q.num||'—';
+            const projName=q.project||'';
+            const activeClass=CURRENT_Q&&CURRENT_Q.id===q.id?' active':'';
+            const qid=q.id;
+            html+='<div class="q-row'+activeClass+'" data-id="'+qid+'" onclick="selectQuote(&quot;'+qid+'&quot;)">';
+            html+='<span style="font-size:10px">📄</span>';
+            html+='<span class="q-row-num">'+esc(cn)+'</span>';
+            if(projName) html+='<span class="q-row-name">'+esc(projName)+'</span>';
+            if(!isActive) html+='<span class="badge-ant">anterior</span>';
+            if(q.status==='closed') html+='<span style="font-size:9px">🔒</span>';
+            html+='<span style="margin-left:auto;display:flex;gap:1px">';
+            html+='<button class="btn-icon" title="Duplicar" onclick="selectQuote(&quot;'+qid+'&quot;);setTimeout(duplicateQuote,100);event.stopPropagation()">⧉</button>';
+            html+='<button class="btn-icon" onclick="deleteQuote(&quot;'+qid+'&quot;,event)">🗑</button>';
+            html+='</span></div>';
+          });
+        }
+        html+='</div>';
+      });
+    }
+    html+='</div>';
+  });
+  document.getElementById('quote-list').innerHTML=html||'<div style="text-align:center;padding:20px 10px;color:var(--text3);font-size:12px">Sin cotizaciones</div>';
 }
 function filterQuotes(){ renderQuoteList(); }
 
@@ -2193,6 +2320,9 @@ function duplicateQuote(){
   const copy=JSON.parse(JSON.stringify(CURRENT_Q));
   copy.id=uid();
   copy.num=newNum.trim()||CURRENT_Q.num+' (copia)';
+  // Parse the new num to set split fields
+  var parsed=parseQuoteNum(copy.num);
+  if(parsed.p){copy.projectNum=parsed.p;copy.cotNum=parsed.c;copy.numYear=parsed.y;}
   copy.date=today();
   copy._createdAt=Date.now();
   copy._updatedAt=Date.now();
@@ -2850,6 +2980,13 @@ function val(id){return(document.getElementById(id)||{}).value||'';}
 function setValue(id,v){const el=document.getElementById(id);if(el)el.value=v;}
 function setText(id,v){const el=document.getElementById(id);if(el)el.textContent=v;}
 function closeModal(id){document.getElementById(id).classList.add('hidden');}
+function updateQuoteNum(){
+  var pn=val('q-proj-num'), cn=val('q-cot-num'), yr=val('q-year');
+  var num=[pn,cn,yr].filter(Boolean).join('/');
+  setValue('q-num',num);
+  if(CURRENT_Q) CURRENT_Q.num=num;
+  updateTopbar();
+}
 function updateTopbar(){setText('topbar-num',val('q-num'));setText('topbar-client',val('q-client'));}
 function mbadge(pct){
   const p=(pct*100).toFixed(1)+'%';
