@@ -410,6 +410,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 
   <div class="main">
     <div class="topbar">
+      <button class="btn-icon" id="btn-close-editor" onclick="closeEditor()" title="Cerrar cotización" style="font-size:15px;color:var(--text3);flex-shrink:0">✕</button>
       <span id="topbar-num" style="font-family:var(--mono);font-size:12px;color:var(--accent)"></span>
       <span id="topbar-client" style="font-size:13px;font-weight:600;margin-left:4px"></span>
       <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
@@ -472,7 +473,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
             </div>
             <div class="form-grid" style="margin-top:10px">
               <div class="fg"><label class="lbl">Estado del proyecto</label>
-                <select class="inp" id="q-proj-status" onchange="CURRENT_Q.projectStatus=this.value;renderQuoteList();markDirty()">
+                <select class="inp" id="q-proj-status" onchange="setProjectStatus(this.value)">
                   <option value="active">En curso</option>
                   <option value="won">Ganado</option>
                   <option value="lost">Perdido</option>
@@ -911,7 +912,7 @@ async function loadAllFromCloud(){
 
     migrateQuoteNums();
     renderQuoteList();
-    if(QUOTES.length) selectQuote(QUOTES[0].id);
+    // No auto-seleccionar — el usuario elige desde el sidebar
   }catch(e){
     setSyncDot('err'); setSyncLbl('Error de conexión');
     toast('No se pudo conectar al servidor','❌','error');
@@ -2068,6 +2069,38 @@ function newQuote(){
   selectQuote(q.id);
   markDirty();
 }
+function setProjectStatus(status){
+  if(!CURRENT_Q) return;
+  const projNum=CURRENT_Q.projectNum||parseQuoteNum(CURRENT_Q.num).p;
+  // Propagar a todas las cotizaciones del mismo proyecto
+  QUOTES.forEach(function(q){
+    const qProjNum=q.projectNum||parseQuoteNum(q.num).p;
+    if(qProjNum===projNum) q.projectStatus=status;
+  });
+  CURRENT_Q.projectStatus=status;
+  renderQuoteList();
+  markDirty();
+}
+
+function closeEditor(){
+  if(!CURRENT_Q) return;
+  const isDirty=document.getElementById('save-ind')?.textContent?.includes('sin');
+  if(isDirty){
+    const resp=confirm('Hay cambios sin guardar. ¿Guardar antes de cerrar?');
+    if(resp){ saveQuote().then(function(){ _closeEditorNow(); }); return; }
+  }
+  _closeEditorNow();
+}
+function _closeEditorNow(){
+  CURRENT_Q=null;
+  document.getElementById('no-quote').style.display='';
+  document.getElementById('quote-editor').style.display='none';
+  setText('topbar-num',''); setText('topbar-client','');
+  document.querySelectorAll('.q-row').forEach(function(el){ el.classList.remove('active'); });
+  if(document.getElementById('btn-close-quote')) document.getElementById('btn-close-quote').style.display='none';
+  if(document.getElementById('btn-reopen-quote')) document.getElementById('btn-reopen-quote').style.display='none';
+}
+
 function selectQuote(id){
   CURRENT_Q=QUOTES.find(q=>q.id===id);
   if(!CURRENT_Q) return;
@@ -2094,7 +2127,7 @@ function loadQuoteToForm(){
   setValue('q-proj-num',q.projectNum||parseQuoteNum(q.num).p||'');
   setValue('q-cot-num',q.cotNum||parseQuoteNum(q.num).c||'');
   setValue('q-year',q.numYear||parseQuoteNum(q.num).y||String(new Date().getFullYear()));
-  var psEl=document.getElementById('q-proj-status'); if(psEl) psEl.value=q.projectStatus||'active';
+  var psEl=document.getElementById('q-proj-status'); if(psEl){ psEl.value=q.projectStatus||'active'; }
   setValue('q-project',q.project); setValue('q-client',q.client);
   setValue('q-pricelist',q.pricelist);
   setValue('q-disc-pp',q.discPP||0);
@@ -2110,7 +2143,9 @@ async function saveQuote(){
   const q=CURRENT_Q;
   q.num=val('q-num'); q.date=val('q-date'); q.project=val('q-project');
   q.projectNum=val('q-proj-num'); q.cotNum=val('q-cot-num'); q.numYear=val('q-year');
-  q.projectStatus=document.getElementById('q-proj-status')?.value||'active';
+  const _newStatus=document.getElementById('q-proj-status')?.value||'active';
+  if(_newStatus!==q.projectStatus){ q.projectStatus=_newStatus; setProjectStatus(_newStatus); }
+  else { q.projectStatus=_newStatus; }
   q.client=val('q-client'); q.pricelist=val('q-pricelist');
   q.discPP=parseFloat(val('q-disc-pp'))||0;
   q.notes=document.getElementById('q-notes')?.value||'';
