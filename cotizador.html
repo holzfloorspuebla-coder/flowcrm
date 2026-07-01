@@ -1986,7 +1986,7 @@ function confirmAddToQuote(){
   } else if(p.m2perBox&&document.getElementById('pa-vol').value){
     const volRaw=parseFloat(document.getElementById('pa-vol').value)||0;
     const boxes=Math.ceil(volRaw/p.m2perBox);
-    vol=round(boxes*p.m2perBox,3); unit='m2';
+    vol=round(boxes*p.m2perBox,3); unit=p.unit||'m2';
   }else{
     vol=parseFloat(document.getElementById('pa-vol').value)||0;
     unit=p.unit||'m2';
