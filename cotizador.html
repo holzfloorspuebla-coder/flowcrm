@@ -1994,7 +1994,7 @@ function confirmAddToQuote(){
   }
   if(!vol||!pvpVal){toast('Ingresa volumen y PVP','⚠️');return;}
   // pvp y cost se guardan en la unidad de venta (vol*pvp = subtotal)
-  CURRENT_Q[table].push({id:uid(),catalogId:p.id,desc:p.description||p.model,vol,unit,m2perUnit:parseFloat(p.m2perUnit)||0,pvp:pvpVal,cost:costVal,currency:PA_SELECTED_CURRENCY||'MXN',tcRef:p.tcUsado||_TC||0});
+  CURRENT_Q[table].push({id:uid(),catalogId:p.id,desc:p.description||p.model,vol,unit,m2perUnit:parseFloat(p.m2perUnit||p.m2perBox)||0,pvp:pvpVal,cost:costVal,currency:PA_SELECTED_CURRENCY||'MXN',tcRef:p.tcUsado||_TC||0});
   closeModal('modal-prod-add');
   renderQuoteTables(); recalcAll(); markDirty();
   toast('Producto añadido','✅','success');
@@ -2317,6 +2317,7 @@ function syncItemFromCatalog(table,i){
   item.cost=costVal||item.cost;
   item.unit=p.unit||item.unit;
   item.currency='MXN';
+  item.m2perUnit=parseFloat(p.m2perUnit||p.m2perBox)||0;
   item.tcRef=p.tcUsado||_TC||0;
   renderQuoteTables(); recalcAll(); markDirty();
   toast(`Partida sincronizada${pvpVal&&pvpVal!==oldPvp?' — PVP actualizado':''}`,'🔄','success');
