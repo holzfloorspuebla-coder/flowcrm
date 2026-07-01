@@ -256,6 +256,7 @@ tr.selected td{background:var(--accentDim);}
           <option value="architecture_firm">Estudio de arquitectura</option>
           <option value="general_contractor">General contractor</option>
           <option value="end_user">End user</option>
+          <option value="operator">Operator</option>
         </select>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
@@ -2149,7 +2150,7 @@ function renderStudios(){
   const allCB=document.getElementById('studio-check-all');
   if(allCB) allCB.checked=false;
   const COUNTRY_LABELS={MEX:'México',GTM:'Guatemala',BLZ:'Belice',SLV:'El Salvador',HND:'Honduras',NIC:'Nicaragua',CRI:'Costa Rica',PAN:'Panamá',DOM:'Rep. Dominicana',PRI:'Puerto Rico',JAM:'Jamaica',TTO:'Trinidad y Tobago',BHS:'Bahamas',BRB:'Barbados',ABW:'Aruba',CUW:'Curazao',COL:'Colombia'};
-  const CLIENT_TYPE_LABELS={dealer:'Dealer',specialized_chain:'Cadena especializada',project_manager:'Project Manager',developer:'Developer',importer:'Importador',installer:'Instalador',architecture_firm:'Estudio de arquitectura',general_contractor:'General contractor',end_user:'End user'};
+  const CLIENT_TYPE_LABELS={dealer:'Dealer',specialized_chain:'Cadena especializada',project_manager:'Project Manager',developer:'Developer',importer:'Importador',installer:'Instalador',architecture_firm:'Estudio de arquitectura',general_contractor:'General contractor',end_user:'End user',operator:'Operator'};
   el.innerHTML=studios.map(s=>{
     const cnt=countMap[String(s.id)]||0;
     const agentName=users[s.agent]||s.agent||'—';
@@ -2966,6 +2967,7 @@ function _doConvertStudio(s){
                   <option value="architecture_firm">Estudio de arquitectura</option>
                   <option value="general_contractor">General contractor</option>
                   <option value="end_user">End user</option>
+                  <option value="operator">Operator</option>
                 </select>
               </div>
             </div>
@@ -3417,7 +3419,7 @@ function openSendTracker(){
 
   // Construir listado del modal
   const COUNTRY_NAMES = {MEX:'México',GTM:'Guatemala',BLZ:'Belice',SLV:'El Salvador',HND:'Honduras',NIC:'Nicaragua',CRI:'Costa Rica',PAN:'Panamá',DOM:'República Dominicana',PRI:'Puerto Rico',JAM:'Jamaica',TTO:'Trinidad y Tobago',BHS:'Bahamas',BRB:'Barbados',ABW:'Aruba',CUW:'Curazao',COL:'Colombia'};
-  const TYPE_NAMES = {dealer:'Dealer',specialized_chain:'Cadena especializada',project_manager:'Project Manager',developer:'Developer',importer:'Importador',installer:'Instalador',architecture_firm:'Estudio de arquitectura',general_contractor:'General contractor',end_user:'End user'};
+  const TYPE_NAMES = {dealer:'Dealer',specialized_chain:'Cadena especializada',project_manager:'Project Manager',developer:'Developer',importer:'Importador',installer:'Instalador',architecture_firm:'Estudio de arquitectura',general_contractor:'General contractor',end_user:'End user',operator:'Operator'};
   const countryOpts = Object.entries(COUNTRY_NAMES).map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
   const typeOpts    = Object.entries(TYPE_NAMES).map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
 
