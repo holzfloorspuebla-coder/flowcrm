@@ -636,7 +636,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
               <th style="color:var(--orange)">Costo pres.</th>
               <th style="color:var(--accent)">Costo real</th>
               <th style="color:var(--text3)">Diferencia</th>
-              <th>PVP total</th><th>Costo total</th><th>Margen $</th><th>Margen %</th>
+              <th>PVP total</th><th>Costo total</th><th>Margen $</th><th>Margen %</th><th style="color:var(--green)">Margen real $</th><th style="color:var(--green)">Margen real %</th>
             </tr></thead>
             <tbody id="rent-tbody"></tbody>
           </table>
@@ -2567,12 +2567,14 @@ function recalcRent(supNet,labRaw,extraCosts){
       </td>
       <td>${mxn(pvpNeto)}</td><td style="color:var(--orange)">${mxn(costT)}</td>
       <td>${mxn(margin)}</td><td>${mbadge(pct)}</td>
+      <td style="color:var(--green);font-family:var(--mono);font-size:11px">${mxn(round(pvpNeto-costRealT,2))}</td>
+      <td>${pvpNeto?mbadge(round((pvpNeto-costRealT)/pvpNeto,4)):'—'}</td>
     </tr>`;
   }).join('')+realIncomeRows+realExtraRows+`<tr>
     <td colspan="5" style="padding:4px 8px">
       <button class="btn btn-ghost" style="font-size:11px;padding:2px 8px;color:var(--green)" onclick="addRealIncome()">＋ Ingreso extra</button>
     </td>
-    <td colspan="6" style="padding:4px 8px">
+    <td colspan="8" style="padding:4px 8px">
       <button class="btn btn-ghost" style="font-size:11px;padding:2px 8px;color:var(--accent)" onclick="addRealExtra()">＋ Gasto extra real</button>
     </td>
   </tr>`;
@@ -2816,13 +2818,14 @@ async function exportExcel(){
   }
 
   function addTotalRow(label, value){
-    // Merge cols 1-4 for label, col 5 for value
+    // Col 1 empty, cols 2-4 merged for label (left), col 5 for value (right)
     const row=addRow(['','','','',value]);
-    ws.mergeCells(r,1,r,4);
-    const labelCell=row.getCell(1); // master cell after merge
+    ws.mergeCells(r,2,r,4);
+    const labelCell=row.getCell(2); // master cell of merge B-D
     labelCell.value=label;
     labelCell.fill=BLACK_FILL; labelCell.font=WHITE_FONT;
-    labelCell.alignment={horizontal:'right',vertical:'middle'};
+    labelCell.alignment={horizontal:'left',vertical:'middle'};
+    row.getCell(1).fill=BLACK_FILL; // col A also black but empty
     const valCell=row.getCell(5);
     valCell.fill=BLACK_FILL; valCell.font=WHITE_FONT;
     valCell.numFmt=MONEY_FMT; valCell.alignment={horizontal:'right',vertical:'middle'};
@@ -2832,26 +2835,29 @@ async function exportExcel(){
   addSectionRow('SUMINISTRO DE MATERIALES');
   addHeaderRow();
   [...supMXN,...supUSD].forEach(x=>addDataRow(x));
-  addTotalRow('SUBTOTAL MATERIALES', supRawMXN);
   if(hasUSD&&supUSD.length){
     addTotalRow('SUBTOTAL SUMINISTRO USD', supRawUSD);
     addTotalRow('Ref. MXN (TC $'+tcRef.toFixed(2)+')', supRawUSD*tcRef);
   }
 
-  addSectionRow('MANO DE OBRA');
-  addHeaderRow();
-  [...labMXN,...labUSD].forEach(x=>addDataRow(x));
-  addTotalRow('SUBTOTAL MANO DE OBRA', labRawMXN);
-  if(hasUSD&&labUSD.length){
-    addTotalRow('SUBTOTAL MANO DE OBRA USD', labRawUSD);
-    addTotalRow('Ref. MXN (TC $'+tcRef.toFixed(2)+')', labRawUSD*tcRef);
+  const hasLab=[...labMXN,...labUSD].length>0;
+  if(hasLab){
+    addSectionRow('MANO DE OBRA');
+    addHeaderRow();
+    [...labMXN,...labUSD].forEach(x=>addDataRow(x));
+    if(hasUSD&&labUSD.length){
+      addTotalRow('SUBTOTAL MANO DE OBRA USD', labRawUSD);
+      addTotalRow('Ref. MXN (TC $'+tcRef.toFixed(2)+')', labRawUSD*tcRef);
+    }
   }
 
+  const subtotalBruto=supRawMXN+labRawMXN;
+  addTotalRow('SUBTOTAL PROYECTO', subtotalBruto);
   if(discVolAmtE>0) addTotalRow('DESCUENTO POR VOLUMEN', -discVolAmtE);
   if(dp>0) addTotalRow('DESCUENTO PRONTO PAGO ('+(dp*100).toFixed(0)+'%)', -round(baseAfterVolE*dp,2));
 
   const subtotalFinal=supNetMXN;
-  addTotalRow('SUBTOTAL PROYECTO', subtotalFinal);
+  if(discVolAmtE>0||dp>0) addTotalRow('SUBTOTAL PROYECTO', subtotalFinal);
   addTotalRow('IVA (16%)', subtotalFinal*0.16);
   addTotalRow('TOTAL A PAGAR', subtotalFinal*1.16);
   if(hasUSD){
@@ -2864,7 +2870,7 @@ async function exportExcel(){
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
   a.href=url;
-  a.download=(val('q-num')||'cotizacion')+'_'+(val('q-client')||'cliente')+'.xlsx';
+  a.download='cotizacion_'+(val('q-client')||'cliente')+'.xlsx';
   a.click();
   URL.revokeObjectURL(url);
   toast('Excel descargado','📥','success');
