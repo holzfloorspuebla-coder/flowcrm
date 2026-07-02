@@ -1845,43 +1845,30 @@ function _paApplySupplierValues(p, supplierData){
     if(volLbl) volLbl.textContent='Cantidad (piezas)';
     if(boxesWrap) boxesWrap.style.display='none';
     if(m2rLbl) m2rLbl.textContent='m² equivalentes';
-  } else if(p.unit==='caja'||p.unit==='Caja'){
-    // Unidad de venta = caja: PVP y costo deben estar en MXN/caja
-    const pvpM2=parseFloat(supplierData.pvpM2MXN)||0;
-    const costoM2=parseFloat(supplierData.costoM2MXN)||0;
-    const m2unit=m2pb||m2pu||1;
-    if(pvpM2 && m2unit){
-      pvpVal=round(pvpM2*m2unit,2);
-    } else if(supplierData.pvpCajaMXN){
-      pvpVal=round(parseFloat(supplierData.pvpCajaMXN),2);
-    }
-    if(costoM2 && m2unit){
-      costoVal=round(costoM2*m2unit,2);
-    } else if(supplierData.costoNetoMXN){
-      costoVal=round(parseFloat(supplierData.costoNetoMXN),2);
-    }
-    const _esCurUSD=supplierData.currency==='USD';
-    unitLabel=_esCurUSD?'PVP por caja (MXN — convertido de USD)':'PVP por caja (MXN)';
-    costLabel='Costo por caja (solo Luis)';
-    if(volLbl) volLbl.textContent='Volumen m²';
-    if(boxesWrap) boxesWrap.style.display='';
-    if(boxesLbl) boxesLbl.textContent='Cajas (↑ redondeo)';
-    if(m2rLbl) m2rLbl.textContent='m² reales';
   } else {
-    // Otras unidades: usar pvpM2MXN directamente
     if(supplierData.pvpM2MXN && parseFloat(supplierData.pvpM2MXN)){
       pvpVal=round(parseFloat(supplierData.pvpM2MXN),2);
+    } else if(supplierData.pvpCajaMXN && m2pb){
+      pvpVal=round(parseFloat(supplierData.pvpCajaMXN)/m2pb,2);
     } else if(supplierData.pvpCajaMXN){
       pvpVal=round(parseFloat(supplierData.pvpCajaMXN),2);
     }
     if(supplierData.costoM2MXN && parseFloat(supplierData.costoM2MXN)){
       costoVal=round(parseFloat(supplierData.costoM2MXN),2);
+    } else if(supplierData.costoNetoMXN && m2pb){
+      costoVal=round(parseFloat(supplierData.costoNetoMXN)/m2pb,2);
     } else if(supplierData.costoNetoMXN){
       costoVal=round(parseFloat(supplierData.costoNetoMXN),2);
+    } else if(supplierData.costoMXN && m2pb){
+      costoVal=round(parseFloat(supplierData.costoMXN)/m2pb,2);
+    } else if(supplierData.costoMXN){
+      costoVal=round(parseFloat(supplierData.costoMXN),2);
     }
     const _esCurUSD=supplierData.currency==='USD';
-    unitLabel=_esCurUSD?`PVP por ${p.unit||'ud.'} (MXN — convertido de USD)`:`PVP por ${p.unit||'ud.'} (MXN)`;
-    costLabel=`Costo por ${p.unit||'ud.'} (solo Luis)`;
+    unitLabel = m2pb
+      ? (_esCurUSD?'PVP por m² (MXN — convertido de USD)':'PVP por m² (MXN)')
+      : (_esCurUSD?`PVP por ${p.unit||'ud.'} (MXN — convertido de USD)`:`PVP por ${p.unit||'ud.'} (MXN)`);
+    costLabel = m2pb ? 'Costo por m² (solo Luis)' : `Costo por ${p.unit||'ud.'} (solo Luis)`;
     if(volLbl) volLbl.textContent='Volumen m²';
     if(boxesWrap) boxesWrap.style.display='';
     if(boxesLbl) boxesLbl.textContent='Cajas (↑ redondeo)';
@@ -1997,12 +1984,6 @@ function confirmAddToQuote(){
     // vol = cantidad de piezas, pvp/cost ya están en MXN/pieza
     vol=parseFloat(document.getElementById('pa-vol').value)||0;
     unit='pieza';
-  } else if((p.unit==='caja'||p.unit==='Caja')&&(p.m2perBox||p.m2perUnit)&&document.getElementById('pa-vol').value){
-    // vol en m², convertir a cajas — guardar en cajas
-    const m2unit=parseFloat(p.m2perBox||p.m2perUnit)||1;
-    const volRaw=parseFloat(document.getElementById('pa-vol').value)||0;
-    const boxes=Math.ceil(volRaw/m2unit);
-    vol=boxes; unit='caja'; // vol = número de cajas
   } else if(p.m2perBox&&document.getElementById('pa-vol').value){
     const volRaw=parseFloat(document.getElementById('pa-vol').value)||0;
     const boxes=Math.ceil(volRaw/p.m2perBox);
@@ -2319,11 +2300,15 @@ function syncItemFromCatalog(table,i){
   },null);
   if(!bestSupplier){ toast('Sin proveedores en el producto','⚠️'); return; }
   const calc=bestSupplier._calc||computeSupplierPrices({unit:p.unit,priceUnit:bestSupplier.priceUnit||p.unit,m2perUnit:p.m2perUnit},bestSupplier);
-  const m2pb=parseFloat(p.m2perUnit)||0;
+  const m2pb=parseFloat(p.m2perUnit||p.m2perBox)||0;
   let pvpVal=0, costVal=0;
   if(p.unit==='pieza'){
     pvpVal=m2pb?(calc.pvpM2MXN?round(calc.pvpM2MXN*m2pb,2):0):(calc.pvpCajaMXN||0);
     costVal=m2pb?(calc.costoM2MXN?round(calc.costoM2MXN*m2pb,2):0):(calc.costoNetoMXN||0);
+  } else if(p.unit==='caja'||p.unit==='Caja'){
+    // PVP y costo en MXN/caja
+    pvpVal=m2pb&&calc.pvpM2MXN?round(calc.pvpM2MXN*m2pb,2):(calc.pvpCajaMXN||0);
+    costVal=m2pb&&calc.costoM2MXN?round(calc.costoM2MXN*m2pb,2):(calc.costoNetoMXN||0);
   } else {
     pvpVal=calc.pvpM2MXN||calc.pvpCajaMXN||0;
     if(calc.costoM2MXN) costVal=calc.costoM2MXN;
