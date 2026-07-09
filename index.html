@@ -118,6 +118,19 @@ tr.selected td{background:rgba(79,124,255,.06);}
 .col-count{font-size:11px;background:var(--surface2);color:var(--text2);padding:2px 7px;border-radius:10px;font-weight:600;}
 .col-cards{padding:8px;display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;}
 .col-cards::-webkit-scrollbar{width:3px;}.col-cards::-webkit-scrollbar-thumb{background:var(--border);}
+.pipeline-sidebar{width:270px;flex-shrink:0;display:flex;flex-direction:column;gap:0;max-height:100%;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--rlg);padding:6px 0;}
+.pipeline-sidebar::-webkit-scrollbar{width:3px;}.pipeline-sidebar::-webkit-scrollbar-thumb{background:var(--border);}
+.pipeline-sidebar-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding:10px 12px 6px;font-family:'DM Sans',sans-serif;}
+.stage-row{display:flex;align-items:center;gap:7px;padding:9px 12px;cursor:pointer;border-left:3px solid transparent;transition:background .13s;}
+.stage-row:hover{background:var(--surface2);}
+.stage-row.drag-over{background:var(--glow)!important;border-left-color:var(--accent)!important;}
+.stage-row-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.stage-row-title{font-family:'Syne',sans-serif;font-weight:700;font-size:12px;flex:1;line-height:1.3;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.stage-row.active .stage-row-title{color:var(--text);}
+.stage-row-count{font-size:11px;background:var(--surface2);color:var(--text2);padding:2px 7px;border-radius:10px;font-weight:600;flex-shrink:0;}
+.pipeline-panel{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;max-height:100%;overflow-y:auto;padding:0 2px;}
+.pipeline-panel::-webkit-scrollbar{width:3px;}.pipeline-panel::-webkit-scrollbar-thumb{background:var(--border);}
+.pipeline-panel-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;align-content:start;}
 .card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:11px;cursor:pointer;transition:all .17s;}
 .card:hover{border-color:var(--accent);transform:translateY(-1px);box-shadow:0 4px 14px rgba(79,124,255,.1);}
 .card.dragging{opacity:.4;transform:scale(.97);}
@@ -928,7 +941,11 @@ select.inp{cursor:pointer;}
         <div class="fg"><label class="lbl">Pipeline</label>
           <select class="inp" id="c-stage">
             <option value="c-lead">Lead captado</option>
-            <option value="c-contactado">Contactado</option>
+            <option value="c-msg1">Contactado · Mensaje 1</option>
+            <option value="c-msg2">Contactado · Mensaje 2</option>
+            <option value="c-msg3">Contactado · Mensaje 3</option>
+            <option value="c-msg4">Contactado · Mensaje 4</option>
+            <option value="c-msg5">Contactado · Mensaje 5</option>
             <option value="c-respuesta">Respuesta recibida</option>
             <option value="c-agendado">Visita al showroom agendada</option>
             <option value="c-showroom">Visitó el showroom</option>
@@ -1032,7 +1049,11 @@ select.inp{cursor:pointer;}
         <div class="fg"><label class="lbl">Etapa pipeline</label>
           <select class="inp" id="ar-stage">
             <option value="c-lead">Lead captado</option>
-            <option value="c-contactado">Contactado</option>
+            <option value="c-msg1">Contactado · Mensaje 1</option>
+            <option value="c-msg2">Contactado · Mensaje 2</option>
+            <option value="c-msg3">Contactado · Mensaje 3</option>
+            <option value="c-msg4">Contactado · Mensaje 4</option>
+            <option value="c-msg5">Contactado · Mensaje 5</option>
             <option value="c-respuesta">Respuesta recibida</option>
             <option value="c-agendado">Visita al showroom agendada</option>
             <option value="c-showroom">Visitó el showroom</option>
@@ -1248,7 +1269,11 @@ const TC=['rgba(79,124,255,.18)','rgba(160,124,255,.18)','rgba(62,207,142,.18)',
 const TT=['#4f7cff','#a07cff','#3ecf8e','#c9a400','#ff8c42','#ff5c5c','#00d4aa'];
 const C_STAGES=[
   {id:'c-lead',       name:'Lead captado',                color:'#ff8c42'},
-  {id:'c-contactado', name:'Contactado',                  color:'#5ce4ff'},
+  {id:'c-msg1',       name:'Contactado · Mensaje 1',       color:'#5ce4ff'},
+  {id:'c-msg2',       name:'Contactado · Mensaje 2',       color:'#5ce4ff'},
+  {id:'c-msg3',       name:'Contactado · Mensaje 3',       color:'#5ce4ff'},
+  {id:'c-msg4',       name:'Contactado · Mensaje 4',       color:'#5ce4ff'},
+  {id:'c-msg5',       name:'Contactado · Mensaje 5',       color:'#5ce4ff'},
   {id:'c-respuesta',  name:'Respuesta recibida',          color:'#4f7cff'},
   {id:'c-agendado',   name:'Visita al showroom agendada', color:'#a07cff'},
   {id:'c-showroom',   name:'Visitó el showroom',          color:'#3ecf8e'},
@@ -1307,7 +1332,11 @@ const DEFAULT_DATA={
   contactTypes:['Arquitecto','Constructora','Interiorista','Desarrollador','Contratista','Particular','Distribuidor'],
   lossReasons:['Precio','Competencia','Sin presupuesto','Proyecto cancelado','Falta de respuesta','Timing','Otro'],
   stageAlarms:{
-    'c-contactado': {days:7, color:'#ff5c5c'},
+    'c-msg1': {days:7, color:'#ff5c5c'},
+    'c-msg2': {days:7, color:'#ff5c5c'},
+    'c-msg3': {days:7, color:'#ff5c5c'},
+    'c-msg4': {days:7, color:'#ff5c5c'},
+    'c-msg5': {days:7, color:'#ff5c5c'},
     'c-agendado': {days:3, color:'#f5c842'},
     'p-propuesta': {days:3, color:'#ff5c5c'},
   },
@@ -2010,13 +2039,13 @@ function canEdit(agentId){
 //  BOOT
 // ══════════════════════════════════════════════════════
 let S={curView:'contacts-view',prevView:'contacts-view',profileId:null,studioAgentFilter:'all',editCId:null,editPId:null,
-       cTags:[],pTags:[],cFilter:'all',pFilter:'all',pwTargetId:null,editUserId:null,selectedColor:COLORS[0],
+       cTags:[],pTags:[],cFilter:'all',pFilter:'all',pwTargetId:null,editUserId:null,selectedColor:COLORS[0],cSelectedStage:'c-lead',
        kpiPeriod:'month',editActId:null,calView:'month',currentStudioId:null,editStudioId:null,editArchId:null,archStudioId:null,studiosSelectMode:false,contactsSelectMode:false,selectedContacts:new Set(),lossProjectId:null,pContactPool:null,pLinkedIds:new Set(),
        calYear:new Date().getFullYear(),calMonth:new Date().getMonth(),
        calDay:new Date().getDate(),calAgentFilter:'all'};
 
 function migrateContactStages(data){
-  const map={'c-inicial':'c-contactado','c-seguimiento':'c-activado'};
+  const map={'c-inicial':'c-msg1','c-seguimiento':'c-activado','c-contactado':'c-msg1'};
   (data.contacts||[]).forEach(c=>{if(map[c.stage])c.stage=map[c.stage];});
   (data.studios||[]).forEach(s=>{if(map[s.stage])s.stage=map[s.stage];if(map[s.pipelineStage])s.pipelineStage=map[s.pipelineStage];});
 }
@@ -2030,6 +2059,7 @@ function bootApp(){
     const toAdd=missing.filter(c=>!existing.has(c.id));
     if(toAdd.length>0){
       D.contacts.push(...toAdd);
+      migrateContactStages(D);
       saveData();
       console.log('Migration apr21: added',toAdd.length,'contacts');
     }
@@ -2900,49 +2930,48 @@ function renderCKanban(){
   const kq=norm(document.getElementById('kanban-search')?.value||'');
   const activeStages=C_STAGES.filter(st=>!st.final);
   const finalStages=C_STAGES.filter(st=>st.final);
+  if(!C_STAGES.find(s=>s.id===S.cSelectedStage)) S.cSelectedStage=activeStages[0].id;
 
-  function buildCols(stages){
-    return stages.map(st=>{
-      let items=visibleContacts().filter(c=>c.stage===st.id&&c.inPipeline!==false);
-      if(S.cFilter!=='all')items=items.filter(c=>c.agent===S.cFilter);
-      if(kq) items=items.filter(c=>{
-        const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
-        return norm(c.name).includes(kq)||norm(studio?.name||'').includes(kq)||norm(c.email||'').includes(kq)||norm(c.phone||'').includes(kq);
-      });
-      const studioItems=studioVirtualContacts().filter(s=>s.stage===st.id);
-      const filteredStudios=S.cFilter==='all'?studioItems:studioItems.filter(s=>s.agent===S.cFilter);
-      const filteredStudios2=kq?filteredStudios.filter(s=>norm(s.name).includes(kq)):filteredStudios;
-      items=[...items,...filteredStudios2];
-      return`<div class="col" id="ccol-${st.id}" ondragover="dov(event,'${st.id}','c')" ondrop="drp(event,'${st.id}','c')" ondragleave="dlv()">
-        <div class="col-head"><div class="col-dot" style="background:${st.color}"></div><div class="col-title">${st.name}</div><div class="col-count">${items.length}</div></div>
-        <div class="col-cards">${items.map(c=>cCardH(c,st.color)).join('')}
-          <button class="add-btn" onclick="openContactModal('${st.id}')">＋ Añadir contacto</button>
-        </div>
-      </div>`;
-    }).join('');
+  function stageItems(st){
+    let items=visibleContacts().filter(c=>c.stage===st.id&&c.inPipeline!==false);
+    if(S.cFilter!=='all')items=items.filter(c=>c.agent===S.cFilter);
+    if(kq) items=items.filter(c=>{
+      const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
+      return norm(c.name).includes(kq)||norm(studio?.name||'').includes(kq)||norm(c.email||'').includes(kq)||norm(c.phone||'').includes(kq);
+    });
+    const studioItems=studioVirtualContacts().filter(s=>s.stage===st.id);
+    const filteredStudios=S.cFilter==='all'?studioItems:studioItems.filter(s=>s.agent===S.cFilter);
+    const filteredStudios2=kq?filteredStudios.filter(s=>norm(s.name).includes(kq)):filteredStudios;
+    return [...items,...filteredStudios2];
   }
 
-  $('c-kanban').innerHTML=
-    buildCols(activeStages)+
-    `<div style="display:flex;flex-direction:column;gap:0;min-width:220px;max-width:260px">
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);padding:8px 4px 6px">Estados finales</div>
-      ${finalStages.map(st=>{
-        let items=visibleContacts().filter(c=>c.stage===st.id&&c.inPipeline!==false);
-        if(S.cFilter!=='all')items=items.filter(c=>c.agent===S.cFilter);
-        if(kq) items=items.filter(c=>{
-          const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
-          return norm(c.name).includes(kq)||norm(studio?.name||'').includes(kq);
-        });
-        const studioItems2=studioVirtualContacts().filter(s=>s.stage===st.id);
-        const fs2=S.cFilter==='all'?studioItems2:studioItems2.filter(s=>s.agent===S.cFilter);
-        items=[...items,...(kq?fs2.filter(s=>norm(s.name).includes(kq)):fs2)];
-        return`<div class="col" id="ccol-${st.id}" ondragover="dov(event,'${st.id}','c')" ondrop="drp(event,'${st.id}','c')" ondragleave="dlv()" style="min-width:200px;flex:1;margin-bottom:8px">
-          <div class="col-head"><div class="col-dot" style="background:${st.color}"></div><div class="col-title" style="font-size:12px">${st.name}</div><div class="col-count">${items.length}</div></div>
-          <div class="col-cards">${items.map(c=>cCardH(c,st.color)).join('')}</div>
-        </div>`;
-      }).join('')}
+  function stageRow(st){
+    const items=stageItems(st);
+    const sel=S.cSelectedStage===st.id;
+    return`<div class="stage-row${sel?' active':''}" id="ccol-${st.id}" onclick="selectCStage('${st.id}')" ondragover="dov(event,'${st.id}','c')" ondrop="drp(event,'${st.id}','c')" ondragleave="dlv()" style="border-left-color:${sel?st.color:'transparent'};background:${sel?st.color+'20':'transparent'}">
+      <div class="stage-row-dot" style="background:${st.color}"></div>
+      <div class="stage-row-title">${st.name}</div>
+      <div class="stage-row-count">${items.length}</div>
     </div>`;
+  }
+
+  const selStage=C_STAGES.find(s=>s.id===S.cSelectedStage);
+  const selItems=stageItems(selStage);
+
+  $('c-kanban').innerHTML=`
+    <div class="pipeline-sidebar">
+      ${activeStages.map(stageRow).join('')}
+      <div class="pipeline-sidebar-label">Estados finales</div>
+      ${finalStages.map(stageRow).join('')}
+    </div>
+    <div class="pipeline-panel">
+      <div class="pipeline-panel-cards">${selItems.map(c=>cCardH(c,selStage.color)).join('')}</div>
+      ${selItems.length?'':'<p style="font-size:12px;color:var(--text3);padding:4px">Sin contactos en esta fase</p>'}
+      <button class="add-btn" style="max-width:220px" onclick="openContactModal('${selStage.id}')">＋ Añadir contacto</button>
+    </div>
+  `;
 }
+function selectCStage(id){S.cSelectedStage=id;renderCKanban();}
 
 function cCardH(c,col){
   // If this is a studio virtual contact, render with studio styling
@@ -3272,7 +3301,7 @@ function ds(e,id,type){
   dId=id;dType=type;$((type==='c'?'cc-':'pc-')+id)?.classList.add('dragging');
 }
 function dov(e,s,t){e.preventDefault();$((t==='c'?'ccol-':'pcol-')+s)?.classList.add('drag-over');}
-function dlv(){document.querySelectorAll('.col').forEach(c=>c.classList.remove('drag-over'));}
+function dlv(){document.querySelectorAll('.col,.stage-row').forEach(c=>c.classList.remove('drag-over'));}
 function drp(e,stage,type){
   e.preventDefault();dlv();
   if(dId===null)return;
@@ -5955,7 +5984,7 @@ function calcKpiForAgent(agentId,period){
 
   // B. % respuesta a primer contacto: contacted or beyond / total leads
   const totalLeads=D.contacts.filter(c=>c.agent===agentId).length;
-  const respondedStages=['c-contactado','c-respuesta','c-agendado','c-showroom','c-activado'];
+  const respondedStages=['c-msg1','c-msg2','c-msg3','c-msg4','c-msg5','c-respuesta','c-agendado','c-showroom','c-activado'];
   const responded=D.contacts.filter(c=>c.agent===agentId&&respondedStages.includes(c.stage)).length;
   const pctRespuesta=totalLeads>0?Math.round((responded/totalLeads)*100):0;
 
