@@ -164,6 +164,10 @@ tr.selected td{background:rgba(79,124,255,.06);}
 .alarm-row-name{flex:1;min-width:0;}
 .alarm-row-stage{font-size:12px;font-weight:600;}
 .alarm-row-type{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:1px;}
+.msg-row{background:var(--surface2);border-radius:10px;padding:11px 14px;margin-bottom:10px;}
+.msg-row-head{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.msg-row-stage{font-size:12px;font-weight:600;flex:1;}
+.msg-row textarea{width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:7px;padding:8px 10px;font-size:13px;color:var(--text);outline:none;resize:vertical;min-height:52px;font-family:inherit;box-sizing:border-box;}
 .col.drag-over{border-color:var(--accent);background:rgba(79,124,255,.03);}
 .card-top{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
 .card-name{font-weight:600;font-size:13px;flex:1;line-height:1.3;}
@@ -1340,6 +1344,7 @@ const DEFAULT_DATA={
     'c-agendado': {days:3, color:'#f5c842'},
     'p-propuesta': {days:3, color:'#ff5c5c'},
   },
+  stageMessages:{},
   activities:[
     {id:9001,type:'call',title:'Llamada de seguimiento',date:'2026-03-21',time:'10:00',contactId:101,projectId:null,agent:1,notes:'Revisar avance propuesta',done:false},
     {id:9002,type:'showroom',title:'Visita al showroom — Constructora Vega',date:'2026-03-22',time:'12:00',contactId:102,projectId:201,agent:2,notes:'Presentar colección porcelanato',done:false},
@@ -1386,6 +1391,7 @@ function loadData(){
           data.stageAlarms[k]={days:data.stageAlarms[k],color:'#ff5c5c'};
       });
     }
+    if(!data.stageMessages) data.stageMessages={};
     migrateContactStages(data);
     return data;
   }catch(e){return JSON.parse(JSON.stringify(DEFAULT_DATA));}
@@ -1773,6 +1779,7 @@ async function loadFromDrive(silent=false){
         // Non-record fields: take remote if it's newer overall
         if(remoteTs>localTs){
           if(remote.stageAlarms) D.stageAlarms=remote.stageAlarms;
+          if(remote.stageMessages) D.stageMessages=remote.stageMessages;
           if(remote.segments) D.segments=remote.segments;
           if(remote.activities&&remote.activities.length>=(D.activities||[]).length) D.activities=remote.activities;
           if(remote.inbox&&remote.inbox.length>=(D.inbox||[]).length) D.inbox=remote.inbox;
@@ -1907,6 +1914,7 @@ async function initApp(){
         const incoming=sheetsData;
         if(!incoming.studios)incoming.studios=[];
         if(!incoming.stageAlarms)incoming.stageAlarms={};
+        if(!incoming.stageMessages)incoming.stageMessages={};
         if(!incoming.segments)incoming.segments=JSON.parse(JSON.stringify(DEFAULT_SEGMENTS));
         incoming._savedAt=incoming._savedAt||Date.now();
         migrateContactStages(incoming);
@@ -1925,6 +1933,7 @@ async function initApp(){
             const incoming=sheetsData;
             if(!incoming.studios)incoming.studios=[];
             if(!incoming.stageAlarms)incoming.stageAlarms={};
+            if(!incoming.stageMessages)incoming.stageMessages={};
             if(!incoming.segments)incoming.segments=JSON.parse(JSON.stringify(DEFAULT_SEGMENTS));
             migrateContactStages(incoming);
             D=incoming;
@@ -4538,6 +4547,22 @@ function renderSettings(){
         💡 Escribe el número de días y selecciona el color. Borra el número para desactivar la alarma en esa columna.
       </div>
     </div>`;
+
+    // ── STAGE MESSAGES (admin only) ──
+    const stageMsgs=D.stageMessages||{};
+    html+=`<div class="scard" style="grid-column:span 2">
+      <h3>💬 Mensajes predeterminados por fase</h3>
+      <p>Define el mensaje de WhatsApp que se sugiere (o se envía automáticamente, cuando el agente esté conectado) al mover un contacto a cada fase. Usa <code>{nombre}</code> para insertar el nombre del contacto. Deja en blanco las fases que no necesiten mensaje.</p>
+      <div style="margin-top:6px">
+        ${C_STAGES.map(st=>`<div class="msg-row" id="msg-row-${st.id}">
+          <div class="msg-row-head">
+            <div style="width:10px;height:10px;border-radius:50%;background:${st.color};flex-shrink:0"></div>
+            <div class="msg-row-stage">${st.name}</div>
+          </div>
+          <textarea placeholder="Sin mensaje definido..." onchange="saveStageMessage('${st.id}',this.value)">${stageMsgs[st.id]||''}</textarea>
+        </div>`).join('')}
+      </div>
+    </div>`;
   }
 
   if(isAdmin){
@@ -5237,6 +5262,14 @@ function saveAlarmCfg(stageId, daysVal, colorVal){
   renderSettings();
   const cfg=D.stageAlarms[stageId];
   toast(cfg?.days?`Alarma activada: ${cfg.days} días`:'Alarma desactivada');
+}
+function saveStageMessage(stageId, val){
+  if(!D.stageMessages)D.stageMessages={};
+  const text=(val||'').trim();
+  if(text) D.stageMessages[stageId]=text;
+  else delete D.stageMessages[stageId];
+  saveData();
+  toast(text?'Mensaje guardado':'Mensaje eliminado');
 }
 function addLossReason(){const inp=$('new-loss-reason');const v=inp.value.trim();if(!D.lossReasons)D.lossReasons=[];if(v&&!D.lossReasons.includes(v)){D.lossReasons.push(v);saveData();inp.value='';renderSettings();}}
 function removeLossReason(r){D.lossReasons=(D.lossReasons||[]).filter(x=>x!==r);saveData();renderSettings();}
