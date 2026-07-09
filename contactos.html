@@ -1545,7 +1545,10 @@ function renderMergeFields(){
       </div>`;
     } else if(f.k === 'stage'){
       const C_STAGES_MERGE = [
-        {id:'c-lead',name:'Lead captado'},{id:'c-contactado',name:'Contactado'},
+        {id:'c-lead',name:'Lead captado'},
+        {id:'c-msg1',name:'Contactado · Mensaje 1'},{id:'c-msg2',name:'Contactado · Mensaje 2'},
+        {id:'c-msg3',name:'Contactado · Mensaje 3'},{id:'c-msg4',name:'Contactado · Mensaje 4'},
+        {id:'c-msg5',name:'Contactado · Mensaje 5'},
         {id:'c-respuesta',name:'Respuesta recibida'},{id:'c-agendado',name:'Visita al showroom agendada'},
         {id:'c-showroom',name:'Visitó el showroom'},{id:'c-activado',name:'Activado'},
         {id:'c-nopriority',name:'No prioritario'},{id:'c-descartado',name:'Descartado'},
@@ -2186,7 +2189,7 @@ function renderStudios(){
 // ══════════════════════════════════════════════════════════════════
 // Orden del pipeline, de menos a más avanzado — usado para elegir el estatus
 // más avanzado entre los contactos asociados a un estudio.
-const PIPELINE_ORDER=['c-lead','c-contactado','c-respuesta','c-agendado','c-showroom','c-activado'];
+const PIPELINE_ORDER=['c-lead','c-msg1','c-msg2','c-msg3','c-msg4','c-msg5','c-respuesta','c-agendado','c-showroom','c-activado'];
 
 function exportContactsReport(){
   toast('Generando reporte...','⏳');
@@ -2568,7 +2571,7 @@ function mergeStudioAC(q){
 }
 
 // Normaliza texto eliminando acentos para búsquedas
-const STAGE_NAMES={'c-lead':'Lead captado','c-contactado':'Contactado','c-respuesta':'Respuesta recibida','c-agendado':'Visita agendada','c-showroom':'Visitó showroom','c-activado':'Activado'};
+const STAGE_NAMES={'c-lead':'Lead captado','c-msg1':'Contactado · Mensaje 1','c-msg2':'Contactado · Mensaje 2','c-msg3':'Contactado · Mensaje 3','c-msg4':'Contactado · Mensaje 4','c-msg5':'Contactado · Mensaje 5','c-respuesta':'Respuesta recibida','c-agendado':'Visita agendada','c-showroom':'Visitó showroom','c-activado':'Activado'};
 
 function norm(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
 
@@ -3037,7 +3040,11 @@ function _doConvertStudio(s){
               <select id="nc-c-stage" class="inp" style="width:100%;margin-top:4px">
                 <option value="">— Sin asignar —</option>
                 <option value="c-lead">Lead captado</option>
-                <option value="c-contactado">Contactado</option>
+                <option value="c-msg1">Contactado · Mensaje 1</option>
+                <option value="c-msg2">Contactado · Mensaje 2</option>
+                <option value="c-msg3">Contactado · Mensaje 3</option>
+                <option value="c-msg4">Contactado · Mensaje 4</option>
+                <option value="c-msg5">Contactado · Mensaje 5</option>
                 <option value="c-respuesta">Respuesta recibida</option>
                 <option value="c-agendado">Visita agendada</option>
                 <option value="c-showroom">Visitó showroom</option>
