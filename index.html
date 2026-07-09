@@ -1768,6 +1768,8 @@ async function loadFromDrive(silent=false){
             });
           }
         }
+        // Normalizar IDs de fase antiguos que puedan venir del Worker (ej. c-contactado)
+        migrateContactStages(D);
         // Non-record fields: take remote if it's newer overall
         if(remoteTs>localTs){
           if(remote.stageAlarms) D.stageAlarms=remote.stageAlarms;
@@ -1907,6 +1909,7 @@ async function initApp(){
         if(!incoming.stageAlarms)incoming.stageAlarms={};
         if(!incoming.segments)incoming.segments=JSON.parse(JSON.stringify(DEFAULT_SEGMENTS));
         incoming._savedAt=incoming._savedAt||Date.now();
+        migrateContactStages(incoming);
         D=incoming;
         localStorage.setItem('fcrm_data',JSON.stringify(D));
         toast('✓ Datos recuperados del servidor');
@@ -1923,6 +1926,7 @@ async function initApp(){
             if(!incoming.studios)incoming.studios=[];
             if(!incoming.stageAlarms)incoming.stageAlarms={};
             if(!incoming.segments)incoming.segments=JSON.parse(JSON.stringify(DEFAULT_SEGMENTS));
+            migrateContactStages(incoming);
             D=incoming;
             localStorage.setItem('fcrm_data',JSON.stringify(D));
           } else {
