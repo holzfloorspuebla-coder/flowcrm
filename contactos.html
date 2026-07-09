@@ -349,7 +349,23 @@ tr.selected td{background:var(--accentDim);}
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div><label style="font-size:11px;color:var(--text3);font-weight:600">SEGMENTO</label><input autocomplete="off" id="ec-segment" class="inp" style="width:100%;margin-top:4px"></div>
-        <div></div>
+        <div><label style="font-size:11px;color:var(--text3);font-weight:600">ETAPA PIPELINE</label>
+          <select id="ec-stage" class="inp" style="width:100%;margin-top:4px">
+            <option value="">— Sin etapa —</option>
+            <option value="c-lead">Lead captado</option>
+            <option value="c-msg1">Contactado · Mensaje 1</option>
+            <option value="c-msg2">Contactado · Mensaje 2</option>
+            <option value="c-msg3">Contactado · Mensaje 3</option>
+            <option value="c-msg4">Contactado · Mensaje 4</option>
+            <option value="c-msg5">Contactado · Mensaje 5</option>
+            <option value="c-respuesta">Respuesta recibida</option>
+            <option value="c-agendado">Visita al showroom agendada</option>
+            <option value="c-showroom">Visitó el showroom</option>
+            <option value="c-activado">Activado</option>
+            <option value="c-nopriority">No prioritario</option>
+            <option value="c-descartado">Descartado</option>
+          </select>
+        </div>
       </div>
       <div><label style="font-size:11px;color:var(--text3);font-weight:600">NOTAS</label><textarea id="ec-notes" class="inp" style="width:100%;margin-top:4px;min-height:60px;resize:vertical"></textarea></div>
     </div>
@@ -1979,6 +1995,7 @@ function openContactEdit(i){
   document.getElementById('ec-whatsapp').value=c.whatsapp||'';
   document.getElementById('ec-web').value=c.web||'';
   document.getElementById('ec-segment').value=c.segment||'';
+  document.getElementById('ec-stage').value=c.stage||'';
   document.getElementById('ec-notes').value=c.notes||'';
   document.getElementById('modal-edit-contact').classList.remove('hidden');
 }
@@ -2005,6 +2022,12 @@ function saveContactEdit(){
   c.whatsapp=document.getElementById('ec-whatsapp').value.trim();
   c.web=document.getElementById('ec-web').value.trim();
   c.segment=document.getElementById('ec-segment').value.trim();
+  const _newStage=document.getElementById('ec-stage').value;
+  if(_newStage!==(c.stage||'')){
+    c.stage=_newStage;
+    c.inPipeline=!!_newStage;
+    c.stageDate=today();
+  }
   c.notes=document.getElementById('ec-notes').value.trim();
   // Resolver nombre de agente a ID
   const _agentName = c.agent||'';
