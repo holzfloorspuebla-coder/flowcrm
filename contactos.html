@@ -457,6 +457,7 @@ tr.selected td{background:var(--accentDim);}
     <input autocomplete="off" type="checkbox" id="sel-all-cb" onchange="toggleAllVisible(this.checked)" style="accent-color:var(--accent)">
     <span class="bulk-count"><span id="sel-count">0</span> seleccionados</span>
     <button class="btn btn-ghost" onclick="clearSelAll()" style="margin-left:auto">✕ Deseleccionar todo</button>
+    <button class="btn" id="btn-export-vcard" onclick="exportSelectedVCard()" style="display:none">📇 Exportar vCard</button>
     <button class="btn" id="btn-send-tracker" onclick="openSendTracker()" style="display:none;background:#1a56db;color:#fff;border:none;font-weight:500">🛰 Enviar al tracker</button>
   </div>
 
@@ -1260,9 +1261,11 @@ function updateSelUI(){
   const btnF = document.getElementById('btn-fusionar');
   const btnE = document.getElementById('tb-eliminar');
   const btnT = document.getElementById('btn-send-tracker');
+  const btnV = document.getElementById('btn-export-vcard');
   if(btnF) btnF.style.display = total>=2 ? '' : 'none';
   if(btnE) btnE.style.display = total>=1 ? '' : 'none';
   if(btnT) btnT.style.display = ns>=1 ? '' : 'none';
+  if(btnV) btnV.style.display = n>=1 ? '' : 'none';
   ['sel-all-cb','header-cb'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=n>0&&n>=filtered.length;});
 }
 
@@ -2213,6 +2216,49 @@ function renderStudios(){
 // Orden del pipeline, de menos a más avanzado — usado para elegir el estatus
 // más avanzado entre los contactos asociados a un estudio.
 const PIPELINE_ORDER=['c-lead','c-msg1','c-msg2','c-msg3','c-msg4','c-msg5','c-respuesta','c-agendado','c-showroom','c-activado'];
+
+// ── Exportar seleccionados a vCard (.vcf), importable directo en Google Contacts ──
+function vcardEscape(str){
+  return String(str||'').replace(/\\/g,'\\\\').replace(/,/g,'\\,').replace(/;/g,'\\;').replace(/\n/g,'\\n');
+}
+function contactToVCard(c){
+  const lines = ['BEGIN:VCARD','VERSION:3.0'];
+  const fullName = vcardEscape(c.name||'');
+  lines.push(`FN:${fullName}`);
+  lines.push(`N:${fullName};;;;`);
+  if(c.studio) lines.push(`ORG:${vcardEscape(c.studio)}`);
+  if(c.type) lines.push(`TITLE:${vcardEscape(c.type)}`);
+  if(c.phone) lines.push(`TEL;TYPE=CELL:${vcardEscape(c.phone)}`);
+  if(c.whatsapp && c.whatsapp!==c.phone) lines.push(`TEL;TYPE=CELL,WORK:${vcardEscape(c.whatsapp)}`);
+  if(c.email) lines.push(`EMAIL;TYPE=INTERNET:${vcardEscape(c.email)}`);
+  if(c.email2) lines.push(`EMAIL;TYPE=INTERNET:${vcardEscape(c.email2)}`);
+  if(c.web) lines.push(`URL:${vcardEscape(c.web)}`);
+  if(c.city||c.state) lines.push(`ADR;TYPE=WORK:;;;${vcardEscape(c.city||'')};${vcardEscape(c.state||'')};;`);
+  const extras=[];
+  if(c.instagram) extras.push(`Instagram: ${c.instagram}`);
+  if(c.linkedin) extras.push(`LinkedIn: ${c.linkedin}`);
+  if(c.segment) extras.push(`Segmento: ${c.segment}`);
+  if(c.origin) extras.push(`Origen: ${c.origin}`);
+  if(c.notes) extras.push(c.notes);
+  if(extras.length) lines.push(`NOTE:${vcardEscape(extras.join(String.fromCharCode(10)))}`);
+  lines.push('END:VCARD');
+  return lines.join('\r\n');
+}
+function exportSelectedVCard(){
+  if(!selected.size){ toast('Selecciona al menos un contacto','⚠️'); return; }
+  const contacts=[...selected].map(i=>ALL[i]).filter(Boolean);
+  const vcf = contacts.map(contactToVCard).join('\r\n');
+  const blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `contactos_${new Date().toISOString().slice(0,10)}.vcf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(`✅ ${contacts.length} contacto${contacts.length!==1?'s':''} exportado${contacts.length!==1?'s':''}`);
+}
 
 function exportContactsReport(){
   toast('Generando reporte...','⏳');
