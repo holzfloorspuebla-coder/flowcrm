@@ -626,6 +626,14 @@ select.inp{cursor:pointer;}
           </div>
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
             <div style="display:flex;flex-direction:column;gap:3px">
+              <label style="font-size:11px;color:var(--text3)">Urgencia</label>
+              <select id="nueva-tarea-urgencia" class="inp" style="height:36px;font-size:13px;max-width:120px">
+                <option value="alta">🔴 Alta</option>
+                <option value="media" selected>🟡 Media</option>
+                <option value="baja">🟢 Baja</option>
+              </select>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:3px">
               <label style="font-size:11px;color:var(--text3)">Fecha limite</label>
               <input type="date" id="nueva-tarea-fecha" class="inp" style="height:36px;font-size:13px;max-width:160px">
             </div>
@@ -875,6 +883,18 @@ select.inp{cursor:pointer;}
         <button class="btn btn-ghost" onclick="saveUnifiedCreate(true)" style="background:rgba(79,124,255,.15);color:var(--accent)">Guardar y cerrar</button>
       </div>
     </div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="modal-complete-task">
+  <div class="modal">
+    <div class="modal-hd"><h2>✓ Completar tarea</h2><button class="modal-close" onclick="closeM('modal-complete-task')">✕</button></div>
+    <div class="modal-body">
+      <div id="complete-task-text" style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:14px;padding:10px 12px;background:var(--surface2);border-radius:9px"></div>
+      <div class="fg"><label class="lbl">¿Qué acción hiciste? *</label><textarea class="inp" id="complete-task-note" rows="3" placeholder="Ej: Le mandé el catálogo por WhatsApp y quedó de responder la próxima semana..."></textarea></div>
+      <div class="fg" id="complete-task-stage-wrap"><label class="lbl">Fase correspondiente *</label><select class="inp" id="complete-task-stage"></select></div>
+    </div>
+    <div class="modal-ft"><button class="btn btn-ghost" onclick="closeM('modal-complete-task')">Cancelar</button><button class="btn btn-primary" onclick="submitCompletarTarea()">Guardar y completar</button></div>
   </div>
 </div>
 
@@ -1345,6 +1365,18 @@ const DEFAULT_DATA={
     'p-propuesta': {days:3, color:'#ff5c5c'},
   },
   stageMessages:{},
+  taskTemplates:{
+    'c-lead':      'Enviar primer mensaje a "{contacto}"',
+    'c-msg1':      'Enviar segundo mensaje a "{contacto}"',
+    'c-msg2':      'Enviar tercer mensaje a "{contacto}"',
+    'c-msg3':      'Enviar cuarto mensaje a "{contacto}"',
+    'c-msg4':      'Enviar quinto mensaje a "{contacto}"',
+    'c-msg5':      'Contacto sin respuesta. Mover a "{contacto}" a no prioritario.',
+    'c-respuesta': 'Revisar el estatus de "{contacto}"',
+    'c-agendado':  'Contactar a "{contacto}" para reprogramar la visita al showroom',
+    'c-showroom':  'Agradecer la visita a "{contacto}" y enviar la información solicitada',
+    'p-propuesta': 'Contactar a "{contacto}" para entender si necesita algo con su proyecto',
+  },
   activities:[
     {id:9001,type:'call',title:'Llamada de seguimiento',date:'2026-03-21',time:'10:00',contactId:101,projectId:null,agent:1,notes:'Revisar avance propuesta',done:false},
     {id:9002,type:'showroom',title:'Visita al showroom — Constructora Vega',date:'2026-03-22',time:'12:00',contactId:102,projectId:201,agent:2,notes:'Presentar colección porcelanato',done:false},
@@ -1392,6 +1424,7 @@ function loadData(){
       });
     }
     if(!data.stageMessages) data.stageMessages={};
+    if(!data.taskTemplates) data.taskTemplates=JSON.parse(JSON.stringify(DEFAULT_DATA.taskTemplates));
     migrateContactStages(data);
     return data;
   }catch(e){return JSON.parse(JSON.stringify(DEFAULT_DATA));}
@@ -1780,6 +1813,7 @@ async function loadFromDrive(silent=false){
         if(remoteTs>localTs){
           if(remote.stageAlarms) D.stageAlarms=remote.stageAlarms;
           if(remote.stageMessages) D.stageMessages=remote.stageMessages;
+          if(remote.taskTemplates) D.taskTemplates=remote.taskTemplates;
           if(remote.segments) D.segments=remote.segments;
           if(remote.activities&&remote.activities.length>=(D.activities||[]).length) D.activities=remote.activities;
           if(remote.inbox&&remote.inbox.length>=(D.inbox||[]).length) D.inbox=remote.inbox;
@@ -1915,6 +1949,7 @@ async function initApp(){
         if(!incoming.studios)incoming.studios=[];
         if(!incoming.stageAlarms)incoming.stageAlarms={};
         if(!incoming.stageMessages)incoming.stageMessages={};
+        if(!incoming.taskTemplates)incoming.taskTemplates=JSON.parse(JSON.stringify(DEFAULT_DATA.taskTemplates));
         if(!incoming.segments)incoming.segments=JSON.parse(JSON.stringify(DEFAULT_SEGMENTS));
         incoming._savedAt=incoming._savedAt||Date.now();
         migrateContactStages(incoming);
@@ -1934,6 +1969,7 @@ async function initApp(){
             if(!incoming.studios)incoming.studios=[];
             if(!incoming.stageAlarms)incoming.stageAlarms={};
             if(!incoming.stageMessages)incoming.stageMessages={};
+            if(!incoming.taskTemplates)incoming.taskTemplates=JSON.parse(JSON.stringify(DEFAULT_DATA.taskTemplates));
             if(!incoming.segments)incoming.segments=JSON.parse(JSON.stringify(DEFAULT_SEGMENTS));
             migrateContactStages(incoming);
             D=incoming;
@@ -2654,6 +2690,7 @@ function crearTareaGeneral(){
   const texto=(document.getElementById('nueva-tarea-texto')?.value||'').trim();
   if(!texto){toast('Escribe una descripcion para la tarea','⚠️');return;}
   const fecha=document.getElementById('nueva-tarea-fecha')?.value||today();
+  const urgencia=document.getElementById('nueva-tarea-urgencia')?.value||'media';
   const color=getNuevaTareaColor();
   const entityId=document.getElementById('nueva-tarea-entity-id')?.value||null;
   const entityType=document.getElementById('nueva-tarea-entity-type')?.value||'general';
@@ -2662,13 +2699,80 @@ function crearTareaGeneral(){
     id:String(nid()),
     entityId:entityId?parseInt(entityId):null,
     entityType:entityId?entityType:'general',
-    text:texto,dueDate:fecha,color,done:false,createdAt:today(),agent:ME.id
+    text:texto,dueDate:fecha,urgencia,color,done:false,createdAt:today(),agent:ME.id
   });
   document.getElementById('nueva-tarea-texto').value='';
   clearTareaEntity();
   saveData();renderTareas();renderCKanban();renderPKanban();
   toast('Tarea anadida');
 }
+
+// Tareas automáticas: contactos/proyectos con alarma de inactividad activa
+// y una plantilla definida para su fase actual (ver Config. > Plantillas de tareas).
+function getActiveAutoTasks(){
+  const tasks=[];
+  const tpls=D.taskTemplates||{};
+
+  (D.contacts||[]).forEach(c=>{
+    if(c.inPipeline===false) return;
+    const st=C_STAGES.find(s=>s.id===c.stage);
+    if(!st||st.final) return;
+    const tpl=tpls[c.stage];
+    if(!tpl) return;
+    const alarm=getAlarm(c.id, c.stage, c.stageDate||c.date, 'contact');
+    if(!alarm?.active) return;
+    const label=c.mailingName||c.name||'este contacto';
+    tasks.push({
+      id:'auto-c-'+c.id, isAuto:true, entityId:c.id, entityType:'contact',
+      stage:c.stage, text:tpl.split('{contacto}').join(label),
+      days:alarm.days, threshold:alarm.threshold, dueDate:null, done:false
+    });
+  });
+
+  (D.projects||[]).forEach(p=>{
+    if(['p-ganado','p-perdido',POSTVENTA_ID].includes(p.stage)) return;
+    const tpl=tpls[p.stage];
+    if(!tpl) return;
+    const alarm=getAlarm(p.id, p.stage, p.stageDate||p.date, 'project');
+    if(!alarm?.active) return;
+    const linked=(D.contacts||[]).find(c=>p.contactIds?.includes(c.id));
+    const label=linked?(linked.mailingName||linked.name):(p.name||'este proyecto');
+    tasks.push({
+      id:'auto-p-'+p.id, isAuto:true, entityId:p.id, entityType:'project',
+      stage:p.stage, text:tpl.split('{contacto}').join(label),
+      days:alarm.days, threshold:alarm.threshold, dueDate:null, done:false
+    });
+  });
+
+  return tasks;
+}
+
+function taskUrgencyWeight(t){
+  if(t.isAuto && typeof t.days==='number') return (t.days>=(t.threshold||1)*2)?3:2;
+  const map={alta:3,media:2,baja:1};
+  return map[t.urgencia||'media']||2;
+}
+
+function miniContactCardHTML(c){
+  const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
+  return`<div style="background:var(--surface3);border:1px solid var(--border);border-radius:9px;padding:10px 12px;font-size:12px;display:flex;flex-direction:column;gap:4px;margin-top:8px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <strong style="font-size:13px">${c.name}</strong>
+      <span onclick="openProfile(${c.id})" style="color:var(--accent);cursor:pointer;font-size:11px">Abrir ficha completa →</span>
+    </div>
+    ${studio?`<div>🏛️ ${studio.name}</div>`:''}
+    ${c.phone?`<div>📞 ${c.phone}</div>`:''}
+    ${c.email?`<div>✉️ ${c.email}</div>`:''}
+    ${c.whatsapp?`<div>💬 ${c.whatsapp}</div>`:''}
+    ${(c.city||c.state)?`<div>📍 ${c.city||''}${c.state?', '+c.state:''}</div>`:''}
+  </div>`;
+}
+function toggleMiniCard(taskId){
+  const el=document.getElementById('mini-card-'+taskId);
+  if(el) el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
+
+let _taskListCache=[];
 
 function renderTareas(){
   const pendEl=document.getElementById('tareas-pending');
@@ -2677,49 +2781,68 @@ function renderTareas(){
   if(!D.adminTasks) D.adminTasks=[];
   const todayStr=today();
 
+  const autoTasks=getActiveAutoTasks();
+  const manualPending=D.adminTasks.filter(t=>!t.done).map(t=>({...t,isAuto:false}));
+  const allPending=[...autoTasks,...manualPending];
+  allPending.sort((a,b)=>{
+    const wa=taskUrgencyWeight(a), wb=taskUrgencyWeight(b);
+    if(wb!==wa) return wb-wa;
+    if(a.isAuto&&b.isAuto) return b.days-a.days;
+    if(!a.isAuto&&!b.isAuto) return (a.dueDate||'9999')>(b.dueDate||'9999')?1:-1;
+    return a.isAuto?-1:1;
+  });
+  _taskListCache=allPending;
+
   function buildLabel(t){
     if(t.entityId&&t.entityType==='contact'){
       const c=D.contacts.find(x=>String(x.id)===String(t.entityId));
-      if(c) return`<span onclick="openProfile(${c.id})" style="color:var(--accent);cursor:pointer">&#128101; ${c.name}</span>`;
+      if(c) return{html:`<span style="color:var(--accent)">&#128101; ${c.name}</span>`,contact:c};
     } else if(t.entityId&&t.entityType==='project'){
       const p=D.projects.find(x=>String(x.id)===String(t.entityId));
-      if(p) return`<span onclick="openProjDetail(${p.id})" style="color:var(--accent);cursor:pointer">&#128193; ${p.name}</span>`;
+      if(p) return{html:`<span onclick="openProjDetail(${p.id})" style="color:var(--accent);cursor:pointer">&#128193; ${p.name}</span>`,contact:null};
     } else if(t.entityId&&t.entityType==='studio'){
       const s=(D.studios||[]).find(x=>String(x.id)===String(t.entityId));
-      if(s) return`<span onclick="openStudioProfile(${s.id})" style="color:var(--accent);cursor:pointer">&#127963; ${s.name}</span>`;
+      if(s) return{html:`<span onclick="openStudioProfile(${s.id})" style="color:var(--accent);cursor:pointer">&#127963; ${s.name}</span>`,contact:null};
     }
-    return'<span style="color:var(--text3)">Tarea general</span>';
+    return{html:'<span style="color:var(--text3)">Tarea general</span>',contact:null};
   }
 
   function cardHTML(t){
-    const overdue=!t.done&&t.dueDate&&t.dueDate<todayStr;
-    const dueSoon=!t.done&&t.dueDate&&t.dueDate===todayStr;
+    const weight=taskUrgencyWeight(t);
+    const urgColor=weight===3?'#ff5c5c':weight===2?'#f5c842':'#3ecf8e';
+    const label=buildLabel(t);
+    const overdue=!t.isAuto&&!t.done&&t.dueDate&&t.dueDate<todayStr;
+    const dueSoon=!t.isAuto&&!t.done&&t.dueDate&&t.dueDate===todayStr;
     const dateColor=overdue?'var(--red)':dueSoon?'var(--yellow)':'var(--text3)';
-    const dateLabel=overdue?`&#9888;&#65039; Vencida: ${t.dueDate}`:dueSoon?`&#128276; Hoy: ${t.dueDate}`:(t.dueDate?`&#128197; ${t.dueDate}`:'Sin fecha');
-    const borderColor=t.done?'var(--border)':t.color;
-    return`<div style="background:var(--surface2);border:1px solid var(--border);border-left:4px solid ${borderColor};border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start">
-      <div style="width:9px;height:9px;border-radius:50%;background:${borderColor};flex-shrink:0;margin-top:4px"></div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;${t.done?'text-decoration:line-through;opacity:.6':''}">${t.text}</div>
-        <div style="font-size:11px;display:flex;gap:10px;flex-wrap:wrap;margin-top:2px;color:var(--text3)">
-          <span>${buildLabel(t)}</span>
-          <span style="color:${dateColor}">${dateLabel}</span>
-          ${t.done&&t.doneAt?`<span style="color:var(--green)">&#10003; ${t.doneAt}</span>`:''}
+    const dateLabel=t.isAuto?`&#9201; ${t.days}d sin actividad`:(overdue?`&#9888;&#65039; Vencida: ${t.dueDate}`:dueSoon?`&#128276; Hoy: ${t.dueDate}`:(t.dueDate?`&#128197; ${t.dueDate}`:'Sin fecha'));
+    const borderColor=t.done?'var(--border)':urgColor;
+    return`<div style="background:var(--surface2);border:1px solid var(--border);border-left:4px solid ${borderColor};border-radius:12px;padding:12px 14px;margin-bottom:8px">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <div style="width:9px;height:9px;border-radius:50%;background:${borderColor};flex-shrink:0;margin-top:4px"></div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px;${t.done?'text-decoration:line-through;opacity:.6':''}">${t.text}</div>
+          <div style="font-size:11px;display:flex;gap:10px;flex-wrap:wrap;margin-top:2px;color:var(--text3);align-items:center">
+            <span>${label.html}</span>
+            ${label.contact?`<span onclick="toggleMiniCard('${t.id}')" style="cursor:pointer;color:var(--accent)">&#128065; ver ficha</span>`:''}
+            <span style="color:${dateColor}">${dateLabel}</span>
+            ${t.done&&t.doneAt?`<span style="color:var(--green)">&#10003; ${t.doneAt}</span>`:''}
+          </div>
+          ${t.done&&t.resultNote?`<div style="font-size:11px;color:var(--text3);margin-top:4px;font-style:italic">&#128221; ${t.resultNote}</div>`:''}
+          ${label.contact?`<div id="mini-card-${t.id}" style="display:none">${miniContactCardHTML(label.contact)}</div>`:''}
         </div>
-      </div>
-      <div style="display:flex;gap:5px;flex-shrink:0;align-items:center">
-        ${!t.done?`<button class="btn btn-primary btn-sm" style="background:var(--green);border-color:var(--green);font-size:11px;padding:4px 10px" onclick="completarTareaVista('${t.id}')">&#10003; Hecha</button>`:''}
-        <button class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--text3);padding:4px 8px" title="Eliminar tarea" onclick="eliminarTareaVista('${t.id}')">&#128465;</button>
+        <div style="display:flex;gap:5px;flex-shrink:0;align-items:center">
+          ${!t.done?`<button class="btn btn-primary btn-sm" style="background:var(--green);border-color:var(--green);font-size:11px;padding:4px 10px" onclick="abrirCompletarTarea('${t.id}')">&#10003; Hecha</button>`:''}
+          ${!t.isAuto?`<button class="btn btn-ghost btn-sm" style="font-size:13px;color:var(--text3);padding:4px 8px" title="Eliminar tarea" onclick="eliminarTareaVista('${t.id}')">&#128465;</button>`:''}
+        </div>
       </div>
     </div>`;
   }
 
-  const pending=D.adminTasks.filter(t=>!t.done).sort((a,b)=>(a.dueDate||'9999')>(b.dueDate||'9999')?1:-1);
-  const done=D.adminTasks.filter(t=>t.done).sort((a,b)=>(b.doneAt||'')>(a.doneAt||'')?1:-1);
+  const done=D.adminTasks.filter(t=>t.done).sort((a,b)=>(b.doneAt||'')>(a.doneAt||'')?1:-1).map(t=>({...t,isAuto:!!t.auto}));
 
   if(pendEl){
-    pendEl.innerHTML=pending.length
-      ?pending.map(cardHTML).join('')
+    pendEl.innerHTML=allPending.length
+      ?allPending.map(cardHTML).join('')
       :'<div style="color:var(--text3);font-size:13px;padding:8px 0">&#127881; Sin tareas pendientes</div>';
   }
   if(doneEl){
@@ -2729,12 +2852,76 @@ function renderTareas(){
   }
 }
 
-function completarTareaVista(taskId){
-  if(!D.adminTasks) return;
-  const t=D.adminTasks.find(x=>x.id===taskId);
-  if(t){t.done=true;t.doneAt=today();}
-  saveData();renderTareas();renderCKanban();renderPKanban();
+function abrirCompletarTarea(taskId){
+  const t=_taskListCache.find(x=>x.id===taskId);
+  if(!t) return;
+  S._completingTask=t;
+  document.getElementById('complete-task-text').textContent=t.text;
+  document.getElementById('complete-task-note').value='';
+  const stageWrap=document.getElementById('complete-task-stage-wrap');
+  const stageSel=document.getElementById('complete-task-stage');
+  if(t.entityType==='contact'){
+    const c=D.contacts.find(x=>x.id===t.entityId);
+    stageSel.innerHTML=C_STAGES.map(s=>`<option value="${s.id}" ${c&&s.id===c.stage?'selected':''}>${s.name}</option>`).join('');
+    stageWrap.style.display='';
+  } else if(t.entityType==='project'){
+    const p=D.projects.find(x=>x.id===t.entityId);
+    stageSel.innerHTML=P_STAGES.filter(s=>s.id!==POSTVENTA_ID).map(s=>`<option value="${s.id}" ${p&&s.id===p.stage?'selected':''}>${s.name}</option>`).join('');
+    stageWrap.style.display='';
+  } else {
+    stageWrap.style.display='none';
+  }
+  document.getElementById('modal-complete-task').classList.remove('hidden');
+}
+
+function submitCompletarTarea(){
+  const t=S._completingTask;
+  if(!t) return;
+  const note=(document.getElementById('complete-task-note')?.value||'').trim();
+  if(!note){ toast('Escribe qué acción hiciste','⚠️'); return; }
+  const stageWrap=document.getElementById('complete-task-stage-wrap');
+  const stageSel=document.getElementById('complete-task-stage');
+  const newStage=(stageWrap&&stageWrap.style.display!=='none'&&stageSel)?stageSel.value:null;
+
+  if(t.entityType==='contact'){
+    const c=D.contacts.find(x=>x.id===t.entityId);
+    if(c){
+      c.notesList=c.notesList||[];
+      c.notesList.push({text:note,date:today(),author:ME.name});
+      if(newStage){ c.stage=newStage; c.stageDate=today(); }
+      c._updatedAt=Date.now();
+    }
+  } else if(t.entityType==='project'){
+    const p=D.projects.find(x=>x.id===t.entityId);
+    if(p){
+      p.notesList=p.notesList||[];
+      p.notesList.push({text:note,date:today(),author:ME.name});
+      if(newStage){ p.stage=newStage; p.stageDate=today(); }
+      p._updatedAt=Date.now();
+    }
+  }
+
+  if(!D.adminTasks) D.adminTasks=[];
+  if(t.isAuto){
+    D.adminTasks.push({
+      id:String(nid()), entityId:t.entityId, entityType:t.entityType,
+      text:t.text, dueDate:today(), urgencia:'alta', color:'#3ecf8e',
+      done:true, doneAt:today(), createdAt:today(), agent:ME.id,
+      auto:true, resultNote:note, stageAfter:newStage||null
+    });
+  } else {
+    const existing=D.adminTasks.find(x=>x.id===t.id);
+    if(existing){
+      existing.done=true; existing.doneAt=today();
+      existing.resultNote=note; existing.stageAfter=newStage||null;
+    }
+  }
+
+  closeM('modal-complete-task');
+  saveData();
+  renderTareas();renderCKanban();renderPKanban();
   toast('Tarea completada ✅');
+  S._completingTask=null;
 }
 
 function eliminarTareaVista(taskId){
@@ -4563,6 +4750,35 @@ function renderSettings(){
         </div>`).join('')}
       </div>
     </div>`;
+
+    // ── TASK TEMPLATES (admin only) ──
+    const taskTpls=D.taskTemplates||{};
+    html+=`<div class="scard" style="grid-column:span 2">
+      <h3>📋 Plantillas de tareas por fase</h3>
+      <p>Cuando se activa la alarma de inactividad de un contacto o proyecto en esta fase, aparece automáticamente en la pestaña Tareas con este texto. Usa <code>{contacto}</code> para insertar el nombre de correspondencia. Deja en blanco las fases que no necesiten tarea.</p>
+      <div style="margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);padding:0 14px;margin-bottom:6px">👥 Pipeline de Contactos</div>
+          ${C_STAGES.filter(st=>!st.final).map(st=>`<div class="msg-row" id="task-tpl-row-${st.id}">
+            <div class="msg-row-head">
+              <div style="width:10px;height:10px;border-radius:50%;background:${st.color};flex-shrink:0"></div>
+              <div class="msg-row-stage">${st.name}</div>
+            </div>
+            <input type="text" class="inp" placeholder="Sin tarea definida..." value="${(taskTpls[st.id]||'').replace(/"/g,'&quot;')}" onchange="saveTaskTemplate('${st.id}',this.value)">
+          </div>`).join('')}
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--text3);padding:0 14px;margin-bottom:6px">📁 Pipeline de Proyectos</div>
+          ${P_STAGES.filter(st=>!['p-ganado','p-perdido',POSTVENTA_ID].includes(st.id)).map(st=>`<div class="msg-row" id="task-tpl-row-${st.id}">
+            <div class="msg-row-head">
+              <div style="width:10px;height:10px;border-radius:50%;background:${st.color};flex-shrink:0"></div>
+              <div class="msg-row-stage">${st.name}</div>
+            </div>
+            <input type="text" class="inp" placeholder="Sin tarea definida..." value="${(taskTpls[st.id]||'').replace(/"/g,'&quot;')}" onchange="saveTaskTemplate('${st.id}',this.value)">
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
   }
 
   if(isAdmin){
@@ -5270,6 +5486,15 @@ function saveStageMessage(stageId, val){
   else delete D.stageMessages[stageId];
   saveData();
   toast(text?'Mensaje guardado':'Mensaje eliminado');
+}
+function saveTaskTemplate(stageId, val){
+  if(!D.taskTemplates)D.taskTemplates={};
+  const text=(val||'').trim();
+  if(text) D.taskTemplates[stageId]=text;
+  else delete D.taskTemplates[stageId];
+  saveData();
+  renderTareas();
+  toast(text?'Plantilla de tarea guardada':'Plantilla eliminada');
 }
 function addLossReason(){const inp=$('new-loss-reason');const v=inp.value.trim();if(!D.lossReasons)D.lossReasons=[];if(v&&!D.lossReasons.includes(v)){D.lossReasons.push(v);saveData();inp.value='';renderSettings();}}
 function removeLossReason(r){D.lossReasons=(D.lossReasons||[]).filter(x=>x!==r);saveData();renderSettings();}
