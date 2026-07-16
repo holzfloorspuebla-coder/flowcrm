@@ -1475,6 +1475,14 @@ function touchRecord(record){
   if(record) record._updatedAt=Date.now();
 }
 
+// Timestamp comparable de una tarea: usa _updatedAt si existe, si no cae a doneAt/createdAt
+function taskUpdatedTs(t){
+  if(t._updatedAt) return t._updatedAt;
+  if(t.doneAt) return Date.parse(t.doneAt)||0;
+  if(t.createdAt) return Date.parse(t.createdAt)||0;
+  return 0;
+}
+
 let _saveIndicatorTimer=null;
 function showSaveIndicator(){
   const el=document.getElementById('save-indicator');
@@ -1493,6 +1501,7 @@ function showSaveIndicator(){
 let _syncTimer=null;
 let _isSyncing=false;
 const _localDeletedIds=new Set(); // IDs borrados localmente — ignorar en merge remoto
+const _localDeletedTaskIds=new Set(); // Tareas borradas localmente — ignorar en merge remoto
 function scheduleSyncToDrive(){
   if(!_serverDataLoaded){ return; } // No sync hasta que Supabase haya cargado
   clearTimeout(_syncTimer);
@@ -1806,6 +1815,29 @@ async function loadFromDrive(silent=false){
               mergeChanged=true;
             });
           }
+        }
+        // Merge adminTasks (tareas) por id: gana el registro con _updatedAt (o doneAt/createdAt) mas reciente.
+        // Antes, D.adminTasks nunca se actualizaba con lo que llegaba del servidor, asi que
+        // la copia local (potencialmente vieja) sobreescribia por completo las tareas de otros
+        // usuarios en cada guardado. Este merge granular evita que eso pase.
+        if(remote.adminTasks&&remote.adminTasks.length){
+          if(!D.adminTasks) D.adminTasks=[];
+          const localTaskMap=new Map(D.adminTasks.map(t=>[String(t.id),t]));
+          remote.adminTasks.forEach(rt=>{
+            const tid=String(rt.id);
+            if(_localDeletedTaskIds.has(tid)) return; // ignorar tareas borradas localmente
+            const lt=localTaskMap.get(tid);
+            if(!lt){
+              D.adminTasks.push(rt);
+              mergeChanged=true;
+            } else {
+              const rTs=taskUpdatedTs(rt), lTs=taskUpdatedTs(lt);
+              if(rTs>lTs){
+                Object.assign(lt,rt);
+                mergeChanged=true;
+              }
+            }
+          });
         }
         // Normalizar IDs de fase antiguos que puedan venir del Worker (ej. c-contactado)
         migrateContactStages(D);
@@ -2320,7 +2352,8 @@ function addTask(entityId, entityType){
     color,
     done:false,
     createdAt:today(),
-    agent:ME.id
+    agent:ME.id,
+    _updatedAt:Date.now()
   });
   inp.value='';
   saveData();
@@ -2332,7 +2365,7 @@ function addTask(entityId, entityType){
 function completeTask(taskId, entityId, entityType){
   if(!D.adminTasks) return;
   const t=D.adminTasks.find(x=>x.id===taskId);
-  if(t){ t.done=true; t.doneAt=today(); }
+  if(t){ t.done=true; t.doneAt=today(); t._updatedAt=Date.now(); }
   saveData();
   refreshTasksSection(entityId, entityType);
   renderCKanban(); renderPKanban();
@@ -2699,7 +2732,8 @@ function crearTareaGeneral(){
     id:String(nid()),
     entityId:entityId?parseInt(entityId):null,
     entityType:entityId?entityType:'general',
-    text:texto,dueDate:fecha,urgencia,color,done:false,createdAt:today(),agent:ME.id
+    text:texto,dueDate:fecha,urgencia,color,done:false,createdAt:today(),agent:ME.id,
+    _updatedAt:Date.now()
   });
   document.getElementById('nueva-tarea-texto').value='';
   clearTareaEntity();
@@ -2907,13 +2941,15 @@ function submitCompletarTarea(){
       id:String(nid()), entityId:t.entityId, entityType:t.entityType,
       text:t.text, dueDate:today(), urgencia:'alta', color:'#3ecf8e',
       done:true, doneAt:today(), createdAt:today(), agent:ME.id,
-      auto:true, resultNote:note, stageAfter:newStage||null
+      auto:true, resultNote:note, stageAfter:newStage||null,
+      _updatedAt:Date.now()
     });
   } else {
     const existing=D.adminTasks.find(x=>x.id===t.id);
     if(existing){
       existing.done=true; existing.doneAt=today();
       existing.resultNote=note; existing.stageAfter=newStage||null;
+      existing._updatedAt=Date.now();
     }
   }
 
@@ -2927,6 +2963,7 @@ function submitCompletarTarea(){
 function eliminarTareaVista(taskId){
   if(!D.adminTasks) return;
   if(!confirm('¿Eliminar esta tarea?')) return;
+  _localDeletedTaskIds.add(String(taskId));
   D.adminTasks=D.adminTasks.filter(x=>x.id!==taskId);
   saveData();renderTareas();renderCKanban();renderPKanban();
   toast('Tarea eliminada');
