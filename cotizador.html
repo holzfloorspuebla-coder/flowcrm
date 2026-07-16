@@ -633,6 +633,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
             <thead><tr>
               <th style="min-width:180px">Partida</th>
               <th>Vol.</th><th>Ud.</th><th>PVP u.</th>
+              <th style="color:var(--text3)">% Desc.</th>
               <th style="color:var(--orange)">Costo pres.</th>
               <th style="color:var(--accent)">Costo real</th>
               <th style="color:var(--text3)">Diferencia</th>
@@ -2574,7 +2575,8 @@ function recalcRent(supNet,labRaw,extraCosts){
     return`<tr>
       <td class="lft" style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(x.desc)}">${esc(x.desc.substring(0,60)+(x.desc.length>60?'…':''))}</td>
       <td>${x.vol}</td><td style="color:var(--text3)">${x.unit}</td>
-      <td>${mxn(x.pvp)}</td>
+      <td title="PVP lista: ${mxn(x.pvp)}">${mxn(round(x.pvp*(1-discItem),2))}</td>
+      <td style="text-align:center;color:var(--text3)">${x.disc||0}%</td>
       <td style="color:var(--orange)">
         <div style="display:flex;align-items:center;gap:4px">
           <input class="mini-inp" type="number" value="${cost}" style="width:72px;color:var(--orange)" title="${isAdjusted?'Ajustado (catálogo: '+mxn(costOriginal)+')':'Costo del catálogo'}"
