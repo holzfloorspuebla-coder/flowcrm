@@ -408,6 +408,7 @@ select.inp{cursor:pointer;}
   <div class="topbar">
     <div class="topbar-title" id="page-title">Contactos</div>
     <div id="save-indicator"><span id="save-dot">●</span><span id="save-label">Guardado</span></div>
+    <button class="btn btn-ghost btn-sm" id="sync-now-btn" onclick="syncNow()" title="Forzar sincronizacion inmediata con Supabase" style="margin-left:6px;font-size:11px;padding:3px 9px;white-space:nowrap">&#8635; Sincronizar</button>
     <div id="sync-status" style="font-size:10px;color:var(--text3);white-space:nowrap;display:none">
       <span id="sync-dot-icon">●</span> <span id="sync-time-lbl">—</span>
     </div>
@@ -1502,14 +1503,10 @@ let _syncTimer=null;
 let _isSyncing=false;
 const _localDeletedIds=new Set(); // IDs borrados localmente — ignorar en merge remoto
 const _localDeletedTaskIds=new Set(); // Tareas borradas localmente — ignorar en merge remoto
-function scheduleSyncToDrive(){
-  if(!_serverDataLoaded){ return; } // No sync hasta que Supabase haya cargado
-  clearTimeout(_syncTimer);
-  showSyncDot('syncing');
-  _syncTimer=setTimeout(async()=>{
-    _syncTimer=null;
-    _isSyncing=true;
-    try{
+async function pushToDrive(){
+  _syncTimer=null;
+  _isSyncing=true;
+  try{
       // Construir payload: revertir contactos con cambios pendientes a su valor anterior
       // para que el Worker no reciba datos no aprobados
       const pendingEdits = (D.pending||[]).filter(p=>p.status==='pending'&&p.type==='edit'&&p.oldFields);
@@ -1564,13 +1561,46 @@ function scheduleSyncToDrive(){
       localStorage.setItem('fcrm_lastSync', _lastSuccessfulSync);
       showSyncDot('ok');
       _lastSuccessfulSync=Date.now();
-    }catch(e){
-      showSyncDot('error');
-      console.warn('Drive sync error:',e);
-    }finally{
-      _isSyncing=false;
-    }
-  },2000);
+  }catch(e){
+    showSyncDot('error');
+    console.warn('Drive sync error:',e);
+  }finally{
+    _isSyncing=false;
+  }
+}
+
+function scheduleSyncToDrive(){
+  if(!_serverDataLoaded){ return; } // No sync hasta que Supabase haya cargado
+  clearTimeout(_syncTimer);
+  showSyncDot('syncing');
+  _syncTimer=setTimeout(pushToDrive,2000);
+}
+
+// Boton "Sincronizar ahora": cancela el debounce, empuja cambios pendientes de inmediato
+// y luego jala/mergea lo mas reciente del servidor. No reemplaza el auto-sync, es un forzado manual.
+let _manualSyncing=false;
+async function syncNow(){
+  if(_manualSyncing) return;
+  if(!DRIVE_SYNC_URL){ toast('Sin conexion configurada','\u26a0\ufe0f'); return; }
+  _manualSyncing=true;
+  const btn=document.getElementById('sync-now-btn');
+  if(btn){ btn.disabled=true; btn.textContent='\u21bb Sincronizando...'; }
+  showSyncDot('syncing');
+  try{
+    clearTimeout(_syncTimer);
+    _syncTimer=null;
+    if(_serverDataLoaded){ await pushToDrive(); }
+    await loadFromDrive(false);
+    showSyncDot('ok');
+    toast('Sincronizado','\u2705');
+  }catch(e){
+    showSyncDot('error');
+    toast('Error al sincronizar','\u26a0\ufe0f');
+    console.warn('syncNow error:',e);
+  }finally{
+    _manualSyncing=false;
+    if(btn){ btn.disabled=false; btn.textContent='\u21bb Sincronizar'; }
+  }
 }
 
 // ── Descomprimir base64+gzip (nativo en Chrome vía DecompressionStream) ──
@@ -1909,7 +1939,7 @@ function updateLastSyncLabel(status='ok'){
 }
 
 // ── Polling cada 30s: descarga solo si Sheets es más reciente ──
-const POLL_INTERVAL=10000;
+const POLL_INTERVAL=600000;
 let _pollTimer=null;
 function startPolling(){
   if(!DRIVE_SYNC_URL) return;
