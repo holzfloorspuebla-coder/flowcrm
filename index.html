@@ -457,7 +457,8 @@ select.inp{cursor:pointer;}
           <div class="bulk-bar" id="contacts-bulk-bar">
             <input type="checkbox" class="sel-cb" id="contacts-select-all" onchange="toggleSelectAllContacts(this.checked)" title="Seleccionar todos">
             <span class="bulk-bar-count" id="contacts-sel-count">0 seleccionados</span>
-            <button class="btn btn-red btn-sm" onclick="deleteSelectedContacts()">🗑️ Eliminar seleccionados</button>
+            <button class="btn btn-red btn-sm" id="contacts-delete-btn" onclick="deleteSelectedContacts()" style="display:none">🗑️ Eliminar seleccionados</button>
+            <button class="btn btn-ghost btn-sm" id="contacts-vcard-btn" onclick="exportSelectedContactsVCard()" style="display:none">📇 Exportar vCard</button>
             <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="toggleContactsSelectMode(false)">✕ Cancelar</button>
           </div>
           <div style="padding:8px 0 4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -3110,6 +3111,10 @@ function updateSidebarUser(){
   // Show/hide duplicate finder button
   const dupBtn=document.getElementById('btn-duplicados');
   if(dupBtn) dupBtn.style.display=(ME&&ME.role==='admin')?'':'none';
+  const vcardBtn=document.getElementById('contacts-vcard-btn');
+  if(vcardBtn) vcardBtn.style.display=(ME&&ME.role==='admin')?'':'none';
+  const deleteBtn=document.getElementById('contacts-delete-btn');
+  if(deleteBtn) deleteBtn.style.display=(ME&&ME.role==='admin')?'':'none';
   const av=$('sb-user-av');
   av.style.cssText=`width:30px;height:30px;font-size:13px;background:${ME.color}22;color:${ME.color}`;
   av.textContent=ME.name[0];
@@ -6937,7 +6942,52 @@ function updateContactSelCount(){
   ['contacts-select-all','contacts-select-all2'].forEach(id=>{const el=$(id);if(el)el.checked=allSelected;});
 }
 
+function vcardEscape(str){
+  return String(str||'').replace(/\\/g,'\\\\').replace(/,/g,'\\,').replace(/;/g,'\\;').replace(/\n/g,'\\n');
+}
+function contactToVCard(c){
+  const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
+  const lines = ['BEGIN:VCARD','VERSION:3.0'];
+  const fullName = vcardEscape(c.mailingName||c.name||'');
+  lines.push(`FN:${fullName}`);
+  lines.push(`N:${fullName};;;;`);
+  if(studio?.name) lines.push(`ORG:${vcardEscape(studio.name)}`);
+  if(c.type) lines.push(`TITLE:${vcardEscape(c.type)}`);
+  if(c.phone) lines.push(`TEL;TYPE=CELL:${vcardEscape(c.phone)}`);
+  if(c.whatsapp && c.whatsapp!==c.phone) lines.push(`TEL;TYPE=CELL,WORK:${vcardEscape(c.whatsapp)}`);
+  if(c.email) lines.push(`EMAIL;TYPE=INTERNET:${vcardEscape(c.email)}`);
+  if(c.email2) lines.push(`EMAIL;TYPE=INTERNET:${vcardEscape(c.email2)}`);
+  if(c.web) lines.push(`URL:${vcardEscape(c.web)}`);
+  if(c.city||c.state) lines.push(`ADR;TYPE=WORK:;;;${vcardEscape(c.city||'')};${vcardEscape(c.state||'')};;`);
+  const extras=[];
+  if(c.instagram) extras.push(`Instagram: ${c.instagram}`);
+  if(c.linkedin) extras.push(`LinkedIn: ${c.linkedin}`);
+  if(c.origin) extras.push(`Origen: ${c.origin}`);
+  if(c.notes) extras.push(c.notes);
+  if(extras.length) lines.push(`NOTE:${vcardEscape(extras.join(String.fromCharCode(10)))}`);
+  lines.push('END:VCARD');
+  return lines.join('\r\n');
+}
+function exportSelectedContactsVCard(){
+  if(!ME||ME.role!=='admin'){ toast('Solo un administrador puede exportar vCard','⚠️'); return; }
+  const sel=S.selectedContacts||new Set();
+  if(!sel.size){ toast('Selecciona al menos un contacto','⚠️'); return; }
+  const contacts=(D.contacts||[]).filter(c=>sel.has(c.id));
+  const vcf = contacts.map(contactToVCard).join('\r\n');
+  const blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `contactos_${today()}.vcf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(`📇 ${contacts.length} contacto${contacts.length!==1?'s':''} exportado${contacts.length!==1?'s':''}`);
+}
+
 function deleteSelectedContacts(){
+  if(!ME||ME.role!=='admin'){ toast('Solo un administrador puede eliminar contactos','⚠️'); return; }
   const sel=S.selectedContacts||new Set();
   const n=sel.size;
   if(!n){toast('Selecciona al menos un contacto','⚠️');return;}
