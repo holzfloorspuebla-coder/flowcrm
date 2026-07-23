@@ -400,7 +400,6 @@ tr.selected td{background:var(--accentDim);}
     <button class="tab-btn active" onclick="switchTab('contacts')" id="tab-contacts">📋 Contactos</button>
     <button class="tab-btn" onclick="switchTab('studios')" id="tab-studios">🏛️ Estudios</button>
     <button class="tab-btn" onclick="switchTab('providers')" id="tab-providers">🏢 Proveedores</button>
-    <button class="tab-btn" onclick="switchTab('approvals')" id="tab-approvals">✅ Aprobaciones<span class="pending-badge" id="pending-badge" style="display:none">0</span></button>
   </div>
 
   <!-- GLOBAL TOOLBAR -->
@@ -536,13 +535,6 @@ tr.selected td{background:var(--accentDim);}
         </tr></thead>
         <tbody id="prov-tbody"></tbody>
       </table>
-    </div>
-  </div>
-
-  <!-- TAB: APROBACIONES -->
-  <div class="tab-panel" id="panel-approvals" style="overflow:hidden">
-    <div class="approval-list" id="approval-list">
-      <div style="text-align:center;color:var(--text3);font-size:13px;padding:40px">Cargando aprobaciones...</div>
     </div>
   </div>
 
@@ -845,8 +837,11 @@ async function pollWorker(){
 }
 
 function updatePendingBadge(){
-  const pending = PENDING.filter(p=>p.status==='pending');
+  // La pestana de Aprobaciones se retiro (Fase 2 de la fusion Gestor->CRM) —
+  // las aprobaciones ahora se resuelven solo desde "Solicitudes" en el CRM.
   const badge = document.getElementById('pending-badge');
+  if(!badge) return;
+  const pending = PENDING.filter(p=>p.status==='pending');
   if(pending.length){ badge.textContent=pending.length; badge.style.display=''; }
   else { badge.style.display='none'; }
 }
