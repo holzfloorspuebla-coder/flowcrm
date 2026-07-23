@@ -378,6 +378,7 @@ select.inp{cursor:pointer;}
     <button class="ni active" onclick="goView('contacts-view')"><span class="ic">👥</span>Contactos</button>
     <button class="ni" onclick="goView('studios-view')"><span class="ic">🏛️</span>Estudios</button>
     <button class="ni" onclick="goView('projects-view')"><span class="ic">📁</span>Proyectos</button>
+    <button class="ni" id="ni-providers" onclick="goView('providers-view')" style="display:none"><span class="ic">🏢</span>Proveedores</button>
     <div class="ns">Análisis</div>
     <button class="ni" onclick="goView('kpi-view')"><span class="ic">🎯</span>KPIs</button>
 
@@ -604,6 +605,28 @@ select.inp{cursor:pointer;}
     </div>
 
 
+
+    <!-- PROVEEDORES VIEW (fusionado del Gestor de Contactos, Fase 3) -->
+    <div class="view hidden" id="providers-view">
+      <div class="toolbar" style="padding:14px 22px 0">
+        <div id="prov-cat-chips-crm" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <span style="font-size:13px;color:var(--text2)" id="prov-count-crm"></span>
+          <button class="btn btn-ghost btn-sm" onclick="openProvCatManager()">⚙️ Categorías</button>
+        </div>
+      </div>
+      <div class="table-wrap" style="padding:0 22px 22px">
+        <table>
+          <thead><tr>
+            <th>Razón social</th><th>RFC</th><th>Categoría</th>
+            <th>Teléfono</th><th>Email</th><th>Web</th><th>Instagram</th>
+            <th>Banco</th><th>CLABE</th><th>Cuenta</th>
+            <th>Notas</th><th style="width:60px"></th>
+          </tr></thead>
+          <tbody id="prov-tbody-crm"></tbody>
+        </table>
+      </div>
+    </div>
 
     <!-- BANDEJA DE SOLICITUDES -->
     <!-- TAREAS VIEW -->
@@ -897,6 +920,55 @@ select.inp{cursor:pointer;}
       <div class="fg" id="complete-task-stage-wrap"><label class="lbl">Fase correspondiente *</label><select class="inp" id="complete-task-stage"></select></div>
     </div>
     <div class="modal-ft"><button class="btn btn-ghost" onclick="closeM('modal-complete-task')">Cancelar</button><button class="btn btn-primary" onclick="submitCompletarTarea()">Guardar y completar</button></div>
+  </div>
+</div>
+
+<div class="overlay hidden" id="modal-prov-edit">
+  <div class="modal" style="width:620px">
+    <div class="modal-hd"><h2 id="prov-edit-title">Nuevo proveedor</h2><button class="modal-close" onclick="closeM('modal-prov-edit')">✕</button></div>
+    <div class="modal-body" style="display:grid;gap:10px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg"><label class="lbl">Razón social *</label><input autocomplete="off" class="inp" id="pe-name" placeholder="Grupo Constructor Pérez SA de CV"></div>
+        <div class="fg"><label class="lbl">RFC</label><input autocomplete="off" class="inp" id="pe-rfc" placeholder="GCP850101XXX" style="font-family:var(--mono);text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+      </div>
+      <div class="fg"><label class="lbl">Categoría</label><select class="inp" id="pe-cat"><option value="">Sin categoría</option></select></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg"><label class="lbl">Teléfono</label><input autocomplete="off" class="inp" id="pe-phone" placeholder="55 1234 5678"></div>
+        <div class="fg"><label class="lbl">Email</label><input autocomplete="off" class="inp" id="pe-email" type="email" placeholder="contacto@proveedor.com"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="fg"><label class="lbl">Web</label><input autocomplete="off" class="inp" id="pe-web" placeholder="https://proveedor.com"></div>
+        <div class="fg"><label class="lbl">Instagram</label><input autocomplete="off" class="inp" id="pe-instagram" placeholder="@proveedor"></div>
+      </div>
+      <div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:8px">Datos de pago</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+          <div class="fg"><label class="lbl">Banco</label><input autocomplete="off" class="inp" id="pe-bank" placeholder="BBVA"></div>
+          <div class="fg"><label class="lbl">CLABE</label><input autocomplete="off" class="inp" id="pe-clabe" placeholder="012345678901234567" style="font-family:var(--mono)" maxlength="18"></div>
+          <div class="fg"><label class="lbl">N° Cuenta</label><input autocomplete="off" class="inp" id="pe-account" placeholder="0123456789" style="font-family:var(--mono)"></div>
+        </div>
+      </div>
+      <div class="fg"><label class="lbl">Notas</label><textarea class="inp" id="pe-notes" rows="2" placeholder="Notas internas..."></textarea></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" id="pe-delete-btn" style="margin-right:auto;color:var(--accent);border-color:rgba(230,51,41,.3);display:none" onclick="deleteProvider()">🗑 Eliminar</button>
+      <button class="btn btn-ghost" onclick="closeM('modal-prov-edit')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveProvider()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: CATEGORÍAS PROVEEDORES -->
+<div class="overlay hidden" id="modal-prov-cats">
+  <div class="modal" style="width:420px">
+    <div class="modal-hd"><h2>⚙️ Categorías de proveedores</h2><button class="modal-close" onclick="closeM('modal-prov-cats')">✕</button></div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input autocomplete="off" class="inp" id="new-prov-cat" placeholder="Nueva categoría..." style="flex:1" onkeydown="if(event.key==='Enter')addProvCat()">
+        <button class="btn btn-primary" onclick="addProvCat()">+ Añadir</button>
+      </div>
+      <div id="prov-cats-list" style="max-height:340px;overflow-y:auto"></div>
+    </div>
   </div>
 </div>
 
@@ -1539,6 +1611,8 @@ async function pushToDrive(){
         adminTasks:   D.adminTasks,
         activities:   D.activities,
         showroomVisits: D.showroomVisits,
+        providers:    D.providers,
+        providerCats: D.providerCats,
         _nextStudioCode:  D._nextStudioCode,
         _nextContactCode: D._nextContactCode,
         _savedAt: D._savedAt,
@@ -1679,6 +1753,8 @@ async function fetchFromDrive(url){
     adminTasks:      meta.adminTasks      || [],
     activities:      meta.activities      || [],
     showroomVisits:  meta.showroomVisits  || [],
+    providers:       meta.providers       || [],
+    providerCats:    meta.providerCats    || [],
     _nextStudioCode:  meta._nextStudioCode?.v  || meta._nextStudioCode  || 0,
     _nextContactCode: meta._nextContactCode?.v || meta._nextContactCode || 0,
     _savedAt: Date.now()
@@ -1880,6 +1956,8 @@ async function loadFromDrive(silent=false){
           if(remote.segments) D.segments=remote.segments;
           if(remote.activities&&remote.activities.length>=(D.activities||[]).length) D.activities=remote.activities;
           if(remote.inbox&&remote.inbox.length>=(D.inbox||[]).length) D.inbox=remote.inbox;
+          if(remote.providers) D.providers=remote.providers;
+          if(remote.providerCats) D.providerCats=remote.providerCats;
         }
         if(mergeChanged){
           // Keep the highest _savedAt so we don't re-apply same remote data
@@ -2179,6 +2257,7 @@ function bootApp(){
   })();
   updateSidebarUser();
   showTareasNav();
+  showProvidersNav();
   renderSidebar();
   ensureCodes(); // assign codes to any records missing them
   cleanStudioContacts(); // remove artifact type='Estudio' contacts
@@ -2689,6 +2768,183 @@ function showTareasNav(){
   if(ns)  ns.style.display=show?'':'none';
 }
 
+function showProvidersNav(){
+  const show=ME&&ME.role==='admin';
+  const btn=document.getElementById('ni-providers');
+  if(btn) btn.style.display=show?'':'none';
+}
+
+// ══════════════════════════════════════════════════════
+//  PROVEEDORES (fusionado del Gestor de Contactos, Fase 3)
+// ══════════════════════════════════════════════════════
+let _provCatFilter='';
+let _editProvId=null;
+const DEFAULT_PROV_CATS=['Construcción','Materiales','Logística','Servicios profesionales','Tecnología','Marketing','Otros'];
+
+function renderProviders(){
+  if(!ME||ME.role!=='admin') return;
+  if(!D.providerCats||!D.providerCats.length) D.providerCats=[...DEFAULT_PROV_CATS];
+  if(!D.providers) D.providers=[];
+  renderProvCatChipsCRM();
+  let items=[...D.providers];
+  if(_provCatFilter) items=items.filter(p=>p.cat===_provCatFilter);
+  items.sort((a,b)=>(a.name||'').localeCompare(b.name||'','es'));
+  const el=document.getElementById('prov-tbody-crm');
+  const cel=document.getElementById('prov-count-crm');
+  if(cel) cel.textContent=items.length+' proveedor'+(items.length!==1?'es':'');
+  if(!el) return;
+  el.innerHTML=items.length ? items.map(p=>`
+    <tr>
+      <td><span onclick="openProvEdit('${p.id}')" style="cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px">${esc(p.name||'—')}</span></td>
+      <td style="font-family:var(--mono);font-size:11px">${esc(p.rfc||'—')}</td>
+      <td><span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 7px">${esc(p.cat||'—')}</span></td>
+      <td style="font-size:12px">${esc(p.phone||'—')}</td>
+      <td style="font-size:12px">${p.email?`<a href="mailto:${p.email}" style="color:var(--accent)">${esc(p.email)}</a>`:'—'}</td>
+      <td style="font-size:12px">${p.web?`<a href="${p.web}" target="_blank" style="color:var(--accent)">${esc(p.web)}</a>`:'—'}</td>
+      <td style="font-size:12px">${esc(p.instagram||'—')}</td>
+      <td style="font-size:12px">${esc(p.bank||'—')}</td>
+      <td style="font-family:var(--mono);font-size:11px">${esc(p.clabe||'—')}</td>
+      <td style="font-family:var(--mono);font-size:11px">${esc(p.account||'—')}</td>
+      <td style="font-size:11px;color:var(--text3);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(p.notes||'')}">${esc(p.notes||'—')}</td>
+      <td><button class="btn btn-ghost" onclick="openProvEdit('${p.id}')" style="font-size:11px;padding:3px 8px">✏️</button></td>
+    </tr>`).join('') :
+    `<tr><td colspan="12" style="text-align:center;color:var(--text3);padding:30px;font-size:13px">Sin proveedores${_provCatFilter?' en esta categoría':''}</td></tr>`;
+}
+
+function renderProvCatChipsCRM(){
+  const el=document.getElementById('prov-cat-chips-crm');
+  if(!el) return;
+  const cats=D.providerCats||[];
+  el.innerHTML=`<div class="chip ${!_provCatFilter?'active':''}" onclick="setProvCatFilter('')">Todos</div>`+
+    cats.map(c=>`<div class="chip ${_provCatFilter===c?'active':''}" onclick="setProvCatFilter('${esc(c)}')">${esc(c)}</div>`).join('');
+}
+function setProvCatFilter(cat){ _provCatFilter=cat; renderProviders(); }
+
+function openProvEdit(id){
+  if(!ME||ME.role!=='admin'){ toast('Solo un administrador puede editar proveedores','⚠️'); return; }
+  _editProvId=id||null;
+  const p=id?(D.providers||[]).find(x=>x.id===id):null;
+  document.getElementById('prov-edit-title').textContent=p?'Editar proveedor':'Nuevo proveedor';
+  document.getElementById('pe-delete-btn').style.display=p?'':'none';
+  const sel=document.getElementById('pe-cat');
+  sel.innerHTML='<option value="">Sin categoría</option>'+(D.providerCats||[]).map(c=>`<option value="${esc(c)}"${p&&p.cat===c?' selected':''}>${esc(c)}</option>`).join('');
+  const fv=(fid,v)=>{ const el=document.getElementById(fid); if(el) el.value=v||''; };
+  fv('pe-name',p?.name); fv('pe-rfc',p?.rfc); fv('pe-phone',p?.phone);
+  fv('pe-email',p?.email); fv('pe-web',p?.web); fv('pe-instagram',p?.instagram);
+  fv('pe-bank',p?.bank); fv('pe-clabe',p?.clabe); fv('pe-account',p?.account);
+  fv('pe-notes',p?.notes);
+  document.getElementById('modal-prov-edit').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('pe-name').focus(),50);
+}
+
+function saveProvider(){
+  if(!ME||ME.role!=='admin'){ toast('Solo un administrador puede guardar proveedores','⚠️'); return; }
+  const gv=fid=>(document.getElementById(fid)||{}).value||'';
+  const name=gv('pe-name').trim();
+  if(!name){toast('El nombre es obligatorio','⚠️');return;}
+  if(!D.providers) D.providers=[];
+  const p={
+    id:_editProvId||String(nid()),
+    name, rfc:gv('pe-rfc'), cat:gv('pe-cat'),
+    phone:gv('pe-phone'), email:gv('pe-email'), web:gv('pe-web'), instagram:gv('pe-instagram'),
+    bank:gv('pe-bank'), clabe:gv('pe-clabe'), account:gv('pe-account'),
+    notes:gv('pe-notes'), _updatedAt:Date.now()
+  };
+  if(_editProvId){
+    const idx=D.providers.findIndex(x=>x.id===_editProvId);
+    if(idx>-1) D.providers[idx]=p; else D.providers.push(p);
+  } else { D.providers.push(p); }
+  closeM('modal-prov-edit');
+  saveData();
+  renderProviders();
+  toast(_editProvId?'Proveedor actualizado':'Proveedor creado','✅');
+}
+
+function deleteProvider(){
+  if(!ME||ME.role!=='admin'){ toast('Solo un administrador puede eliminar proveedores','⚠️'); return; }
+  if(!_editProvId) return;
+  const p=(D.providers||[]).find(x=>x.id===_editProvId);
+  if(!p||!confirm(`¿Eliminar "${p.name}"? Esta acción no se puede deshacer.`)) return;
+  D.providers=(D.providers||[]).filter(x=>x.id!==_editProvId);
+  closeM('modal-prov-edit');
+  saveData();
+  renderProviders();
+  toast('Proveedor eliminado','🗑️');
+}
+
+function openProvCatManager(){
+  if(!ME||ME.role!=='admin') return;
+  if(!D.providerCats||!D.providerCats.length) D.providerCats=[...DEFAULT_PROV_CATS];
+  renderProvCatsList();
+  document.getElementById('new-prov-cat').value='';
+  document.getElementById('modal-prov-cats').classList.remove('hidden');
+}
+function renderProvCatsList(){
+  const el=document.getElementById('prov-cats-list');
+  if(!el) return;
+  el.innerHTML=(D.providerCats||[]).map((c,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
+      <input autocomplete="off" class="inp" value="${esc(c)}" id="pcat-inp-${i}" style="flex:1;font-size:13px" onkeydown="if(event.key==='Enter')saveProvCat(${i})">
+      <button class="btn btn-ghost" onclick="saveProvCat(${i})" style="font-size:11px;padding:4px 10px" title="Guardar">✓</button>
+      <button class="btn" onclick="deleteProvCat(${i})" style="font-size:11px;padding:4px 8px;background:rgba(163,45,45,.1);color:#A32D2D;border:1px solid rgba(163,45,45,.25)" title="Eliminar">✕</button>
+    </div>`).join('');
+}
+function addProvCat(){
+  const v=(document.getElementById('new-prov-cat')?.value||'').trim();
+  if(!v){toast('Escribe un nombre','⚠️');return;}
+  if(!D.providerCats) D.providerCats=[...DEFAULT_PROV_CATS];
+  if(D.providerCats.includes(v)){toast('Ya existe','⚠️');return;}
+  D.providerCats.push(v);
+  document.getElementById('new-prov-cat').value='';
+  saveData();
+  renderProvCatsList(); renderProviders();
+  toast('Categoría añadida','✅');
+}
+function saveProvCat(i){
+  const v=document.getElementById('pcat-inp-'+i)?.value.trim();
+  if(!v) return;
+  const old=D.providerCats[i];
+  if(old===v) return;
+  D.providerCats[i]=v;
+  (D.providers||[]).forEach(p=>{ if(p.cat===old) p.cat=v; });
+  saveData();
+  renderProvCatsList(); renderProviders();
+  toast('Categoría actualizada','✅');
+}
+function deleteProvCat(i){
+  const cat=D.providerCats[i];
+  const used=(D.providers||[]).filter(p=>p.cat===cat).length;
+  if(used>0&&!confirm(`"${cat}" está asignada a ${used} proveedor${used>1?'es':''}.\nAl eliminar quedarán sin categoría. ¿Continuar?`)) return;
+  (D.providers||[]).forEach(p=>{ if(p.cat===cat) p.cat=''; });
+  D.providerCats.splice(i,1);
+  if(_provCatFilter===cat) _provCatFilter='';
+  saveData();
+  renderProvCatsList(); renderProviders();
+  toast('Categoría eliminada');
+}
+
+function convertStudioToProviderCRM(studioId){
+  if(!ME||ME.role!=='admin'){ toast('Solo un administrador puede convertir estudios a proveedores','⚠️'); return; }
+  const s=(D.studios||[]).find(x=>x.id===studioId);
+  if(!s) return;
+  if(!D.providers) D.providers=[];
+  const existing=D.providers.find(p=>(p.name||'').toLowerCase()===(s.name||'').toLowerCase());
+  if(existing){
+    toast(`"${s.name}" ya existe en proveedores — abriendo para editar`,'ℹ️');
+    goView('providers-view');
+    setTimeout(()=>openProvEdit(existing.id),100);
+    return;
+  }
+  goView('providers-view');
+  setTimeout(()=>{
+    openProvEdit(null);
+    const fv=(fid,v)=>{ const el=document.getElementById(fid); if(el) el.value=v||''; };
+    fv('pe-name',s.name); fv('pe-phone',s.phone); fv('pe-email',s.email);
+    fv('pe-web',s.web); fv('pe-instagram',s.instagram);
+    toast('Revisa los datos y guarda para crear el proveedor','ℹ️');
+  },100);
+}
+
 function selectNuevaTareaColor(el){
   document.querySelectorAll('#nueva-tarea-colores .alarm-color-swatch').forEach(s=>s.classList.remove('selected'));
   el.classList.add('selected');
@@ -3152,6 +3408,7 @@ const VIEW_CFG={
   'studios-view':{title:'Estudios de Arquitectura',main:null,sec:null},
   'studio-profile-view':{title:'Perfil del Estudio',main:null,sec:null},
   'projects-view':{title:'Proyectos',main:'＋ Nuevo proyecto',mainFn:'openProjectModal()',sec:'＋ Contacto',secFn:'openContactModal()'},
+  'providers-view':{title:'Proveedores',main:'＋ Nuevo proveedor',mainFn:'openProvEdit(null)',sec:null},
   'profile-view':{title:'Perfil de contacto',main:null,sec:null},
   'kpi-view':{title:'KPIs del equipo',main:null,sec:null},
   'tareas-view':{title:'Tareas pendientes',main:null,sec:null},
@@ -3162,7 +3419,7 @@ function goView(id){
   document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
   $(id)?.classList.remove('hidden');
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
-  const map={'contacts-view':0,'studios-view':1,'studio-profile-view':1,'projects-view':2,'kpi-view':3,'tareas-view':4,'inbox-view':5,'settings-view':6};
+  const map={'contacts-view':0,'studios-view':1,'studio-profile-view':1,'projects-view':2,'providers-view':3,'kpi-view':4,'tareas-view':5,'inbox-view':6,'settings-view':7};
   document.querySelectorAll('.ni')[map[id]]?.classList.add('active');
   const cfg=VIEW_CFG[id]||{};
   $('page-title').textContent=cfg.title||'';
@@ -3175,6 +3432,7 @@ function goView(id){
   if(id==='studios-view')renderStudios();
   if(id==='projects-view'){renderPKanban();renderPTable();}
   if(id==='kpi-view')renderKPIs();
+  if(id==='providers-view')renderProviders();
   if(id==='tareas-view'){renderTareas();const df=document.getElementById('nueva-tarea-fecha');if(df&&!df.value){const d=new Date();d.setDate(d.getDate()+1);df.value=d.toISOString().slice(0,10);}}
   if(id==='inbox-view')renderInbox();
   if(id==='settings-view')renderSettings();
@@ -5721,6 +5979,7 @@ function openStudioProfile(id){
       <button class="btn btn-ghost btn-sm" onclick="goView('studios-view')">← Volver</button>
       ${owned?`<button class="btn btn-ghost btn-sm" onclick="openStudioModal(${id})">✏️ Editar</button>`:''}
       ${ME.role==='admin'?`<button class="btn btn-red btn-sm" onclick="deleteStudio(${id})">🗑️</button>`:''}
+      ${ME.role==='admin'?`<button class="btn btn-ghost btn-sm" onclick="convertStudioToProviderCRM(${id})">🏢 A proveedor</button>`:''}
       ${owned?`<button class="btn btn-primary btn-sm" onclick="openArchitectModal(${id})">👤 ＋ Arquitecto</button>`:''}
     </div>
     ${owned?`<div style="margin-top:10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
