@@ -450,6 +450,8 @@ select.inp{cursor:pointer;}
               <button class="btn btn-ghost btn-sm" id="btn-duplicados" onclick="openDuplicateFinder()" style="display:none;color:var(--orange)">🔍 Duplicados</button>
               <button class="btn btn-ghost btn-sm" onclick="$('csv-contact-input').click()">📥 Importar CSV</button>
               <input type="file" id="csv-contact-input" accept=".csv" style="display:none" onchange="handleContactCsvImport(this)">
+              <button class="btn btn-ghost btn-sm" id="excel-contact-import-btn" onclick="$('excel-contact-input').click()" style="display:none">📊 Importar Excel</button>
+              <input type="file" id="excel-contact-input" accept=".xlsx,.xls" style="display:none" onchange="handleContactExcelImport(this)">
               <div class="chip active" id="c-filter-all2" onclick="filterC(this,'all')">Todos</div>
               <div id="c-agent-chips2"></div>
             </div>
@@ -2258,6 +2260,8 @@ function bootApp(){
   updateSidebarUser();
   showTareasNav();
   showProvidersNav();
+  const excelBtn=document.getElementById('excel-contact-import-btn');
+  if(excelBtn) excelBtn.style.display=(ME&&ME.role==='admin')?'':'none';
   renderSidebar();
   ensureCodes(); // assign codes to any records missing them
   cleanStudioContacts(); // remove artifact type='Estudio' contacts
@@ -5613,6 +5617,77 @@ function processUnifiedCsv(text,input){
 // ══════════════════════════════════════════════════════
 //  CSV IMPORT FOR CONTACTS
 // ══════════════════════════════════════════════════════
+// Logica compartida de importacion de contactos (usada por CSV y Excel):
+// recibe encabezados ya normalizados + filas como arreglos de celdas.
+function processContactImportRows(headers, rows){
+  const idx=k=>headers.indexOf(k);
+  const col=(keys)=>{for(const k of keys){const i=idx(k);if(i>=0)return i;}return -1;};
+  let created=0,skipped=0;
+  rows.forEach(cols=>{
+    const get=keys=>{const i=col(keys);return i>=0?String(cols[i]==null?'':cols[i]).trim():'';}
+    const name=get(['nombre_arquitecto','nombre','name','arquitecto']);
+    if(!name){skipped++;return;}
+    // Find or create studio
+    const studioName=get(['nombre_del_estudio','estudio','studio','nombre_estudio']);
+    let studioId=null;
+    if(studioName){
+      const existing=(D.studios||[]).find(s=>s.name.toLowerCase()===studioName.toLowerCase());
+      if(existing){studioId=existing.id;}
+      else{
+        const newStudio={id:nid(),name:studioName,
+          email:get(['e_mail_estudio','email_estudio','correo_estudio']),
+          phone:get(['telefono_estudio','tel_estudio','phone_estudio']),
+          city:get(['ciudad']),state:get(['estado']),
+          web:get(['web','pagina_web']),
+          instagram:get(['instagram_estudio']),
+          linkedin:get(['linkedin_estudio']),
+          agent:ME.id,notes:'',date:today()};
+        if(!D.studios)D.studios=[];
+        D.studios.push(newStudio);
+        studioId=newStudio.id;
+      }
+    }
+    // Find agent by name
+    const agentName=get(['vendedor_asignado','vendedor','agente','agent']);
+    let agentId=ME.id;
+    if(agentName){const u=USERS.find(u=>u.name.toLowerCase().includes(agentName.toLowerCase()));if(u)agentId=u.id;}
+    // Find segment
+    const segName=get(['segmento','segment']);
+    let segId='';
+    if(segName){const segs=D.segments||DEFAULT_SEGMENTS;const sg=segs.find(s=>s.label.toLowerCase().includes(segName.toLowerCase())||s.id.toLowerCase()===segName.toLowerCase());if(sg)segId=sg.id;}
+    const contact={
+      id:nid(),
+      name,
+      mailingName:get(['nombre_para_mailing','mailing','nombre_mailing']),
+      type:get(['tipo','type'])||'Arquitecto',
+      phone:get(['telefono_arquitecto','tel_arquitecto','celular','telefono']),
+      email:get(['e_mail_arquitecto','email_arquitecto','correo_arquitecto','email']),
+      instagram:get(['instagram_arquitecto','instagram']),
+      linkedin:get(['linkedin_arquitecto','linkedin']),
+      studioId,
+      studioEmail:get(['e_mail_estudio','email_estudio']),
+      studioPhone:get(['telefono_estudio','tel_estudio']),
+      studioInstagram:get(['instagram_estudio']),
+      studioLinkedin:get(['linkedin_estudio']),
+      web:get(['web','pagina_web']),
+      city:get(['ciudad','city']),
+      state:get(['estado','state']),
+      origin:get(['origen','origin']),
+      priceList:get(['price_list','pricelist','lista_precios']),
+      segment:segId,
+      agent:agentId,
+      stage:null,
+      inPipeline:false,
+      tags:[],notes:'',date:today(),notesList:[],
+    };
+    D.contacts.push(contact);
+    created++;
+  });
+  saveData();
+  renderCTable();renderCKanban();
+  toast(`✓ ${created} contacto${created!==1?'s':''} importado${created!==1?'s':''}${skipped?' ('+skipped+' omitidos)':''}`);
+}
+
 function handleContactCsvImport(input){
   const file=input.files[0];
   if(!file)return;
@@ -5627,74 +5702,8 @@ function handleContactCsvImport(input){
       const headers=lines[0].split(sep).map(h=>h.trim().toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // remove accents
         .replace(/[^a-z0-9]/g,'_'));
-      const idx=k=>headers.indexOf(k);
-      // Column map — tries multiple possible header names
-      const col=(keys)=>{for(const k of keys){const i=idx(k);if(i>=0)return i;}return -1;};
-      let created=0,skipped=0;
-      for(let r=1;r<lines.length;r++){
-        const cols=lines[r].split(sep).map(c=>c.trim().replace(/^"|"$/g,''));
-        const get=keys=>{const i=col(keys);return i>=0?(cols[i]||'').trim():'';}
-        const name=get(['nombre_arquitecto','nombre','name','arquitecto']);
-        if(!name){skipped++;continue;}
-        // Find or create studio
-        const studioName=get(['nombre_del_estudio','estudio','studio','nombre_estudio']);
-        let studioId=null;
-        if(studioName){
-          const existing=(D.studios||[]).find(s=>s.name.toLowerCase()===studioName.toLowerCase());
-          if(existing){studioId=existing.id;}
-          else{
-            const newStudio={id:nid(),name:studioName,
-              email:get(['e_mail_estudio','email_estudio','correo_estudio']),
-              phone:get(['telefono_estudio','tel_estudio','phone_estudio']),
-              city:get(['ciudad']),state:get(['estado']),
-              web:get(['web','pagina_web']),
-              instagram:get(['instagram_estudio']),
-              linkedin:get(['linkedin_estudio']),
-              agent:ME.id,notes:'',date:today()};
-            if(!D.studios)D.studios=[];
-            D.studios.push(newStudio);
-            studioId=newStudio.id;
-          }
-        }
-        // Find agent by name
-        const agentName=get(['vendedor_asignado','vendedor','agente','agent']);
-        let agentId=ME.id;
-        if(agentName){const u=USERS.find(u=>u.name.toLowerCase().includes(agentName.toLowerCase()));if(u)agentId=u.id;}
-        // Find segment
-        const segName=get(['segmento','segment']);
-        let segId='';
-        if(segName){const segs=D.segments||DEFAULT_SEGMENTS;const sg=segs.find(s=>s.label.toLowerCase().includes(segName.toLowerCase())||s.id.toLowerCase()===segName.toLowerCase());if(sg)segId=sg.id;}
-        const contact={
-          id:nid(),
-          name,
-          mailingName:get(['nombre_para_mailing','mailing','nombre_mailing']),
-          type:get(['tipo','type'])||'Arquitecto',
-          phone:get(['telefono_arquitecto','tel_arquitecto','celular','telefono']),
-          email:get(['e_mail_arquitecto','email_arquitecto','correo_arquitecto','email']),
-          instagram:get(['instagram_arquitecto','instagram']),
-          linkedin:get(['linkedin_arquitecto','linkedin']),
-          studioId,
-          studioEmail:get(['e_mail_estudio','email_estudio']),
-          studioPhone:get(['telefono_estudio','tel_estudio']),
-          studioInstagram:get(['instagram_estudio']),
-          studioLinkedin:get(['linkedin_estudio']),
-          web:get(['web','pagina_web']),
-          city:get(['ciudad','city']),
-          state:get(['estado','state']),
-          origin:get(['origen','origin']),
-          priceList:get(['price_list','pricelist','lista_precios']),
-          segment:segId,
-          agent:agentId,
-          stage:null,
-          inPipeline:false,
-          tags:[],notes:'',date:today(),notesList:[],
-        };
-        D.contacts.push(contact);
-        created++;
-      }
-      saveData();
-      renderCTable();renderCKanban();
-      toast(`✓ ${created} contacto${created!==1?'s':''} importado${created!==1?'s':''}${skipped?' ('+skipped+' omitidos)':''}`);
+      const rows=lines.slice(1).map(line=>line.split(sep).map(c=>c.trim().replace(/^"|"$/g,'')));
+      processContactImportRows(headers, rows);
     }catch(err){
       console.error(err);
       toast('Error procesando el CSV: '+err.message,'⚠️');
@@ -5702,6 +5711,44 @@ function handleContactCsvImport(input){
   };
   reader.readAsText(file,'UTF-8');
   input.value='';
+}
+
+// Importar Excel (.xlsx/.xls) — misma logica que el CSV, portada del Gestor
+// de Contactos (Fase 4 de la fusion), pero reutilizando processContactImportRows
+// en vez de la version simplificada que tenia el Gestor.
+function handleContactExcelImport(input){
+  if(!ME||ME.role!=='admin'){ toast('Solo un administrador puede importar Excel','⚠️'); return; }
+  const file=input.files[0];
+  if(!file) return;
+  toast('Cargando Excel...','⏳');
+  function doImport(XLSX){
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(e.target.result,{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+        if(raw.length<2){toast('El Excel está vacío','⚠️');return;}
+        const headers=raw[0].map(h=>String(h||'').trim().toLowerCase()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+          .replace(/[^a-z0-9]/g,'_'));
+        const rows=raw.slice(1).map(r=>r.map(c=>String(c==null?'':c).trim()));
+        processContactImportRows(headers, rows);
+      }catch(err){
+        console.error(err);
+        toast('Error procesando el Excel: '+err.message,'⚠️');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+    input.value='';
+  }
+  if(window.XLSX) doImport(XLSX);
+  else{
+    const s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    s.onload=()=>doImport(XLSX);
+    document.head.appendChild(s);
+  }
 }
 
 // ══════════════════════════════════════════════════════
