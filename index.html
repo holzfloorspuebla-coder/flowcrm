@@ -634,29 +634,58 @@ select.inp{cursor:pointer;}
       </div>
     </div>
 
-    <!-- BASE DE DATOS (contactos sin etapa, fuera del pipeline) -->
+    <!-- BASE DE DATOS (todos los contactos y estudios, estén o no en el pipeline) -->
     <div class="view hidden" id="database-view">
       <div style="padding:14px 22px 0;font-size:12px;color:var(--text2)">
-        Contactos que existen en la base de datos pero todavía no se han activado en el pipeline. Se cargan directo de Supabase, paginados, para no sobrecargar el navegador.
+        Todos los contactos y estudios que existen en la base de datos, estén o no activados en el pipeline. Se cargan directo de Supabase, paginados, para no sobrecargar el navegador.
       </div>
-      <div class="toolbar" style="padding:10px 22px 0">
-        <input class="inp" id="db-search-inp" placeholder="🔍 Buscar por nombre, estudio, email, teléfono, ciudad..." style="flex:1;max-width:460px" oninput="dbSearchInput()">
-        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-          <span style="font-size:13px;color:var(--text2)" id="db-count-label">—</span>
+      <div class="tabs" style="padding:10px 22px 0">
+        <div class="tab active" id="db-tab-contacts" onclick="dbSwitchTab('contacts')">👥 Contactos</div>
+        <div class="tab" id="db-tab-studios" onclick="dbSwitchTab('studios')">🏛️ Estudios</div>
+      </div>
+
+      <!-- CONTACTOS -->
+      <div id="db-panel-contacts">
+        <div class="toolbar" style="padding:10px 22px 0">
+          <input class="inp" id="db-search-inp" placeholder="🔍 Buscar por nombre, estudio, email, teléfono, ciudad, estado..." style="flex:1;max-width:460px" oninput="dbSearchInput()">
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <span style="font-size:13px;color:var(--text2)" id="db-count-label">—</span>
+          </div>
         </div>
-      </div>
-      <!-- Bulk action bar (database) -->
-      <div class="bulk-bar show" id="database-bulk-bar" style="margin:10px 22px 0">
-        <input type="checkbox" class="sel-cb" id="db-select-all" onchange="dbToggleSelectAllPage(this.checked)" title="Seleccionar todos en esta página">
-        <span class="bulk-bar-count" id="db-sel-count">0 seleccionados</span>
-        <button class="btn btn-primary btn-sm" onclick="activateSelectedFromDB()">🎯 Activar en pipeline</button>
-        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-          <button class="btn btn-ghost btn-sm" id="db-prev-btn" onclick="dbPrevPage()">← Anterior</button>
-          <span style="font-size:12px;color:var(--text2)" id="db-page-label">Página 1</span>
-          <button class="btn btn-ghost btn-sm" id="db-next-btn" onclick="dbNextPage()">Siguiente →</button>
+        <div class="bulk-bar show" id="database-bulk-bar" style="margin:10px 22px 0">
+          <input type="checkbox" class="sel-cb" id="db-select-all" onchange="dbToggleSelectAllPage(this.checked)" title="Seleccionar todos en esta página">
+          <span class="bulk-bar-count" id="db-sel-count">0 seleccionados</span>
+          <button class="btn btn-primary btn-sm" onclick="activateSelectedFromDB()">🎯 Activar en pipeline</button>
+          <button class="btn btn-primary btn-sm" onclick="dbMergeSelectedContacts()">🔀 Fusionar seleccionados</button>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <button class="btn btn-ghost btn-sm" id="db-prev-btn" onclick="dbPrevPage()">← Anterior</button>
+            <span style="font-size:12px;color:var(--text2)" id="db-page-label">Página 1</span>
+            <button class="btn btn-ghost btn-sm" id="db-next-btn" onclick="dbNextPage()">Siguiente →</button>
+          </div>
         </div>
+        <div class="table-wrap" id="database-list" style="padding:14px 22px 22px"></div>
       </div>
-      <div class="table-wrap" id="database-list" style="padding:14px 22px 22px"></div>
+
+      <!-- ESTUDIOS -->
+      <div id="db-panel-studios" style="display:none">
+        <div class="toolbar" style="padding:10px 22px 0">
+          <input class="inp" id="dbs-search-inp" placeholder="🔍 Buscar por nombre, ciudad, estado, email, teléfono..." style="flex:1;max-width:460px" oninput="dbsSearchInput()">
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <span style="font-size:13px;color:var(--text2)" id="dbs-count-label">—</span>
+          </div>
+        </div>
+        <div class="bulk-bar show" id="database-studios-bulk-bar" style="margin:10px 22px 0">
+          <input type="checkbox" class="sel-cb" id="dbs-select-all" onchange="dbsToggleSelectAllPage(this.checked)" title="Seleccionar todos en esta página">
+          <span class="bulk-bar-count" id="dbs-sel-count">0 seleccionados</span>
+          <button class="btn btn-primary btn-sm" onclick="dbMergeSelectedStudios()">🔀 Fusionar seleccionados</button>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <button class="btn btn-ghost btn-sm" id="dbs-prev-btn" onclick="dbsPrevPage()">← Anterior</button>
+            <span style="font-size:12px;color:var(--text2)" id="dbs-page-label">Página 1</span>
+            <button class="btn btn-ghost btn-sm" id="dbs-next-btn" onclick="dbsNextPage()">Siguiente →</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="database-studios-list" style="padding:14px 22px 22px"></div>
+      </div>
     </div>
 
     <!-- BANDEJA DE SOLICITUDES -->
@@ -2860,9 +2889,18 @@ function showDatabaseNav(){
 }
 
 // ══════════════════════════════════════════════════════
-//  BASE DE DATOS — contactos sin etapa, fuera del pipeline
+//  BASE DE DATOS — todos los contactos y estudios, en o fuera del pipeline
 //  (reemplazo del botón "Enviar al CRM" del Gestor de Contactos)
 // ══════════════════════════════════════════════════════
+function dbSwitchTab(tab){
+  $('db-tab-contacts').classList.toggle('active',tab==='contacts');
+  $('db-tab-studios').classList.toggle('active',tab==='studios');
+  $('db-panel-contacts').style.display=tab==='contacts'?'':'none';
+  $('db-panel-studios').style.display=tab==='studios'?'':'none';
+  if(tab==='studios'&&!_dbSCurrentRows.length) renderDatabaseStudiosView(true);
+}
+
+// ── CONTACTOS ──
 let _dbSelected=new Map(); // id(String) -> raw contact data
 let _dbCurrentRows=[];
 let _dbPage=0, _dbPageSize=50, _dbSearch='', _dbTotal=0, _dbSearchTimer=null;
@@ -2873,13 +2911,13 @@ function _dbSanitizeTerm(v){
 
 async function fetchDatabasePage(){
   const term=_dbSanitizeTerm(_dbSearch);
-  let filter='data->>stage=is.null';
+  let filter='';
   if(term){
     const cols=['name','mailingName','email','email2','phone','whatsapp','city','state','studio'];
     const orExpr=cols.map(c=>`data->>${c}.ilike.*${term}*`).join(',');
-    filter+=`&or=(${orExpr})`;
+    filter=`&or=(${orExpr})`;
   }
-  const url=`${SUPABASE_URL}/rest/v1/crm_contacts?select=data&${filter}&order=data->>name.asc&limit=${_dbPageSize}&offset=${_dbPage*_dbPageSize}`;
+  const url=`${SUPABASE_URL}/rest/v1/crm_contacts?select=data${filter}&order=data->>name.asc&limit=${_dbPageSize}&offset=${_dbPage*_dbPageSize}`;
   const res=await fetch(url,{headers:{...SB_HEADERS,'Prefer':'count=exact'}});
   if(!res.ok) throw new Error('HTTP '+res.status);
   const rows=await res.json();
@@ -2897,14 +2935,15 @@ async function renderDatabaseView(resetPage){
     const {rows,total}=await fetchDatabasePage();
     _dbTotal=total;
     if(!rows.length){
-      list.innerHTML='<div class="empty"><div class="eico">🗄️</div><p>No hay contactos sin etapa'+(_dbSearch?' que coincidan con la búsqueda':'')+'.</p></div>';
+      list.innerHTML='<div class="empty"><div class="eico">🗄️</div><p>Sin resultados'+(_dbSearch?' para esta búsqueda':'')+'.</p></div>';
     } else {
       list.innerHTML=`<table><thead><tr>
-        <th style="width:30px"></th><th>Nombre</th><th>Estudio</th><th>Ciudad</th><th>Teléfono</th><th>Email</th><th>Tipo</th><th>Vendedor</th>
+        <th style="width:30px"></th><th>Nombre</th><th>Estudio</th><th>Ciudad</th><th>Teléfono</th><th>Email</th><th>Tipo</th><th>Vendedor</th><th>En pipeline</th>
       </tr></thead><tbody>${rows.map(c=>{
         const idStr=String(c.id);
         const checked=_dbSelected.has(idStr);
         const agName=(typeof c.agent==='number'?USERS.find(u=>u.id===c.agent)?.name:null)||c.agent||'—';
+        const inPipe=!!c.stage;
         return `<tr>
           <td><input type="checkbox" class="sel-cb" data-db-id="${idStr}" ${checked?'checked':''} onchange="dbToggleSel('${idStr.replace(/'/g,"\\'")}',this.checked)"></td>
           <td>${esc(c.name||'—')}</td>
@@ -2914,10 +2953,11 @@ async function renderDatabaseView(resetPage){
           <td>${esc(c.email||'—')}</td>
           <td>${esc(c.type||'—')}</td>
           <td>${esc(agName)}</td>
+          <td>${inPipe?`<span style="color:var(--green)">✓ ${esc(c.stage)}</span>`:'<span style="color:var(--text3)">— Sin activar</span>'}</td>
         </tr>`;
       }).join('')}</tbody></table>`;
     }
-    // Store current page rows so selection/activation can find full data without refetching
+    // Store current page rows so selection/activation/merge can find full data without refetching
     _dbCurrentRows=rows;
   }catch(e){
     list.innerHTML=`<div class="empty"><div class="eico">⚠️</div><p>Error cargando la base de datos: ${esc(e.message)}</p></div>`;
@@ -2938,7 +2978,7 @@ function dbSearchInput(){
   _dbSearchTimer=setTimeout(()=>{
     _dbSearch=$('db-search-inp').value||'';
     renderDatabaseView(true);
-  },350);
+  },250);
 }
 
 function dbToggleSel(id,checked){
@@ -2990,8 +3030,9 @@ function _dbResolveAgent(c){
 
 async function activateSelectedFromDB(){
   if(!ME||ME.role!=='admin'){toast('Solo un administrador puede activar contactos en el pipeline','⚠️');return;}
-  const items=[..._dbSelected.values()];
-  if(!items.length){toast('Selecciona al menos un contacto','⚠️');return;}
+  const items=[..._dbSelected.values()].filter(c=>!c.stage);
+  const skipped=_dbSelected.size-items.length;
+  if(!items.length){toast(skipped?'Los seleccionados ya están activos':'Selecciona al menos un contacto','⚠️');return;}
   if(!confirm(`¿Activar ${items.length} contacto${items.length!==1?'s':''} en el pipeline? Aparecerán en Contactos con etapa "Lead captado".`)) return;
 
   let added=0;
@@ -3030,7 +3071,133 @@ async function activateSelectedFromDB(){
   _dbSelected.clear();
   renderCKanban();renderCTable();
   await renderDatabaseView(false);
-  toast(`✅ ${added} contacto${added!==1?'s':''} activado${added!==1?'s':''} en el pipeline`);
+  toast(`✅ ${added} contacto${added!==1?'s':''} activado${added!==1?'s':''} en el pipeline${skipped?` (${skipped} ya estaban activos)`:''}`);
+}
+
+function dbMergeSelectedContacts(){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede fusionar contactos','⚠️');return;}
+  const rows=[..._dbSelected.values()];
+  if(rows.length<2){toast('Selecciona al menos 2 contactos','⚠️');return;}
+  if(rows.length>5){toast('Máximo 5 contactos a la vez','⚠️');return;}
+  openContactMergeAny(rows);
+}
+
+// ── ESTUDIOS ──
+let _dbSSelected=new Map(); // id(String) -> raw studio data
+let _dbSCurrentRows=[];
+let _dbSPage=0, _dbSPageSize=50, _dbSSearch='', _dbSTotal=0, _dbSSearchTimer=null;
+
+async function fetchDatabaseStudiosPage(){
+  const term=_dbSanitizeTerm(_dbSSearch);
+  let filter='';
+  if(term){
+    const cols=['name','city','state','email','email2','phone','whatsapp'];
+    const orExpr=cols.map(c=>`data->>${c}.ilike.*${term}*`).join(',');
+    filter=`&or=(${orExpr})`;
+  }
+  const url=`${SUPABASE_URL}/rest/v1/crm_studios?select=data${filter}&order=data->>name.asc&limit=${_dbSPageSize}&offset=${_dbSPage*_dbSPageSize}`;
+  const res=await fetch(url,{headers:{...SB_HEADERS,'Prefer':'count=exact'}});
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const rows=await res.json();
+  const range=res.headers.get('content-range')||'';
+  const total=range.includes('/')?parseInt(range.split('/')[1])||0:rows.length;
+  return {rows:rows.map(r=>r.data),total};
+}
+
+async function renderDatabaseStudiosView(resetPage){
+  if(!ME||ME.role!=='admin') return;
+  if(resetPage) _dbSPage=0;
+  const list=$('database-studios-list');
+  list.innerHTML='<div style="padding:20px;color:var(--text3);font-size:13px">Cargando...</div>';
+  try{
+    const {rows,total}=await fetchDatabaseStudiosPage();
+    _dbSTotal=total;
+    if(!rows.length){
+      list.innerHTML='<div class="empty"><div class="eico">🏛️</div><p>Sin resultados'+(_dbSSearch?' para esta búsqueda':'')+'.</p></div>';
+    } else {
+      list.innerHTML=`<table><thead><tr>
+        <th style="width:30px"></th><th>Nombre</th><th>Ciudad</th><th>Estado</th><th>Teléfono</th><th>Email</th><th>Vendedor</th>
+      </tr></thead><tbody>${rows.map(s=>{
+        const idStr=String(s.id);
+        const checked=_dbSSelected.has(idStr);
+        const agName=(typeof s.agent==='number'?USERS.find(u=>u.id===s.agent)?.name:null)||s.agent||'—';
+        return `<tr>
+          <td><input type="checkbox" class="sel-cb" data-dbs-id="${idStr}" ${checked?'checked':''} onchange="dbsToggleSel('${idStr.replace(/'/g,"\\'")}',this.checked)"></td>
+          <td>${esc(s.name||'—')}</td>
+          <td>${esc(s.city||'—')}</td>
+          <td>${esc(s.state||'—')}</td>
+          <td>${esc(s.phone||'—')}</td>
+          <td>${esc(s.email||'—')}</td>
+          <td>${esc(agName)}</td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+    }
+    _dbSCurrentRows=rows;
+  }catch(e){
+    list.innerHTML=`<div class="empty"><div class="eico">⚠️</div><p>Error cargando estudios: ${esc(e.message)}</p></div>`;
+    _dbSCurrentRows=[];
+  }
+  const from=_dbSTotal?(_dbSPage*_dbSPageSize+1):0;
+  const to=Math.min(_dbSTotal,(_dbSPage+1)*_dbSPageSize);
+  $('dbs-count-label').textContent=_dbSTotal?`${from}–${to} de ${_dbSTotal}`:'Sin resultados';
+  $('dbs-page-label').textContent=`Página ${_dbSPage+1}`;
+  $('dbs-prev-btn').disabled=_dbSPage===0;
+  $('dbs-next-btn').disabled=(_dbSPage+1)*_dbSPageSize>=_dbSTotal;
+  $('dbs-select-all').checked=false;
+  dbsUpdateSelCount();
+}
+
+function dbsSearchInput(){
+  clearTimeout(_dbSSearchTimer);
+  _dbSSearchTimer=setTimeout(()=>{
+    _dbSSearch=$('dbs-search-inp').value||'';
+    renderDatabaseStudiosView(true);
+  },250);
+}
+
+function dbsToggleSel(id,checked){
+  if(checked){
+    const row=(_dbSCurrentRows||[]).find(s=>String(s.id)===id);
+    if(row) _dbSSelected.set(id,row);
+  } else {
+    _dbSSelected.delete(id);
+  }
+  dbsUpdateSelCount();
+}
+
+function dbsToggleSelectAllPage(checked){
+  (_dbSCurrentRows||[]).forEach(s=>{
+    const id=String(s.id);
+    if(checked) _dbSSelected.set(id,s);
+    else _dbSSelected.delete(id);
+  });
+  document.querySelectorAll('[data-dbs-id]').forEach(cb=>{cb.checked=checked;});
+  dbsUpdateSelCount();
+}
+
+function dbsUpdateSelCount(){
+  const n=_dbSSelected.size;
+  const el=$('dbs-sel-count');
+  if(el) el.textContent=`${n} seleccionado${n!==1?'s':''}`;
+}
+
+function dbsPrevPage(){
+  if(_dbSPage===0) return;
+  _dbSPage--;
+  renderDatabaseStudiosView(false);
+}
+function dbsNextPage(){
+  if((_dbSPage+1)*_dbSPageSize>=_dbSTotal) return;
+  _dbSPage++;
+  renderDatabaseStudiosView(false);
+}
+
+function dbMergeSelectedStudios(){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede fusionar estudios','⚠️');return;}
+  const rows=[..._dbSSelected.values()];
+  if(rows.length<2){toast('Selecciona al menos 2 estudios','⚠️');return;}
+  if(rows.length>5){toast('Máximo 5 estudios a la vez','⚠️');return;}
+  openStudioMergeAny(rows);
 }
 
 // ══════════════════════════════════════════════════════
@@ -3830,6 +3997,13 @@ function openMergeFromDupGroup(groupKey2){
 function openContactMerge(ids){
   if(!ME||ME.role!=='admin'){toast('Solo un administrador puede fusionar contactos','⚠️');return;}
   const contacts=ids.map(id=>D.contacts.find(c=>c.id===id)).filter(Boolean);
+  openContactMergeAny(contacts);
+}
+
+// Punto de entrada genérico: acepta objetos completos, estén o no ya cargados en D.contacts
+// (usado tanto desde el buscador de duplicados/tabla de Contactos como desde Base de datos)
+function openContactMergeAny(contacts){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede fusionar contactos','⚠️');return;}
   if(contacts.length<2){toast('Selecciona al menos 2 contactos','⚠️');return;}
   if(contacts.length>5){toast('Máximo 5 contactos a la vez','⚠️');return;}
   _mergeContactsC=contacts;
@@ -3903,16 +4077,17 @@ function mergePickContactField(k,ci){
   setTimeout(()=>inp.style.background='',500);
 }
 
-function confirmContactMerge(){
+async function confirmContactMerge(){
   if(!ME||ME.role!=='admin') return;
   if(_mergeContactsC.length<2) return;
   const base=_mergeContactsC[0];
   const loserIds=_mergeContactsC.slice(1).map(c=>c.id);
   const loserNames=_mergeContactsC.slice(1).map(c=>c.name).join(', ');
-  if(!confirm(`Se fusionarán ${_mergeContactsC.length} contactos en "${base.name}".\n\nSe eliminarán: ${loserNames}\nSus proyectos, tareas y actividades se reasignarán a "${base.name}".\n\n¿Continuar?`)) return;
+  if(!confirm(`Se fusionarán ${_mergeContactsC.length} contactos en "${base.name}".\n\nSe eliminarán: ${loserNames}\nSus proyectos, tareas y actividades (si los tienen) se reasignarán a "${base.name}".\n\n¿Continuar?`)) return;
 
-  const masterObj=D.contacts.find(c=>c.id===base.id);
-  if(!masterObj){toast('Contacto base no encontrado','⚠️');return;}
+  let masterObj=D.contacts.find(c=>String(c.id)===String(base.id));
+  const masterInD=!!masterObj;
+  if(!masterObj) masterObj={...base}; // contacto aún no activado en el pipeline — se edita igual, se conserva su estado actual
 
   MERGE_FIELDS_CONTACT.forEach(f=>{
     const inp=document.getElementById('mcm-'+f.k);
@@ -3922,6 +4097,7 @@ function confirmContactMerge(){
   masterObj._updatedAt=Date.now();
 
   // Reasignar referencias de los contactos que se van a borrar hacia el contacto base
+  // (no-op para contactos que nunca estuvieron en el pipeline, ya que no tienen nada que reasignar)
   (D.projects||[]).forEach(p=>{
     if(p.contactIds&&p.contactIds.some(id=>loserIds.includes(id))){
       p.contactIds=[...new Set(p.contactIds.map(id=>loserIds.includes(id)?masterObj.id:id))];
@@ -3939,9 +4115,27 @@ function confirmContactMerge(){
     if(loserIds.includes(p.contactId)){ p.contactId=masterObj.id; p.contactName=masterObj.name; }
   });
 
-  D.contacts=D.contacts.filter(c=>!loserIds.includes(c.id));
+  D.contacts=D.contacts.filter(c=>!loserIds.some(id=>String(id)===String(c.id)));
+  loserIds.forEach(id=>_localDeletedIds.add(String(id)));
 
-  saveData();
+  if(masterInD){
+    saveData(); // ya está cargado — sigue el flujo normal de sync
+  } else if(DRIVE_SYNC_URL){
+    // El contacto resultante no está en el pipeline — se guarda directo en Supabase, sin forzar su activación
+    try{
+      await fetch(DRIVE_SYNC_URL+'/data',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contacts:[masterObj],studios:[],projects:[],_savedAt:Date.now()+30000})});
+    }catch(e){ console.warn('No se pudo guardar el contacto fusionado:',e.message); }
+    saveData(); // por si algún proyecto/tarea/actividad local sí cambió
+  }
+
+  // Borrar los duplicados de Supabase (existan o no en D.contacts)
+  if(DRIVE_SYNC_URL){
+    loserIds.forEach(id=>{
+      fetch(DRIVE_SYNC_URL+'/contact/'+encodeURIComponent(String(id)),{method:'DELETE'}).catch(()=>{});
+    });
+  }
+
   closeM('modal-merge-contacts');
   _mergeContactsC=[];
   renderCKanban();renderCTable();
@@ -3949,6 +4143,7 @@ function confirmContactMerge(){
     const lastBy=$('dup-results').dataset.lastBy||'name';
     findDuplicates(lastBy);
   }
+  if(S.curView==='database-view') renderDatabaseView(false);
   toast(`✅ ${loserIds.length+1} contactos fusionados en "${masterObj.name}"`);
 }
 
@@ -3980,6 +4175,12 @@ function openStudioMergeFromSelection(){
 function openStudioMerge(ids){
   if(!ME||ME.role!=='admin'){toast('Solo un administrador puede fusionar estudios','⚠️');return;}
   const studios=ids.map(id=>D.studios.find(s=>s.id===id)).filter(Boolean);
+  openStudioMergeAny(studios);
+}
+
+// Punto de entrada genérico: acepta objetos completos, estén o no ya cargados en D.studios
+function openStudioMergeAny(studios){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede fusionar estudios','⚠️');return;}
   if(studios.length<2){toast('Selecciona al menos 2 estudios','⚠️');return;}
   if(studios.length>5){toast('Máximo 5 estudios a la vez','⚠️');return;}
   _mergeStudiosS=studios;
@@ -4045,17 +4246,18 @@ function mergePickStudioField(k,ci){
   setTimeout(()=>inp.style.background='',500);
 }
 
-function confirmStudioMerge(){
+async function confirmStudioMerge(){
   if(!ME||ME.role!=='admin') return;
   if(_mergeStudiosS.length<2) return;
   const base=_mergeStudiosS[0];
   const loserIds=_mergeStudiosS.slice(1).map(s=>s.id);
   const loserNames=_mergeStudiosS.slice(1).map(s=>s.name).join(', ');
-  const archCount=(D.contacts||[]).filter(c=>loserIds.includes(c.studioId)).length;
-  if(!confirm(`Se fusionarán ${_mergeStudiosS.length} estudios en "${base.name}".\n\nSe eliminarán: ${loserNames}\n${archCount} arquitecto${archCount!==1?'s':''} vinculado${archCount!==1?'s':''} se reasignará${archCount!==1?'n':''} a "${base.name}".\n\n¿Continuar?`)) return;
+  const archCount=(D.contacts||[]).filter(c=>loserIds.some(id=>String(id)===String(c.studioId))).length;
+  if(!confirm(`Se fusionarán ${_mergeStudiosS.length} estudios en "${base.name}".\n\nSe eliminarán: ${loserNames}\nLos arquitectos vinculados (activos o no) se reasignarán a "${base.name}".\n\n¿Continuar?`)) return;
 
-  const masterObj=D.studios.find(s=>s.id===base.id);
-  if(!masterObj){toast('Estudio base no encontrado','⚠️');return;}
+  let masterObj=D.studios.find(s=>String(s.id)===String(base.id));
+  const masterInD=!!masterObj;
+  if(!masterObj) masterObj={...base};
 
   MERGE_FIELDS_STUDIO.forEach(f=>{
     const inp=document.getElementById('msm-'+f.k);
@@ -4068,9 +4270,9 @@ function confirmStudioMerge(){
   if(!masterObj.salespeople){ const withSp=_mergeStudiosS.find(s=>s.salespeople); if(withSp) masterObj.salespeople=withSp.salespeople; }
   masterObj._updatedAt=Date.now();
 
-  // Reasignar arquitectos vinculados a los estudios que se van a borrar
+  // Reasignar arquitectos vinculados ya cargados localmente
   (D.contacts||[]).forEach(c=>{
-    if(loserIds.includes(c.studioId)) c.studioId=masterObj.id;
+    if(loserIds.some(id=>String(id)===String(c.studioId))) c.studioId=masterObj.id;
   });
   // Reasignar tareas ligadas a esos estudios
   (D.adminTasks||[]).forEach(t=>{
@@ -4079,15 +4281,53 @@ function confirmStudioMerge(){
     }
   });
 
-  D.studios=D.studios.filter(s=>!loserIds.includes(s.id));
+  D.studios=D.studios.filter(s=>!loserIds.some(id=>String(id)===String(s.id)));
 
-  saveData();
+  // Reasignar en Supabase los arquitectos vinculados que NO están cargados localmente
+  // (para que no se queden huérfanos cuando se borre el estudio duplicado)
+  if(DRIVE_SYNC_URL){
+    try{
+      const orExpr=loserIds.map(id=>`data->>studioId.eq.${id}`).join(',');
+      const res=await fetch(`${SUPABASE_URL}/rest/v1/crm_contacts?select=data&or=(${orExpr})`,{headers:SB_HEADERS});
+      if(res.ok){
+        const rows=await res.json();
+        const toFix=rows.map(r=>r.data).filter(c=>!D.contacts.some(lc=>String(lc.id)===String(c.id)));
+        if(toFix.length){
+          const fixed=toFix.map(c=>({...c,studioId:masterObj.id,_updatedAt:Date.now()}));
+          await fetch(DRIVE_SYNC_URL+'/data',{method:'POST',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({contacts:fixed,studios:[],projects:[],_savedAt:Date.now()+30000})});
+        }
+      }
+    }catch(e){ console.warn('No se pudieron reasignar todos los arquitectos del estudio:',e.message); }
+  }
+
+  if(masterInD){
+    saveData();
+  } else if(DRIVE_SYNC_URL){
+    try{
+      await fetch(DRIVE_SYNC_URL+'/data',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contacts:[],studios:[masterObj],projects:[],_savedAt:Date.now()+30000})});
+    }catch(e){ console.warn('No se pudo guardar el estudio fusionado:',e.message); }
+    saveData();
+  }
+
+  // Borrar los estudios duplicados — ya no tienen arquitectos apuntándoles, así que es seguro
+  if(DRIVE_SYNC_URL){
+    for(const id of loserIds){
+      try{ await fetch(DRIVE_SYNC_URL+'/studio/'+encodeURIComponent(String(id)),{method:'DELETE'}); }catch(e){}
+    }
+  }
+
   closeM('modal-merge-studios');
   _mergeStudiosS=[];
   selectedStudios.clear();
   toggleStudiosSelectMode(false);
   renderStudios($('studio-search')?.value||'');
   renderCKanban();renderCTable();
+  if(S.curView==='database-view'){
+    renderDatabaseView(false);
+    renderDatabaseStudiosView(false);
+  }
   toast(`✅ ${loserIds.length+1} estudios fusionados en "${masterObj.name}"`);
 }
 
