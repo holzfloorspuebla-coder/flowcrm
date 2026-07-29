@@ -517,7 +517,7 @@ select.inp{cursor:pointer;}
         <div class="bulk-bar" id="studios-bulk-bar">
           <input type="checkbox" class="sel-cb" id="studios-select-all" onchange="toggleSelectAllStudios(this.checked)" title="Seleccionar todos">
           <span class="bulk-bar-count" id="studios-sel-count">0 seleccionados</span>
-          <button class="btn btn-red btn-sm" onclick="deleteSelectedStudios()">🗑️ Eliminar seleccionados</button>
+          <button class="btn btn-red btn-sm" id="studios-delete-btn" onclick="deleteSelectedStudios()" style="display:none">🗑️ Eliminar seleccionados</button>
           <button class="btn btn-primary btn-sm" id="studios-merge-btn" onclick="openStudioMergeFromSelection()" style="display:none">🔀 Fusionar seleccionados</button>
           <button class="btn btn-sm" id="tracker-send-btn" style="display:none;background:#1a56db;color:#fff;border:none;font-weight:500" onclick="openSendTracker()">🛰 Enviar al Tracker</button>
           <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="toggleStudiosSelectMode(false)">✕ Cancelar</button>
@@ -1727,6 +1727,7 @@ let _syncTimer=null;
 let _isSyncing=false;
 const _localDeletedIds=new Set(); // IDs borrados localmente — ignorar en merge remoto
 const _localDeletedTaskIds=new Set(); // Tareas borradas localmente — ignorar en merge remoto
+const _localDeletedStudioIds=new Set(); // Estudios borrados localmente — ignorar en merge remoto
 async function pushToDrive(){
   _syncTimer=null;
   _isSyncing=true;
@@ -2057,6 +2058,7 @@ async function loadFromDrive(silent=false){
           const remoteStudioMap=new Map(remote.studios.map(s=>[s.id,s]));
           // Agregar o actualizar estudios del remoto
           remote.studios.forEach(rs=>{
+            if(_localDeletedStudioIds.has(String(rs.id))) return; // ignorar estudios borrados localmente
             const ls=localMap.get(rs.id);
             if(!ls){(D.studios=D.studios||[]).push(rs);mergeChanged=true;}
             else{
@@ -4311,11 +4313,14 @@ function findDuplicates(by){
 }
 
 function deleteDupContact(id, groupKey){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede eliminar contactos','⚠️');return;}
   if(!confirm('¿Eliminar este contacto? Esta acción no se puede deshacer.')) return;
   const idx=D.contacts.findIndex(c=>c.id===id);
   if(idx===-1){toast('Contacto no encontrado','⚠️');return;}
+  _localDeletedIds.add(String(id));
   D.contacts.splice(idx,1);
   saveData();
+  if(DRIVE_SYNC_URL) fetch(DRIVE_SYNC_URL+'/contact/'+encodeURIComponent(String(id)),{method:'DELETE'}).catch(()=>{});
   // Refresh duplicate view
   const lastBy = $('dup-results').dataset.lastBy || 'name';
   findDuplicates(lastBy);
@@ -4859,6 +4864,8 @@ function updateSidebarUser(){
   if(contactsMergeBtn) contactsMergeBtn.style.display=(ME&&ME.role==='admin')?'':'none';
   const studiosMergeBtn=document.getElementById('studios-merge-btn');
   if(studiosMergeBtn) studiosMergeBtn.style.display=(ME&&ME.role==='admin')?'':'none';
+  const studiosDeleteBtn=document.getElementById('studios-delete-btn');
+  if(studiosDeleteBtn) studiosDeleteBtn.style.display=(ME&&ME.role==='admin')?'':'none';
   const av=$('sb-user-av');
   av.style.cssText=`width:30px;height:30px;font-size:13px;background:${ME.color}22;color:${ME.color}`;
   av.textContent=ME.name[0];
@@ -7682,12 +7689,16 @@ function saveStudio(){
   }
 }
 function deleteStudio(id){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede eliminar estudios','⚠️');return;}
   const archs=D.contacts.filter(c=>c.studioId===id);
   const msg=archs.length?`Este estudio tiene ${archs.length} arquitecto(s). ¿Eliminar? Quedarán sin estudio.`:'¿Eliminar este estudio?';
   if(!confirm(msg))return;
+  _localDeletedStudioIds.add(String(id));
   D.studios=(D.studios||[]).filter(s=>s.id!==id);
   D.contacts.forEach(c=>{if(c.studioId===id)c.studioId=null;});
-  saveData();goView('studios-view');toast('Estudio eliminado');
+  saveData();
+  if(DRIVE_SYNC_URL) fetch(DRIVE_SYNC_URL+'/studio/'+encodeURIComponent(String(id)),{method:'DELETE'}).catch(()=>{});
+  goView('studios-view');toast('Estudio eliminado');
 }
 function openArchitectModal(studioId,editId){
   S.editArchId=editId||null;S.cTags=[];S.archStudioId=studioId;
@@ -8678,6 +8689,7 @@ function updateStudioSelCount(){
 }
 
 function deleteSelectedStudios(){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede eliminar estudios','⚠️');return;}
   const n=selectedStudios.size;
   if(!n){toast('Selecciona al menos un estudio','⚠️');return;}
   const withArchs=[...selectedStudios].filter(id=>D.contacts.some(c=>c.studioId===id));
@@ -8685,12 +8697,19 @@ function deleteSelectedStudios(){
     ?`¿Eliminar ${n} estudio${n!==1?'s':''}? ${withArchs.length} de ellos tienen arquitectos vinculados que quedarán sin estudio.`
     :`¿Eliminar ${n} estudio${n!==1?'s':''}?`;
   if(!confirm(msg))return;
-  [...selectedStudios].forEach(id=>{
+  const idsToDelete=[...selectedStudios];
+  idsToDelete.forEach(id=>{
+    _localDeletedStudioIds.add(String(id));
     D.studios=(D.studios||[]).filter(s=>s.id!==id);
     D.contacts.forEach(c=>{if(c.studioId===id)c.studioId=null;});
   });
   selectedStudios.clear();
   saveData();
+  if(DRIVE_SYNC_URL){
+    idsToDelete.forEach(id=>{
+      fetch(DRIVE_SYNC_URL+'/studio/'+encodeURIComponent(String(id)),{method:'DELETE'}).catch(()=>{});
+    });
+  }
   toggleStudiosSelectMode(false);
   toast(`🗑️ ${n} estudio${n!==1?'s':''} eliminado${n!==1?'s':''}`);
 }
@@ -8792,12 +8811,19 @@ function deleteSelectedContacts(){
     ?`¿Eliminar ${n} contacto${n!==1?'s':''}? ${withProjs.length} tienen proyectos vinculados (los proyectos no se eliminarán).`
     :`¿Eliminar ${n} contacto${n!==1?'s':''}?`;
   if(!confirm(msg))return;
-  [...sel].forEach(id=>{
+  const idsToDelete=[...sel];
+  idsToDelete.forEach(id=>{
+    _localDeletedIds.add(String(id));
     D.contacts=D.contacts.filter(c=>c.id!==id);
     D.projects.forEach(p=>{p.contactIds=(p.contactIds||[]).filter(x=>x!==id);});
   });
   S.selectedContacts=new Set();
   saveData();
+  if(DRIVE_SYNC_URL){
+    idsToDelete.forEach(id=>{
+      fetch(DRIVE_SYNC_URL+'/contact/'+encodeURIComponent(String(id)),{method:'DELETE'}).catch(()=>{});
+    });
+  }
   toggleContactsSelectMode(false);
   renderCKanban();
   toast(`🗑️ ${n} contacto${n!==1?'s':''} eliminado${n!==1?'s':''}`);
