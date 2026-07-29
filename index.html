@@ -649,6 +649,7 @@ select.inp{cursor:pointer;}
         <div class="toolbar" style="padding:10px 22px 0">
           <input class="inp" id="db-search-inp" placeholder="🔍 Buscar por nombre, estudio, email, teléfono, ciudad, estado..." style="flex:1;max-width:460px" oninput="dbSearchInput()">
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <button class="btn btn-ghost btn-sm" onclick="openDatabaseDuplicateFinder()">🔍🔀 Buscar duplicados</button>
             <span style="font-size:13px;color:var(--text2)" id="db-count-label">—</span>
           </div>
         </div>
@@ -785,6 +786,25 @@ select.inp{cursor:pointer;}
         <div class="modal-ft">
           <button class="btn btn-ghost" onclick="closeM('modal-merge-contacts')">Cancelar</button>
           <button class="btn btn-primary" onclick="confirmContactMerge()">🔀 Fusionar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: DUPLICADOS EN TODA LA BASE DE DATOS -->
+    <div class="overlay hidden" id="modal-db-duplicates">
+      <div class="modal wide" style="max-height:85vh;overflow-y:auto">
+        <div class="modal-hd"><h2>🔍🔀 Buscar duplicados en toda la base</h2><button class="modal-close" onclick="closeM('modal-db-duplicates')">✕</button></div>
+        <div style="padding:0 0 12px">
+          <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center">
+            <span style="font-size:12px;color:var(--text3)">Buscar por:</span>
+            <button class="btn btn-primary btn-sm" onclick="findDatabaseDuplicates('name')">Nombre similar</button>
+            <button class="btn btn-primary btn-sm" onclick="findDatabaseDuplicates('phone')">Teléfono</button>
+            <button class="btn btn-primary btn-sm" onclick="findDatabaseDuplicates('email')">Email</button>
+            <button class="btn btn-ghost btn-sm" onclick="findDatabaseDuplicates('both')">Tel + Email</button>
+            <span id="db-dup-summary" style="font-size:12px;color:var(--text3);margin-left:auto"></span>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Analiza los contactos completos de la base (estén o no en el pipeline), no solo los cargados en esta página.</div>
+          <div id="db-dup-results" style="max-height:60vh;overflow-y:auto;padding-right:4px"></div>
         </div>
       </div>
     </div>
@@ -1144,6 +1164,7 @@ select.inp{cursor:pointer;}
         <div class="fg"><label class="lbl">Vendedor asignado</label><select class="inp" id="c-agent"></select></div>
         <div class="fg"><label class="lbl">Pipeline</label>
           <select class="inp" id="c-stage">
+            <option value="">— Sin activar (no en pipeline) —</option>
             <option value="c-lead">Lead captado</option>
             <option value="c-msg1">Contactado · Mensaje 1</option>
             <option value="c-msg2">Contactado · Mensaje 2</option>
@@ -2946,7 +2967,7 @@ async function renderDatabaseView(resetPage){
         const inPipe=!!c.stage;
         return `<tr>
           <td><input type="checkbox" class="sel-cb" data-db-id="${idStr}" ${checked?'checked':''} onchange="dbToggleSel('${idStr.replace(/'/g,"\\'")}',this.checked)"></td>
-          <td>${esc(c.name||'—')}</td>
+          <td><span onclick="dbOpenContact('${idStr.replace(/'/g,"\\'")}')" style="cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px">${esc(c.name||'—')}</span></td>
           <td>${esc(c.studio||'—')}</td>
           <td>${esc(c.city||'—')}</td>
           <td>${esc(c.phone||'—')}</td>
@@ -3080,6 +3101,112 @@ function dbMergeSelectedContacts(){
   if(rows.length<2){toast('Selecciona al menos 2 contactos','⚠️');return;}
   if(rows.length>5){toast('Máximo 5 contactos a la vez','⚠️');return;}
   openContactMergeAny(rows);
+}
+
+// Abre la ficha de edición de un contacto encontrado en Base de datos, esté o no ya activado en el pipeline
+function dbOpenContact(idStr){
+  if(!ME||ME.role!=='admin') return;
+  const row=(_dbCurrentRows||[]).find(c=>String(c.id)===idStr);
+  if(!row){toast('Contacto no encontrado en esta página','⚠️');return;}
+  let local=D.contacts.find(x=>String(x.id)===idStr);
+  if(!local){
+    local={...row};
+    D.contacts.push(local);
+  }
+  openContactModal(null,local.id);
+}
+
+// ── Buscador de duplicados sobre TODA la base (no solo lo cargado en la página actual) ──
+function openDatabaseDuplicateFinder(){
+  if(!ME||ME.role!=='admin') return;
+  $('modal-db-duplicates').classList.remove('hidden');
+  $('db-dup-results').innerHTML='<div style="color:var(--text3);font-size:13px">Selecciona un criterio para buscar duplicados en toda la base.</div>';
+  $('db-dup-summary').textContent='';
+}
+
+async function findDatabaseDuplicates(by){
+  const el=$('db-dup-results');
+  const sumEl=$('db-dup-summary');
+  el.innerHTML='<div style="padding:20px;color:var(--text3);font-size:13px">Analizando toda la base de datos, puede tardar unos segundos...</div>';
+  sumEl.textContent='';
+  try{
+    const rows=await sbFetchAll('crm_contacts','id:data->>id,name:data->>name,email:data->>email,phone:data->>phone,whatsapp:data->>whatsapp,studio:data->>studio,stage:data->>stage');
+    const groups={};
+    if(by==='name'){
+      rows.forEach(c=>{
+        const key='n:'+norm(c.name||'').replace(/\s+/g,'');
+        if(key==='n:') return;
+        (groups[key]=groups[key]||[]).push(c);
+      });
+    } else {
+      rows.forEach(c=>{
+        const keys=[];
+        if(by==='phone'||by==='both'){
+          const normP=p=>{ let d=(p||'').replace(/\D/g,'');
+            if(d.length===13&&d.startsWith('521'))d=d.slice(3);
+            else if(d.length===12&&d.startsWith('52'))d=d.slice(2);
+            else if(d.length===11&&d.startsWith('1'))d=d.slice(1);
+            return d; };
+          const p=normP(c.phone||''); if(p.length>=7) keys.push('p:'+p);
+          const w=normP(c.whatsapp||''); if(w.length>=7&&w!==p) keys.push('p:'+w);
+        }
+        if(by==='email'||by==='both'){
+          const e=(c.email||'').toLowerCase().trim();
+          if(e) keys.push('e:'+e);
+        }
+        keys.forEach(k=>(groups[k]=groups[k]||[]).push(c));
+      });
+    }
+    const dups=Object.entries(groups).filter(([k,arr])=>arr.length>1);
+    if(!dups.length){
+      el.innerHTML='<div style="color:var(--green);font-size:14px;padding:16px 0">✓ No se encontraron duplicados</div>';
+      return;
+    }
+    const totalDups=dups.reduce((a,[,arr])=>a+arr.length-1,0);
+    sumEl.textContent=`${dups.length} grupo${dups.length!==1?'s':''} · ${totalDups} contacto${totalDups!==1?'s':''} extra${dups.length>150?' (mostrando los primeros 150 grupos)':''}`;
+    el.innerHTML=dups.slice(0,150).map(([key,arr])=>{
+      const tipo=key.startsWith('p:')?'Teléfono':key.startsWith('e:')?'Email':'Nombre';
+      const valor=key.slice(2);
+      const groupKey2=key.replace(/[^a-z0-9]/gi,'_');
+      window['_dbDupGroup_'+groupKey2]=arr.map(c=>c.id);
+      return `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span>${tipo}: ${esc(valor)}</span>
+          <span style="color:var(--text3);font-weight:400">${arr.length} contactos</span>
+          <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openMergeFromDbDupGroup('${groupKey2}')">🔀 Fusionar seleccionados</button>
+        </div>
+        ${arr.map((c,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-top:1px solid var(--border)">
+          <input type="checkbox" class="sel-cb" id="dbdcb-${groupKey2}-${i}" checked>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px">${esc(c.name||'(sin nombre)')}</div>
+            <div style="font-size:11px;color:var(--text3)">${esc(c.studio||'—')} · ${esc(c.phone||c.whatsapp||'—')} · ${esc(c.email||'—')} ${c.stage?'· <span style="color:var(--green)">En pipeline</span>':'· Sin activar'}</div>
+          </div>
+        </div>`).join('')}
+      </div>`;
+    }).join('');
+  }catch(e){
+    el.innerHTML=`<div style="color:var(--red);font-size:13px">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+async function openMergeFromDbDupGroup(groupKey2){
+  const allIds=window['_dbDupGroup_'+groupKey2]||[];
+  const checked=allIds.filter((id,i)=>{
+    const cb=document.getElementById(`dbdcb-${groupKey2}-${i}`);
+    return cb&&cb.checked;
+  });
+  if(checked.length<2){toast('Selecciona al menos 2 para fusionar','⚠️');return;}
+  if(checked.length>5){toast('Máximo 5 a la vez','⚠️');return;}
+  try{
+    const idsList=checked.map(id=>encodeURIComponent(String(id))).join(',');
+    const res=await fetch(`${SUPABASE_URL}/rest/v1/crm_contacts?id=in.(${idsList})&select=data`,{headers:SB_HEADERS});
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const rows=await res.json();
+    const full=rows.map(r=>r.data);
+    if(full.length<2){toast('No se pudieron cargar los contactos completos','⚠️');return;}
+    closeM('modal-db-duplicates');
+    openContactMergeAny(full);
+  }catch(e){ toast('Error cargando los contactos: '+e.message,'⚠️'); }
 }
 
 // ── ESTUDIOS ──
@@ -4033,6 +4160,74 @@ function renderContactMergeFields(){
   });
   html+=`<div style="background:rgba(230,51,41,.06);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent);font-weight:700;color:var(--accent);font-size:11px">RESULTADO</div>`;
 
+  // ── Campos de clasificación (tipo, etapa, vendedor, estudio, segmento) — con selects para no perder integridad ──
+  const contactTypes=D.contactTypes||['Arquitecto','Constructora'];
+  const bestType=contacts.map(c=>c.type).find(Boolean)||contactTypes[0];
+  html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">Tipo</div>`;
+  contacts.forEach((c,ci)=>{
+    html+=`<div onclick="mergePickType(${ci})" style="padding:7px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--surface);cursor:pointer;word-break:break-word" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">${esc(c.type||'—')}</div>`;
+  });
+  html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)">
+    <select id="mcm-type" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box">
+      ${contactTypes.map(t=>`<option value="${esc(t)}" ${t===bestType?'selected':''}>${esc(t)}</option>`).join('')}
+    </select></div>`;
+
+  const bestStage=contacts.map(c=>c.stage).find(Boolean)||'';
+  html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">Etapa</div>`;
+  contacts.forEach((c,ci)=>{
+    const st=C_STAGES.find(s=>s.id===c.stage);
+    html+=`<div onclick="mergePickStage(${ci})" style="padding:7px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--surface);cursor:pointer;word-break:break-word" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">${esc(st?.name||c.stage||'— Sin activar —')}</div>`;
+  });
+  html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)">
+    <select id="mcm-stage" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box">
+      <option value="">— Sin activar —</option>
+      ${C_STAGES.map(s=>`<option value="${s.id}" ${s.id===bestStage?'selected':''}>${s.name}</option>`).join('')}
+    </select></div>`;
+
+  const bestAgent=contacts.map(c=>_dbResolveAgentSafe(c)).find(Boolean)||ME.id;
+  html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">Vendedor</div>`;
+  contacts.forEach((c,ci)=>{
+    const ag=USERS.find(u=>u.id===_dbResolveAgentSafe(c));
+    html+=`<div onclick="mergePickAgent(${ci})" style="padding:7px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--surface);cursor:pointer;word-break:break-word" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">${esc(ag?.name||String(c.agent||'—'))}</div>`;
+  });
+  html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)">
+    <select id="mcm-agent" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box">
+      ${USERS.map(u=>`<option value="${u.id}" ${u.id===bestAgent?'selected':''}>${esc(u.name)}</option>`).join('')}
+    </select></div>`;
+
+  const studioOptsMap=new Map();
+  contacts.forEach(c=>{
+    if(!c.studioId) return;
+    const st=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
+    studioOptsMap.set(String(c.studioId),{id:c.studioId,name:st?.name||c.studio||`Estudio #${c.studioId}`});
+  });
+  const bestStudioId=contacts.map(c=>c.studioId).find(Boolean)||'';
+  html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">Estudio</div>`;
+  contacts.forEach((c,ci)=>{
+    const st=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
+    html+=`<div onclick="mergePickStudio(${ci})" style="padding:7px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--surface);cursor:pointer;word-break:break-word" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">${esc(st?.name||c.studio||(c.studioId?'Estudio #'+c.studioId:'— Sin estudio —'))}</div>`;
+  });
+  html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)">
+    <select id="mcm-studioId" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box">
+      <option value="">— Sin estudio —</option>
+      ${[...studioOptsMap.values()].map(s=>`<option value="${s.id}" ${String(s.id)===String(bestStudioId)?'selected':''}>${esc(s.name)}</option>`).join('')}
+    </select>
+    <div style="font-size:10px;color:var(--text3);margin-top:3px">Solo estudios ya vinculados a estos contactos. Para vincular otro, hazlo después desde "Editar contacto".</div>
+  </div>`;
+
+  const segs=D.segments||DEFAULT_SEGMENTS;
+  const bestSegment=contacts.map(c=>c.segment).find(Boolean)||'';
+  html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">Segmento</div>`;
+  contacts.forEach((c,ci)=>{
+    const sg=segs.find(s=>s.id===c.segment);
+    html+=`<div onclick="mergePickSegment(${ci})" style="padding:7px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--surface);cursor:pointer;word-break:break-word" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">${sg?esc(sg.icon+' '+sg.label):'—'}</div>`;
+  });
+  html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)">
+    <select id="mcm-segment" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box">
+      <option value="">— Sin segmento —</option>
+      ${segs.map(s=>`<option value="${s.id}" ${s.id===bestSegment?'selected':''}>${s.icon} ${esc(s.label)}</option>`).join('')}
+    </select></div>`;
+
   MERGE_FIELDS_CONTACT.forEach(f=>{
     const vals=contacts.map(c=>c[f.k]||'');
     html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">${f.label}</div>`;
@@ -4055,15 +4250,43 @@ function renderContactMergeFields(){
   });
   html+='</div>';
 
-  const base=contacts[0];
-  const baseAg=USERS.find(u=>u.id===base.agent);
-  const baseSt=C_STAGES.find(s=>s.id===base.stage);
-  const baseStudio=(D.studios||[]).find(s=>s.id===base.studioId);
   html+=`<div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--text3)">
-    <strong style="color:var(--text2)">Se conservan de "${esc(base.name)}"</strong> (el primero de la lista): tipo (${esc(base.type||'—')}), etapa (${esc(baseSt?.name||base.stage||'—')}), vendedor (${esc(baseAg?.name||'—')}), estudio (${esc(baseStudio?.name||'—')}), segmento y tags. Si algo de esto no es lo que quieres, ajústalo después desde "Editar contacto".
+    Los tags de todos los contactos seleccionados se combinan automáticamente (sin duplicados).
   </div>`;
 
   $('merge-contacts-fields').innerHTML=html;
+}
+
+// Como _dbResolveAgent puede no existir todavía si Base de datos no se ha usado, envolvemos con fallback seguro
+function _dbResolveAgentSafe(c){
+  if(typeof _dbResolveAgent==='function') return _dbResolveAgent(c);
+  return (typeof c.agent==='number'&&USERS.find(u=>u.id===c.agent))?c.agent:ME.id;
+}
+
+function mergePickType(ci){
+  const c=_mergeContactsC[ci];
+  const sel=document.getElementById('mcm-type');
+  if(sel&&c.type) sel.value=c.type;
+}
+function mergePickStage(ci){
+  const c=_mergeContactsC[ci];
+  const sel=document.getElementById('mcm-stage');
+  if(sel) sel.value=c.stage||'';
+}
+function mergePickAgent(ci){
+  const c=_mergeContactsC[ci];
+  const sel=document.getElementById('mcm-agent');
+  if(sel) sel.value=_dbResolveAgentSafe(c);
+}
+function mergePickStudio(ci){
+  const c=_mergeContactsC[ci];
+  const sel=document.getElementById('mcm-studioId');
+  if(sel&&c.studioId) sel.value=c.studioId;
+}
+function mergePickSegment(ci){
+  const c=_mergeContactsC[ci];
+  const sel=document.getElementById('mcm-segment');
+  if(sel) sel.value=c.segment||'';
 }
 
 function mergePickContactField(k,ci){
@@ -4093,6 +4316,13 @@ async function confirmContactMerge(){
     const inp=document.getElementById('mcm-'+f.k);
     if(inp) masterObj[f.k]=inp.value.trim();
   });
+  // Campos de clasificación elegidos explícitamente en el modal (ya no se heredan en silencio)
+  const typeSel=document.getElementById('mcm-type'); if(typeSel) masterObj.type=typeSel.value;
+  const stageSel=document.getElementById('mcm-stage'); if(stageSel) masterObj.stage=stageSel.value||null;
+  const agentSel=document.getElementById('mcm-agent'); if(agentSel) masterObj.agent=parseInt(agentSel.value);
+  const studioSel=document.getElementById('mcm-studioId'); if(studioSel) masterObj.studioId=studioSel.value?parseInt(studioSel.value):null;
+  const segSel=document.getElementById('mcm-segment'); if(segSel) masterObj.segment=segSel.value||'';
+  masterObj.inPipeline=!!masterObj.stage;
   masterObj.tags=[...new Set(_mergeContactsC.flatMap(c=>c.tags||[]))];
   masterObj._updatedAt=Date.now();
 
@@ -4118,10 +4348,16 @@ async function confirmContactMerge(){
   D.contacts=D.contacts.filter(c=>!loserIds.some(id=>String(id)===String(c.id)));
   loserIds.forEach(id=>_localDeletedIds.add(String(id)));
 
-  if(masterInD){
-    saveData(); // ya está cargado — sigue el flujo normal de sync
+  // Si en el modal se le puso etapa a un contacto que aún no estaba cargado localmente,
+  // ahora sí queda activado — se agrega a D.contacts para que aparezca de inmediato en Contactos
+  if(!masterInD && masterObj.stage){
+    D.contacts.push(masterObj);
+  }
+
+  if(masterInD || masterObj.stage){
+    saveData(); // ya está cargado (o recién activado) — sigue el flujo normal de sync
   } else if(DRIVE_SYNC_URL){
-    // El contacto resultante no está en el pipeline — se guarda directo en Supabase, sin forzar su activación
+    // El contacto resultante sigue sin etapa — se guarda directo en Supabase, sin forzar su activación
     try{
       await fetch(DRIVE_SYNC_URL+'/data',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({contacts:[masterObj],studios:[],projects:[],_savedAt:Date.now()+30000})});
@@ -4162,6 +4398,7 @@ const MERGE_FIELDS_STUDIO=[
   {k:'web',label:'Web'},
   {k:'instagram',label:'Instagram'},
   {k:'linkedin',label:'LinkedIn'},
+  {k:'priceList',label:'Lista de precio'},
   {k:'notes',label:'Notas'},
 ];
 
@@ -4203,6 +4440,31 @@ function renderStudioMergeFields(){
   });
   html+=`<div style="background:rgba(230,51,41,.06);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent);font-weight:700;color:var(--accent);font-size:11px">RESULTADO</div>`;
 
+  // ── Vendedor y segmento — con selects para no perder integridad ──
+  const bestSAgent=studios.map(s=>s.agent).find(v=>typeof v==='number')||ME.id;
+  html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">Vendedor</div>`;
+  studios.forEach((s,ci)=>{
+    const ag=USERS.find(u=>u.id===s.agent);
+    html+=`<div onclick="mergePickStudioAgent(${ci})" style="padding:7px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--surface);cursor:pointer;word-break:break-word" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">${esc(ag?.name||'—')}</div>`;
+  });
+  html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)">
+    <select id="msm-agent" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box">
+      ${USERS.map(u=>`<option value="${u.id}" ${u.id===bestSAgent?'selected':''}>${esc(u.name)}</option>`).join('')}
+    </select></div>`;
+
+  const sSegs=D.segments||DEFAULT_SEGMENTS;
+  const bestSSegment=studios.map(s=>s.segment).find(Boolean)||'';
+  html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">Segmento</div>`;
+  studios.forEach((s,ci)=>{
+    const sg=sSegs.find(x=>x.id===s.segment);
+    html+=`<div onclick="mergePickStudioSegment(${ci})" style="padding:7px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--surface);cursor:pointer;word-break:break-word" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">${sg?esc(sg.icon+' '+sg.label):'—'}</div>`;
+  });
+  html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)">
+    <select id="msm-segment" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box">
+      <option value="">— Sin segmento —</option>
+      ${sSegs.map(x=>`<option value="${x.id}" ${x.id===bestSSegment?'selected':''}>${x.icon} ${esc(x.label)}</option>`).join('')}
+    </select></div>`;
+
   MERGE_FIELDS_STUDIO.forEach(f=>{
     const vals=studios.map(s=>s[f.k]||'');
     html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">${f.label}</div>`;
@@ -4225,14 +4487,23 @@ function renderStudioMergeFields(){
   });
   html+='</div>';
 
-  const base=studios[0];
-  const baseAg=USERS.find(u=>u.id===base.agent);
   const totalArchs=studios.reduce((sum,s)=>sum+(D.contacts||[]).filter(c=>c.studioId===s.id).length,0);
   html+=`<div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--text3)">
-    <strong style="color:var(--text2)">Se conservan de "${esc(base.name)}"</strong> (el primero de la lista): vendedor (${esc(baseAg?.name||'—')}), segmento y lista de precio. La clasificación del Tracker (país/tipo) se conserva del primero que la tenga. Los ${totalArchs} arquitecto${totalArchs!==1?'s':''} vinculado${totalArchs!==1?'s':''} a estos estudios quedarán vinculados a "${esc(base.name)}".
+    La clasificación del Tracker (país/tipo/stock/vendedores) se conserva del primero que la tenga. Los ${totalArchs} arquitecto${totalArchs!==1?'s':''} vinculado${totalArchs!==1?'s':''} a estos estudios (estén o no activados) quedarán vinculados al estudio resultante.
   </div>`;
 
   $('merge-studios-fields').innerHTML=html;
+}
+
+function mergePickStudioAgent(ci){
+  const s=_mergeStudiosS[ci];
+  const sel=document.getElementById('msm-agent');
+  if(sel&&typeof s.agent==='number') sel.value=s.agent;
+}
+function mergePickStudioSegment(ci){
+  const s=_mergeStudiosS[ci];
+  const sel=document.getElementById('msm-segment');
+  if(sel) sel.value=s.segment||'';
 }
 
 function mergePickStudioField(k,ci){
@@ -4263,6 +4534,8 @@ async function confirmStudioMerge(){
     const inp=document.getElementById('msm-'+f.k);
     if(inp) masterObj[f.k]=inp.value.trim();
   });
+  const sAgentSel=document.getElementById('msm-agent'); if(sAgentSel) masterObj.agent=parseInt(sAgentSel.value);
+  const sSegSel=document.getElementById('msm-segment'); if(sSegSel) masterObj.segment=sSegSel.value||'';
   // Preservar clasificación del Tracker si el base no la tiene pero algún duplicado sí
   if(!masterObj.country){ const withC=_mergeStudiosS.find(s=>s.country); if(withC) masterObj.country=withC.country; }
   if(!masterObj.client_type){ const withT=_mergeStudiosS.find(s=>s.client_type); if(withT) masterObj.client_type=withT.client_type; }
@@ -5721,6 +5994,7 @@ function saveContact(){
       if(sWhatsapp) studio.whatsapp=sWhatsapp;
     }
   }
+  const stageVal=$('c-stage').value||(S.editCId?null:'c-lead');
   const obj={
     name,
     mailingName:$('c-mailing-name').value.trim(),
@@ -5744,7 +6018,8 @@ function saveContact(){
     segment:$('c-segment').value,
     type:ctype,
     studioId:studioId||null,
-    stage:$('c-stage').value||'c-lead',
+    stage:stageVal,
+    inPipeline:!!stageVal,
     agent:agentId,
     tags:[...S.cTags],
     notes:$('c-notes').value.trim()
@@ -5757,6 +6032,7 @@ function saveContact(){
       _ec._updatedAt=Date.now();
       saveData();closeM('modal-contact');
       if(S.curView==='profile-view')openProfile(S.editCId);
+      if(S.curView==='database-view')renderDatabaseView(false);
       renderCKanban();renderCTable();toast('Contacto actualizado ✓');
     } else {
       // Vendedor: aplicar local (optimista) + enviar a pendientes
