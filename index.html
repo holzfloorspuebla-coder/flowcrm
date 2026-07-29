@@ -645,7 +645,7 @@ select.inp{cursor:pointer;}
       </div>
 
       <!-- CONTACTOS -->
-      <div id="db-panel-contacts">
+      <div id="db-panel-contacts" style="flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0">
         <div class="toolbar" style="padding:10px 22px 0">
           <input class="inp" id="db-search-inp" placeholder="🔍 Buscar por nombre, estudio, email, teléfono, ciudad, estado..." style="flex:1;max-width:460px" oninput="dbSearchInput()">
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
@@ -657,18 +657,21 @@ select.inp{cursor:pointer;}
           <input type="checkbox" class="sel-cb" id="db-select-all" onchange="dbToggleSelectAllPage(this.checked)" title="Seleccionar todos en esta página">
           <span class="bulk-bar-count" id="db-sel-count">0 seleccionados</span>
           <button class="btn btn-primary btn-sm" onclick="activateSelectedFromDB()">🎯 Activar en pipeline</button>
-          <button class="btn btn-primary btn-sm" onclick="dbMergeSelectedContacts()">🔀 Fusionar seleccionados</button>
+          <button class="btn btn-primary btn-sm" onclick="dbMergeSelectedAny()">🔀 Fusionar seleccionados</button>
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
             <button class="btn btn-ghost btn-sm" id="db-prev-btn" onclick="dbPrevPage()">← Anterior</button>
             <span style="font-size:12px;color:var(--text2)" id="db-page-label">Página 1</span>
             <button class="btn btn-ghost btn-sm" id="db-next-btn" onclick="dbNextPage()">Siguiente →</button>
           </div>
         </div>
-        <div class="table-wrap" id="database-list" style="padding:14px 22px 22px"></div>
+        <div class="table-wrap" style="padding:14px 22px 22px">
+          <div id="database-list"></div>
+          <div id="database-matched-studios" style="display:none"></div>
+        </div>
       </div>
 
       <!-- ESTUDIOS -->
-      <div id="db-panel-studios" style="display:none">
+      <div id="db-panel-studios" style="display:none;flex-direction:column;overflow:hidden;min-height:0;flex:1">
         <div class="toolbar" style="padding:10px 22px 0">
           <input class="inp" id="dbs-search-inp" placeholder="🔍 Buscar por nombre, ciudad, estado, email, teléfono..." style="flex:1;max-width:460px" oninput="dbsSearchInput()">
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
@@ -786,6 +789,27 @@ select.inp{cursor:pointer;}
         <div class="modal-ft">
           <button class="btn btn-ghost" onclick="closeM('modal-merge-contacts')">Cancelar</button>
           <button class="btn btn-primary" onclick="confirmContactMerge()">🔀 Fusionar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: FUSIONAR CONTACTO + ESTUDIO -->
+    <div class="overlay hidden" id="modal-merge-contact-studio">
+      <div class="modal wide" style="max-height:85vh;overflow-y:auto">
+        <div class="modal-hd"><h2>🔀 Fusionar contacto + estudio</h2><button class="modal-close" onclick="closeM('modal-merge-contact-studio')">✕</button></div>
+        <div class="modal-body">
+          <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Elige qué valor conservar para cada campo, y qué hacer con los dos registros.</div>
+          <div id="merge-cs-fields"></div>
+          <div id="merge-cs-saveas" style="margin-top:14px;padding:12px;background:var(--surface2);border-radius:8px">
+            <div style="font-size:11px;font-weight:700;color:var(--text3);margin-bottom:8px">GUARDAR COMO</div>
+            <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px;cursor:pointer"><input type="radio" name="cs-saveas" value="studio" checked style="accent-color:var(--accent)"> 🏛️ Solo estudio <span style="color:var(--text3);font-size:11px">(se elimina el contacto)</span></label>
+            <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px;cursor:pointer"><input type="radio" name="cs-saveas" value="contact" style="accent-color:var(--accent)"> 👤 Solo contacto <span style="color:var(--text3);font-size:11px">(se elimina el estudio)</span></label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="radio" name="cs-saveas" value="both" style="accent-color:var(--accent)"> ✅ Ambos <span style="color:var(--text3);font-size:11px">(se vincula el contacto al estudio)</span></label>
+          </div>
+        </div>
+        <div class="modal-ft">
+          <button class="btn btn-ghost" onclick="closeM('modal-merge-contact-studio')">Cancelar</button>
+          <button class="btn btn-primary" onclick="confirmContactStudioMerge()">🔀 Fusionar</button>
         </div>
       </div>
     </div>
@@ -2916,8 +2940,8 @@ function showDatabaseNav(){
 function dbSwitchTab(tab){
   $('db-tab-contacts').classList.toggle('active',tab==='contacts');
   $('db-tab-studios').classList.toggle('active',tab==='studios');
-  $('db-panel-contacts').style.display=tab==='contacts'?'':'none';
-  $('db-panel-studios').style.display=tab==='studios'?'':'none';
+  $('db-panel-contacts').style.display=tab==='contacts'?'flex':'none';
+  $('db-panel-studios').style.display=tab==='studios'?'flex':'none';
   if(tab==='studios'&&!_dbSCurrentRows.length) renderDatabaseStudiosView(true);
 }
 
@@ -2945,6 +2969,23 @@ async function fetchDatabasePage(){
   const range=res.headers.get('content-range')||'';
   const total=range.includes('/')?parseInt(range.split('/')[1])||0:rows.length;
   return {rows:rows.map(r=>r.data),total};
+}
+
+let _dbMatchedStudios=[];
+let _dbMatchedStudiosSelected=new Map(); // id(String) -> raw studio data — solo para la búsqueda unificada en la pestaña Contactos
+
+async function fetchMatchingStudiosForContactSearch(term){
+  const t=_dbSanitizeTerm(term);
+  if(!t) return [];
+  try{
+    const cols=['name','city','state','email','email2','phone','whatsapp'];
+    const orExpr=cols.map(c=>`data->>${c}.ilike.*${t}*`).join(',');
+    const url=`${SUPABASE_URL}/rest/v1/crm_studios?select=data&or=(${orExpr})&order=data->>name.asc&limit=20`;
+    const res=await fetch(url,{headers:SB_HEADERS});
+    if(!res.ok) return [];
+    const rows=await res.json();
+    return rows.map(r=>r.data);
+  }catch(e){ return []; }
 }
 
 async function renderDatabaseView(resetPage){
@@ -2984,6 +3025,38 @@ async function renderDatabaseView(resetPage){
     list.innerHTML=`<div class="empty"><div class="eico">⚠️</div><p>Error cargando la base de datos: ${esc(e.message)}</p></div>`;
     _dbCurrentRows=[];
   }
+
+  // Si hay término de búsqueda, mostrar también estudios que coincidan (para poder fusionar contacto+estudio)
+  const studiosBox=$('database-matched-studios');
+  if(_dbSearch){
+    _dbMatchedStudios=await fetchMatchingStudiosForContactSearch(_dbSearch);
+    if(_dbMatchedStudios.length){
+      studiosBox.style.display='';
+      studiosBox.innerHTML=`<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin:14px 22px 6px">🏛️ Estudios que coinciden</div>
+        <table><thead><tr><th style="width:30px"></th><th>Nombre</th><th>Ciudad</th><th>Estado</th><th>Teléfono</th><th>Email</th></tr></thead>
+        <tbody>${_dbMatchedStudios.map(s=>{
+          const idStr=String(s.id);
+          const checked=_dbMatchedStudiosSelected.has(idStr);
+          return `<tr>
+            <td><input type="checkbox" class="sel-cb" data-dbms-id="${idStr}" ${checked?'checked':''} onchange="dbToggleMatchedStudioSel('${idStr.replace(/'/g,"\\'")}',this.checked)"></td>
+            <td>${esc(s.name||'—')}</td>
+            <td>${esc(s.city||'—')}</td>
+            <td>${esc(s.state||'—')}</td>
+            <td>${esc(s.phone||'—')}</td>
+            <td>${esc(s.email||'—')}</td>
+          </tr>`;
+        }).join('')}</tbody></table>`;
+    } else {
+      studiosBox.style.display='none';
+      studiosBox.innerHTML='';
+    }
+  } else {
+    studiosBox.style.display='none';
+    studiosBox.innerHTML='';
+    _dbMatchedStudios=[];
+    _dbMatchedStudiosSelected.clear();
+  }
+
   const from=_dbTotal?(_dbPage*_dbPageSize+1):0;
   const to=Math.min(_dbTotal,(_dbPage+1)*_dbPageSize);
   $('db-count-label').textContent=_dbTotal?`${from}–${to} de ${_dbTotal}`:'Sin resultados';
@@ -2991,6 +3064,16 @@ async function renderDatabaseView(resetPage){
   $('db-prev-btn').disabled=_dbPage===0;
   $('db-next-btn').disabled=(_dbPage+1)*_dbPageSize>=_dbTotal;
   $('db-select-all').checked=false;
+  dbUpdateSelCount();
+}
+
+function dbToggleMatchedStudioSel(id,checked){
+  if(checked){
+    const row=_dbMatchedStudios.find(s=>String(s.id)===id);
+    if(row) _dbMatchedStudiosSelected.set(id,row);
+  } else {
+    _dbMatchedStudiosSelected.delete(id);
+  }
   dbUpdateSelCount();
 }
 
@@ -3023,9 +3106,11 @@ function dbToggleSelectAllPage(checked){
 }
 
 function dbUpdateSelCount(){
-  const n=_dbSelected.size;
+  const nc=_dbSelected.size;
+  const ns=_dbMatchedStudiosSelected.size;
+  const n=nc+ns;
   const el=$('db-sel-count');
-  if(el) el.textContent=`${n} seleccionado${n!==1?'s':''}`;
+  if(el) el.textContent=ns?`${n} seleccionado${n!==1?'s':''} (${nc} contacto${nc!==1?'s':''} · ${ns} estudio${ns!==1?'s':''})`:`${n} seleccionado${n!==1?'s':''}`;
 }
 
 function dbPrevPage(){
@@ -3095,12 +3180,165 @@ async function activateSelectedFromDB(){
   toast(`✅ ${added} contacto${added!==1?'s':''} activado${added!==1?'s':''} en el pipeline${skipped?` (${skipped} ya estaban activos)`:''}`);
 }
 
-function dbMergeSelectedContacts(){
-  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede fusionar contactos','⚠️');return;}
-  const rows=[..._dbSelected.values()];
-  if(rows.length<2){toast('Selecciona al menos 2 contactos','⚠️');return;}
-  if(rows.length>5){toast('Máximo 5 contactos a la vez','⚠️');return;}
-  openContactMergeAny(rows);
+function dbMergeSelectedAny(){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede fusionar registros','⚠️');return;}
+  const contactRows=[..._dbSelected.values()];
+  const studioRows=[..._dbMatchedStudiosSelected.values()];
+  if(!contactRows.length&&!studioRows.length){toast('Selecciona al menos 2 registros','⚠️');return;}
+  if(contactRows.length&&studioRows.length){
+    if(contactRows.length!==1||studioRows.length!==1){
+      toast('Para fusionar un contacto con un estudio, selecciona exactamente 1 de cada','⚠️');
+      return;
+    }
+    openContactStudioMerge(contactRows[0],studioRows[0]);
+    return;
+  }
+  if(contactRows.length){
+    if(contactRows.length<2){toast('Selecciona al menos 2 contactos','⚠️');return;}
+    if(contactRows.length>5){toast('Máximo 5 contactos a la vez','⚠️');return;}
+    openContactMergeAny(contactRows);
+    return;
+  }
+  if(studioRows.length<2){toast('Selecciona al menos 2 estudios','⚠️');return;}
+  if(studioRows.length>5){toast('Máximo 5 estudios a la vez','⚠️');return;}
+  openStudioMergeAny(studioRows);
+}
+
+// ══════════════════════════════════════════════════════
+//  FUSIONAR CONTACTO + ESTUDIO (un registro de cada tipo, ej. un contacto que en
+//  realidad es la misma empresa que un estudio ya existente)
+// ══════════════════════════════════════════════════════
+const MERGE_FIELDS_CS=[
+  {ck:'email',sk:'email',label:'Email'},
+  {ck:'phone',sk:'phone',label:'Teléfono'},
+  {ck:'web',sk:'web',label:'Web'},
+  {ck:'instagram',sk:'instagram',label:'Instagram'},
+  {ck:'linkedin',sk:'linkedin',label:'LinkedIn'},
+  {ck:'notes',sk:'notes',label:'Notas'},
+];
+let _mergeCsContact=null, _mergeCsStudio=null;
+
+function openContactStudioMerge(contact,studio){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede fusionar registros','⚠️');return;}
+  _mergeCsContact=contact; _mergeCsStudio=studio;
+  const gridCols='140px 1fr 1fr minmax(170px,1.2fr)';
+  let html=`<div style="display:grid;grid-template-columns:${gridCols};gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;font-size:13px">`;
+  html+=`<div style="background:var(--surface2);padding:9px 12px;font-weight:700;color:var(--text3);border-bottom:1px solid var(--border);font-size:11px">CAMPO</div>`;
+  html+=`<div style="background:var(--surface2);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border)"><div style="font-weight:700;font-size:13px">👤 ${esc(contact.name)}</div></div>`;
+  html+=`<div style="background:var(--surface2);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border)"><div style="font-weight:700;font-size:13px">🏛️ ${esc(studio.name)}</div></div>`;
+  html+=`<div style="background:rgba(230,51,41,.06);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent);font-weight:700;color:var(--accent);font-size:11px">RESULTADO</div>`;
+  MERGE_FIELDS_CS.forEach(f=>{
+    const cv=contact[f.ck]||''; const sv=studio[f.sk]||'';
+    html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">${f.label}</div>`;
+    [cv,sv].forEach((v,ci)=>{
+      const isEmpty=!v;
+      html+=`<div onclick="mergePickCsField('${f.ck}',${ci})" style="padding:7px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--surface);cursor:${isEmpty?'default':'pointer'};color:${isEmpty?'var(--text3)':'var(--text)'};word-break:break-word" onmouseover="if(!${isEmpty})this.style.background='var(--surface2)'" onmouseout="this.style.background='var(--surface)'">${esc(v||'—')}</div>`;
+    });
+    const bestVal=cv||sv||'';
+    html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)">
+      <input autocomplete="off" id="mcs-${f.ck}" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box" value="${esc(bestVal)}">
+    </div>`;
+  });
+  html+='</div>';
+  $('merge-cs-fields').innerHTML=html;
+  document.querySelector('input[name="cs-saveas"][value="studio"]').checked=true;
+  $('modal-merge-contact-studio').classList.remove('hidden');
+}
+
+function mergePickCsField(k,ci){
+  const v=ci===0?(_mergeCsContact[k]||''):(_mergeCsStudio[k]||'');
+  if(!v) return;
+  const inp=document.getElementById('mcs-'+k);
+  if(inp) inp.value=v;
+}
+
+async function _csDeleteContact(id){
+  D.contacts=D.contacts.filter(c=>String(c.id)!==String(id));
+  (D.projects||[]).forEach(p=>{ p.contactIds=(p.contactIds||[]).filter(x=>String(x)!==String(id)); });
+  _localDeletedIds.add(String(id));
+  if(DRIVE_SYNC_URL){ try{ await fetch(DRIVE_SYNC_URL+'/contact/'+encodeURIComponent(String(id)),{method:'DELETE'}); }catch(e){} }
+}
+async function _csDeleteStudio(id,exceptContactId){
+  D.studios=D.studios.filter(s=>String(s.id)!==String(id));
+  (D.contacts||[]).forEach(c=>{ if(String(c.studioId)===String(id)&&String(c.id)!==String(exceptContactId)) c.studioId=null; });
+  if(DRIVE_SYNC_URL){ try{ await fetch(DRIVE_SYNC_URL+'/studio/'+encodeURIComponent(String(id)),{method:'DELETE'}); }catch(e){} }
+}
+async function _csPersistStudio(obj,wasInD){
+  if(!wasInD && DRIVE_SYNC_URL){
+    try{ await fetch(DRIVE_SYNC_URL+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contacts:[],studios:[obj],projects:[],_savedAt:Date.now()+30000})}); }catch(e){}
+  }
+  saveData();
+}
+async function _csPersistContact(obj,wasInD){
+  if(!wasInD){
+    if(obj.stage){ if(!D.contacts.some(c=>String(c.id)===String(obj.id))) D.contacts.push(obj); }
+    else if(DRIVE_SYNC_URL){
+      try{ await fetch(DRIVE_SYNC_URL+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contacts:[obj],studios:[],projects:[],_savedAt:Date.now()+30000})}); }catch(e){}
+    }
+  }
+  saveData();
+}
+
+async function confirmContactStudioMerge(){
+  if(!ME||ME.role!=='admin') return;
+  if(!_mergeCsContact||!_mergeCsStudio) return;
+  const saveAs=document.querySelector('input[name="cs-saveas"]:checked')?.value||'studio';
+  const contact=_mergeCsContact, studio=_mergeCsStudio;
+  const fieldVals={};
+  MERGE_FIELDS_CS.forEach(f=>{ const inp=document.getElementById('mcs-'+f.ck); fieldVals[f.ck]=inp?inp.value.trim():''; });
+
+  if(saveAs==='studio'){
+    if(!confirm(`Se conservará el estudio "${studio.name}" y se eliminará el contacto "${contact.name}".\n\n¿Continuar?`)) return;
+    let masterObj=D.studios.find(s=>String(s.id)===String(studio.id));
+    const masterInD=!!masterObj;
+    if(!masterObj) masterObj={...studio};
+    MERGE_FIELDS_CS.forEach(f=>{ if(fieldVals[f.ck]) masterObj[f.sk]=fieldVals[f.ck]; });
+    masterObj._updatedAt=Date.now();
+    await _csDeleteContact(contact.id);
+    await _csPersistStudio(masterObj,masterInD);
+    closeM('modal-merge-contact-studio');
+    _mergeCsContact=null;_mergeCsStudio=null;
+    if(S.curView==='database-view'){ _dbSearch=$('db-search-inp')?.value||_dbSearch; renderDatabaseView(false); }
+    renderCKanban();renderCTable();
+    toast(`✅ Fusionado en el estudio "${masterObj.name}"`);
+  } else if(saveAs==='contact'){
+    const archCount=(D.contacts||[]).filter(c=>String(c.studioId)===String(studio.id)&&String(c.id)!==String(contact.id)).length;
+    const warn=archCount?`\n\n⚠️ Este estudio tiene ${archCount} arquitecto${archCount!==1?'s':''} más vinculado${archCount!==1?'s':''} que se quedará${archCount!==1?'n':''} sin estudio.`:'';
+    if(!confirm(`Se conservará el contacto "${contact.name}" y se eliminará el estudio "${studio.name}".${warn}\n\n¿Continuar?`)) return;
+    let masterObj=D.contacts.find(c=>String(c.id)===String(contact.id));
+    const masterInD=!!masterObj;
+    if(!masterObj) masterObj={...contact};
+    MERGE_FIELDS_CS.forEach(f=>{ if(fieldVals[f.ck]) masterObj[f.ck]=fieldVals[f.ck]; });
+    masterObj.studioId=null;
+    masterObj._updatedAt=Date.now();
+    await _csDeleteStudio(studio.id,masterObj.id);
+    await _csPersistContact(masterObj,masterInD);
+    closeM('modal-merge-contact-studio');
+    _mergeCsContact=null;_mergeCsStudio=null;
+    if(S.curView==='database-view'){ _dbSearch=$('db-search-inp')?.value||_dbSearch; renderDatabaseView(false); }
+    renderCKanban();renderCTable();
+    toast(`✅ Fusionado en el contacto "${masterObj.name}"`);
+  } else {
+    let studioObj=D.studios.find(s=>String(s.id)===String(studio.id));
+    const studioInD=!!studioObj;
+    if(!studioObj) studioObj={...studio};
+    MERGE_FIELDS_CS.forEach(f=>{ if(fieldVals[f.ck]) studioObj[f.sk]=fieldVals[f.ck]; });
+    studioObj._updatedAt=Date.now();
+    await _csPersistStudio(studioObj,studioInD);
+
+    let contactObj=D.contacts.find(c=>String(c.id)===String(contact.id));
+    const contactInD=!!contactObj;
+    if(!contactObj) contactObj={...contact};
+    contactObj.studioId=studioObj.id;
+    contactObj._updatedAt=Date.now();
+    await _csPersistContact(contactObj,contactInD);
+
+    closeM('modal-merge-contact-studio');
+    _mergeCsContact=null;_mergeCsStudio=null;
+    if(S.curView==='database-view'){ _dbSearch=$('db-search-inp')?.value||_dbSearch; renderDatabaseView(false); }
+    renderCKanban();renderCTable();
+    toast(`✅ "${contactObj.name}" vinculado a "${studioObj.name}"`);
+  }
 }
 
 // Abre la ficha de edición de un contacto encontrado en Base de datos, esté o no ya activado en el pipeline
