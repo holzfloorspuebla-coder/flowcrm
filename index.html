@@ -379,6 +379,7 @@ select.inp{cursor:pointer;}
     <button class="ni" onclick="goView('studios-view')"><span class="ic">🏛️</span>Estudios</button>
     <button class="ni" onclick="goView('projects-view')"><span class="ic">📁</span>Proyectos</button>
     <button class="ni" id="ni-providers" onclick="goView('providers-view')" style="display:none"><span class="ic">🏢</span>Proveedores</button>
+    <button class="ni" id="ni-database" onclick="goView('database-view')" style="display:none"><span class="ic">🗄️</span>Base de datos</button>
     <div class="ns">Análisis</div>
     <button class="ni" onclick="goView('kpi-view')"><span class="ic">🎯</span>KPIs</button>
 
@@ -462,6 +463,7 @@ select.inp{cursor:pointer;}
             <span class="bulk-bar-count" id="contacts-sel-count">0 seleccionados</span>
             <button class="btn btn-red btn-sm" id="contacts-delete-btn" onclick="deleteSelectedContacts()" style="display:none">🗑️ Eliminar seleccionados</button>
             <button class="btn btn-ghost btn-sm" id="contacts-vcard-btn" onclick="exportSelectedContactsVCard()" style="display:none">📇 Exportar vCard</button>
+            <button class="btn btn-primary btn-sm" id="contacts-merge-btn" onclick="openContactMergeFromSelection()" style="display:none">🔀 Fusionar seleccionados</button>
             <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="toggleContactsSelectMode(false)">✕ Cancelar</button>
           </div>
           <div style="padding:8px 0 4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -516,6 +518,7 @@ select.inp{cursor:pointer;}
           <input type="checkbox" class="sel-cb" id="studios-select-all" onchange="toggleSelectAllStudios(this.checked)" title="Seleccionar todos">
           <span class="bulk-bar-count" id="studios-sel-count">0 seleccionados</span>
           <button class="btn btn-red btn-sm" onclick="deleteSelectedStudios()">🗑️ Eliminar seleccionados</button>
+          <button class="btn btn-primary btn-sm" id="studios-merge-btn" onclick="openStudioMergeFromSelection()" style="display:none">🔀 Fusionar seleccionados</button>
           <button class="btn btn-sm" id="tracker-send-btn" style="display:none;background:#1a56db;color:#fff;border:none;font-weight:500" onclick="openSendTracker()">🛰 Enviar al Tracker</button>
           <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="toggleStudiosSelectMode(false)">✕ Cancelar</button>
         </div>
@@ -631,6 +634,31 @@ select.inp{cursor:pointer;}
       </div>
     </div>
 
+    <!-- BASE DE DATOS (contactos sin etapa, fuera del pipeline) -->
+    <div class="view hidden" id="database-view">
+      <div style="padding:14px 22px 0;font-size:12px;color:var(--text2)">
+        Contactos que existen en la base de datos pero todavía no se han activado en el pipeline. Se cargan directo de Supabase, paginados, para no sobrecargar el navegador.
+      </div>
+      <div class="toolbar" style="padding:10px 22px 0">
+        <input class="inp" id="db-search-inp" placeholder="🔍 Buscar por nombre, estudio, email, teléfono, ciudad..." style="flex:1;max-width:460px" oninput="dbSearchInput()">
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <span style="font-size:13px;color:var(--text2)" id="db-count-label">—</span>
+        </div>
+      </div>
+      <!-- Bulk action bar (database) -->
+      <div class="bulk-bar show" id="database-bulk-bar" style="margin:10px 22px 0">
+        <input type="checkbox" class="sel-cb" id="db-select-all" onchange="dbToggleSelectAllPage(this.checked)" title="Seleccionar todos en esta página">
+        <span class="bulk-bar-count" id="db-sel-count">0 seleccionados</span>
+        <button class="btn btn-primary btn-sm" onclick="activateSelectedFromDB()">🎯 Activar en pipeline</button>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <button class="btn btn-ghost btn-sm" id="db-prev-btn" onclick="dbPrevPage()">← Anterior</button>
+          <span style="font-size:12px;color:var(--text2)" id="db-page-label">Página 1</span>
+          <button class="btn btn-ghost btn-sm" id="db-next-btn" onclick="dbNextPage()">Siguiente →</button>
+        </div>
+      </div>
+      <div class="table-wrap" id="database-list" style="padding:14px 22px 22px"></div>
+    </div>
+
     <!-- BANDEJA DE SOLICITUDES -->
     <!-- TAREAS VIEW -->
     <div class="view hidden" id="tareas-view" style="display:flex;flex-direction:column;overflow:hidden">
@@ -728,6 +756,21 @@ select.inp{cursor:pointer;}
         <div class="modal-ft">
           <button class="btn btn-ghost" onclick="closeM('modal-merge-contacts')">Cancelar</button>
           <button class="btn btn-primary" onclick="confirmContactMerge()">🔀 Fusionar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: FUSIONAR ESTUDIOS -->
+    <div class="overlay hidden" id="modal-merge-studios">
+      <div class="modal wide" style="max-height:85vh;overflow-y:auto">
+        <div class="modal-hd"><h2>🔀 Fusionar estudios</h2><button class="modal-close" onclick="closeM('modal-merge-studios')">✕</button></div>
+        <div class="modal-body">
+          <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Haz clic en un valor de cualquier columna para copiarlo al resultado. El resultado es editable directamente.</div>
+          <div id="merge-studios-fields"></div>
+        </div>
+        <div class="modal-ft">
+          <button class="btn btn-ghost" onclick="closeM('modal-merge-studios')">Cancelar</button>
+          <button class="btn btn-primary" onclick="confirmStudioMerge()">🔀 Fusionar</button>
         </div>
       </div>
     </div>
@@ -2292,6 +2335,7 @@ function bootApp(){
   updateSidebarUser();
   showTareasNav();
   showProvidersNav();
+  showDatabaseNav();
   const excelBtn=document.getElementById('excel-contact-import-btn');
   if(excelBtn) excelBtn.style.display=(ME&&ME.role==='admin')?'':'none';
   renderSidebar();
@@ -2808,6 +2852,185 @@ function showProvidersNav(){
   const show=ME&&ME.role==='admin';
   const btn=document.getElementById('ni-providers');
   if(btn) btn.style.display=show?'':'none';
+}
+function showDatabaseNav(){
+  const show=ME&&ME.role==='admin';
+  const btn=document.getElementById('ni-database');
+  if(btn) btn.style.display=show?'':'none';
+}
+
+// ══════════════════════════════════════════════════════
+//  BASE DE DATOS — contactos sin etapa, fuera del pipeline
+//  (reemplazo del botón "Enviar al CRM" del Gestor de Contactos)
+// ══════════════════════════════════════════════════════
+let _dbSelected=new Map(); // id(String) -> raw contact data
+let _dbCurrentRows=[];
+let _dbPage=0, _dbPageSize=50, _dbSearch='', _dbTotal=0, _dbSearchTimer=null;
+
+function _dbSanitizeTerm(v){
+  return String(v||'').replace(/[,()*%]/g,' ').trim();
+}
+
+async function fetchDatabasePage(){
+  const term=_dbSanitizeTerm(_dbSearch);
+  let filter='data->>stage=is.null';
+  if(term){
+    const cols=['name','mailingName','email','email2','phone','whatsapp','city','state','studio'];
+    const orExpr=cols.map(c=>`data->>${c}.ilike.*${term}*`).join(',');
+    filter+=`&or=(${orExpr})`;
+  }
+  const url=`${SUPABASE_URL}/rest/v1/crm_contacts?select=data&${filter}&order=data->>name.asc&limit=${_dbPageSize}&offset=${_dbPage*_dbPageSize}`;
+  const res=await fetch(url,{headers:{...SB_HEADERS,'Prefer':'count=exact'}});
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const rows=await res.json();
+  const range=res.headers.get('content-range')||'';
+  const total=range.includes('/')?parseInt(range.split('/')[1])||0:rows.length;
+  return {rows:rows.map(r=>r.data),total};
+}
+
+async function renderDatabaseView(resetPage){
+  if(!ME||ME.role!=='admin') return;
+  if(resetPage) _dbPage=0;
+  const list=$('database-list');
+  list.innerHTML='<div style="padding:20px;color:var(--text3);font-size:13px">Cargando...</div>';
+  try{
+    const {rows,total}=await fetchDatabasePage();
+    _dbTotal=total;
+    if(!rows.length){
+      list.innerHTML='<div class="empty"><div class="eico">🗄️</div><p>No hay contactos sin etapa'+(_dbSearch?' que coincidan con la búsqueda':'')+'.</p></div>';
+    } else {
+      list.innerHTML=`<table><thead><tr>
+        <th style="width:30px"></th><th>Nombre</th><th>Estudio</th><th>Ciudad</th><th>Teléfono</th><th>Email</th><th>Tipo</th><th>Vendedor</th>
+      </tr></thead><tbody>${rows.map(c=>{
+        const idStr=String(c.id);
+        const checked=_dbSelected.has(idStr);
+        const agName=(typeof c.agent==='number'?USERS.find(u=>u.id===c.agent)?.name:null)||c.agent||'—';
+        return `<tr>
+          <td><input type="checkbox" class="sel-cb" data-db-id="${idStr}" ${checked?'checked':''} onchange="dbToggleSel('${idStr.replace(/'/g,"\\'")}',this.checked)"></td>
+          <td>${esc(c.name||'—')}</td>
+          <td>${esc(c.studio||'—')}</td>
+          <td>${esc(c.city||'—')}</td>
+          <td>${esc(c.phone||'—')}</td>
+          <td>${esc(c.email||'—')}</td>
+          <td>${esc(c.type||'—')}</td>
+          <td>${esc(agName)}</td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+    }
+    // Store current page rows so selection/activation can find full data without refetching
+    _dbCurrentRows=rows;
+  }catch(e){
+    list.innerHTML=`<div class="empty"><div class="eico">⚠️</div><p>Error cargando la base de datos: ${esc(e.message)}</p></div>`;
+    _dbCurrentRows=[];
+  }
+  const from=_dbTotal?(_dbPage*_dbPageSize+1):0;
+  const to=Math.min(_dbTotal,(_dbPage+1)*_dbPageSize);
+  $('db-count-label').textContent=_dbTotal?`${from}–${to} de ${_dbTotal}`:'Sin resultados';
+  $('db-page-label').textContent=`Página ${_dbPage+1}`;
+  $('db-prev-btn').disabled=_dbPage===0;
+  $('db-next-btn').disabled=(_dbPage+1)*_dbPageSize>=_dbTotal;
+  $('db-select-all').checked=false;
+  dbUpdateSelCount();
+}
+
+function dbSearchInput(){
+  clearTimeout(_dbSearchTimer);
+  _dbSearchTimer=setTimeout(()=>{
+    _dbSearch=$('db-search-inp').value||'';
+    renderDatabaseView(true);
+  },350);
+}
+
+function dbToggleSel(id,checked){
+  if(checked){
+    const row=(_dbCurrentRows||[]).find(c=>String(c.id)===id);
+    if(row) _dbSelected.set(id,row);
+  } else {
+    _dbSelected.delete(id);
+  }
+  dbUpdateSelCount();
+}
+
+function dbToggleSelectAllPage(checked){
+  (_dbCurrentRows||[]).forEach(c=>{
+    const id=String(c.id);
+    if(checked) _dbSelected.set(id,c);
+    else _dbSelected.delete(id);
+  });
+  document.querySelectorAll('[data-db-id]').forEach(cb=>{cb.checked=checked;});
+  dbUpdateSelCount();
+}
+
+function dbUpdateSelCount(){
+  const n=_dbSelected.size;
+  const el=$('db-sel-count');
+  if(el) el.textContent=`${n} seleccionado${n!==1?'s':''}`;
+}
+
+function dbPrevPage(){
+  if(_dbPage===0) return;
+  _dbPage--;
+  renderDatabaseView(false);
+}
+function dbNextPage(){
+  if((_dbPage+1)*_dbPageSize>=_dbTotal) return;
+  _dbPage++;
+  renderDatabaseView(false);
+}
+
+function _dbResolveAgent(c){
+  if(typeof c.agent==='number' && USERS.find(u=>u.id===c.agent)) return c.agent;
+  const name=String(c.agent||'').trim();
+  if(name){
+    const u=USERS.find(u=>u.name.toLowerCase().includes(name.toLowerCase()));
+    if(u) return u.id;
+  }
+  return ME.id;
+}
+
+async function activateSelectedFromDB(){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede activar contactos en el pipeline','⚠️');return;}
+  const items=[..._dbSelected.values()];
+  if(!items.length){toast('Selecciona al menos un contacto','⚠️');return;}
+  if(!confirm(`¿Activar ${items.length} contacto${items.length!==1?'s':''} en el pipeline? Aparecerán en Contactos con etapa "Lead captado".`)) return;
+
+  let added=0;
+  const studioIdsNeeded=new Set();
+  items.forEach(c=>{
+    if(D.contacts.some(x=>String(x.id)===String(c.id))) return; // ya está, por seguridad
+    const contact={
+      ...c,
+      agent:_dbResolveAgent(c),
+      stage:'c-lead',
+      stageDate:today(),
+      inPipeline:true,
+      _updatedAt:Date.now(),
+    };
+    D.contacts.push(contact);
+    added++;
+    if(contact.studioId && !D.studios.find(s=>String(s.id)===String(contact.studioId))){
+      studioIdsNeeded.add(String(contact.studioId));
+    }
+  });
+
+  if(studioIdsNeeded.size){
+    try{
+      const idsList=[...studioIdsNeeded].join(',');
+      const res=await fetch(`${SUPABASE_URL}/rest/v1/crm_studios?id=in.(${idsList})&select=data`,{headers:SB_HEADERS});
+      if(res.ok){
+        const rows=await res.json();
+        rows.forEach(r=>{
+          if(!D.studios.find(s=>String(s.id)===String(r.data.id))) D.studios.push(r.data);
+        });
+      }
+    }catch(e){ console.warn('No se pudieron cargar algunos estudios vinculados:',e.message); }
+  }
+
+  saveData();
+  _dbSelected.clear();
+  renderCKanban();renderCTable();
+  await renderDatabaseView(false);
+  toast(`✅ ${added} contacto${added!==1?'s':''} activado${added!==1?'s':''} en el pipeline`);
 }
 
 // ══════════════════════════════════════════════════════
@@ -3614,6 +3837,13 @@ function openContactMerge(ids){
   $('modal-merge-contacts').classList.remove('hidden');
 }
 
+function openContactMergeFromSelection(){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede fusionar contactos','⚠️');return;}
+  const ids=[...(S.selectedContacts||new Set())];
+  if(ids.length<2){toast('Selecciona al menos 2 contactos','⚠️');return;}
+  openContactMerge(ids);
+}
+
 function renderContactMergeFields(){
   const contacts=_mergeContactsC;
   const gridCols=`140px ${Array(contacts.length).fill('1fr').join(' ')} minmax(170px,1.2fr)`;
@@ -3723,6 +3953,145 @@ function confirmContactMerge(){
 }
 
 // ══════════════════════════════════════════════════════
+//  FUSIÓN DE ESTUDIOS DUPLICADOS (Fase 6b)
+// ══════════════════════════════════════════════════════
+let _mergeStudiosS=[];
+const MERGE_FIELDS_STUDIO=[
+  {k:'name',label:'Nombre'},
+  {k:'email',label:'Email'},
+  {k:'email2',label:'Email 2'},
+  {k:'phone',label:'Teléfono'},
+  {k:'whatsapp',label:'WhatsApp'},
+  {k:'city',label:'Ciudad'},
+  {k:'state',label:'Estado'},
+  {k:'web',label:'Web'},
+  {k:'instagram',label:'Instagram'},
+  {k:'linkedin',label:'LinkedIn'},
+  {k:'notes',label:'Notas'},
+];
+
+function openStudioMergeFromSelection(){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede fusionar estudios','⚠️');return;}
+  const ids=[...selectedStudios];
+  if(ids.length<2){toast('Selecciona al menos 2 estudios','⚠️');return;}
+  openStudioMerge(ids);
+}
+
+function openStudioMerge(ids){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede fusionar estudios','⚠️');return;}
+  const studios=ids.map(id=>D.studios.find(s=>s.id===id)).filter(Boolean);
+  if(studios.length<2){toast('Selecciona al menos 2 estudios','⚠️');return;}
+  if(studios.length>5){toast('Máximo 5 estudios a la vez','⚠️');return;}
+  _mergeStudiosS=studios;
+  renderStudioMergeFields();
+  $('modal-merge-studios').classList.remove('hidden');
+}
+
+function renderStudioMergeFields(){
+  const studios=_mergeStudiosS;
+  const gridCols=`140px ${Array(studios.length).fill('1fr').join(' ')} minmax(170px,1.2fr)`;
+  let html=`<div style="display:grid;grid-template-columns:${gridCols};gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;font-size:13px">`;
+  html+=`<div style="background:var(--surface2);padding:9px 12px;font-weight:700;color:var(--text3);border-bottom:1px solid var(--border);font-size:11px">CAMPO</div>`;
+  studios.forEach(s=>{
+    const ag=USERS.find(u=>u.id===s.agent);
+    const archCount=(D.contacts||[]).filter(c=>c.studioId===s.id).length;
+    html+=`<div style="background:var(--surface2);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border)">
+      <div style="font-weight:700;font-size:13px">${esc(s.name)}</div>
+      <div style="font-size:10px;color:var(--text3)">${esc(ag?.name||'—')} · ${archCount} arquitecto${archCount!==1?'s':''}</div>
+    </div>`;
+  });
+  html+=`<div style="background:rgba(230,51,41,.06);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent);font-weight:700;color:var(--accent);font-size:11px">RESULTADO</div>`;
+
+  MERGE_FIELDS_STUDIO.forEach(f=>{
+    const vals=studios.map(s=>s[f.k]||'');
+    html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">${f.label}</div>`;
+    vals.forEach((v,ci)=>{
+      const isEmpty=!v;
+      html+=`<div onclick="mergePickStudioField('${f.k}',${ci})"
+        style="padding:7px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--surface);cursor:${isEmpty?'default':'pointer'};color:${isEmpty?'var(--text3)':'var(--text)'};word-break:break-word"
+        onmouseover="if(!${isEmpty})this.style.background='var(--surface2)'"
+        onmouseout="this.style.background='var(--surface)'">${esc(v||'—')}</div>`;
+    });
+    let bestVal;
+    if(f.k==='notes'){
+      bestVal=vals.filter(Boolean).join(' | ');
+    } else {
+      bestVal=vals.find(v=>v)||'';
+    }
+    html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)">
+      <input autocomplete="off" id="msm-${f.k}" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box" value="${esc(bestVal)}">
+    </div>`;
+  });
+  html+='</div>';
+
+  const base=studios[0];
+  const baseAg=USERS.find(u=>u.id===base.agent);
+  const totalArchs=studios.reduce((sum,s)=>sum+(D.contacts||[]).filter(c=>c.studioId===s.id).length,0);
+  html+=`<div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--text3)">
+    <strong style="color:var(--text2)">Se conservan de "${esc(base.name)}"</strong> (el primero de la lista): vendedor (${esc(baseAg?.name||'—')}), segmento y lista de precio. La clasificación del Tracker (país/tipo) se conserva del primero que la tenga. Los ${totalArchs} arquitecto${totalArchs!==1?'s':''} vinculado${totalArchs!==1?'s':''} a estos estudios quedarán vinculados a "${esc(base.name)}".
+  </div>`;
+
+  $('merge-studios-fields').innerHTML=html;
+}
+
+function mergePickStudioField(k,ci){
+  const s=_mergeStudiosS[ci];
+  const v=s[k];
+  if(!v) return;
+  const inp=document.getElementById('msm-'+k);
+  if(!inp) return;
+  inp.value=v;
+  inp.style.background='rgba(230,51,41,.25)';
+  setTimeout(()=>inp.style.background='',500);
+}
+
+function confirmStudioMerge(){
+  if(!ME||ME.role!=='admin') return;
+  if(_mergeStudiosS.length<2) return;
+  const base=_mergeStudiosS[0];
+  const loserIds=_mergeStudiosS.slice(1).map(s=>s.id);
+  const loserNames=_mergeStudiosS.slice(1).map(s=>s.name).join(', ');
+  const archCount=(D.contacts||[]).filter(c=>loserIds.includes(c.studioId)).length;
+  if(!confirm(`Se fusionarán ${_mergeStudiosS.length} estudios en "${base.name}".\n\nSe eliminarán: ${loserNames}\n${archCount} arquitecto${archCount!==1?'s':''} vinculado${archCount!==1?'s':''} se reasignará${archCount!==1?'n':''} a "${base.name}".\n\n¿Continuar?`)) return;
+
+  const masterObj=D.studios.find(s=>s.id===base.id);
+  if(!masterObj){toast('Estudio base no encontrado','⚠️');return;}
+
+  MERGE_FIELDS_STUDIO.forEach(f=>{
+    const inp=document.getElementById('msm-'+f.k);
+    if(inp) masterObj[f.k]=inp.value.trim();
+  });
+  // Preservar clasificación del Tracker si el base no la tiene pero algún duplicado sí
+  if(!masterObj.country){ const withC=_mergeStudiosS.find(s=>s.country); if(withC) masterObj.country=withC.country; }
+  if(!masterObj.client_type){ const withT=_mergeStudiosS.find(s=>s.client_type); if(withT) masterObj.client_type=withT.client_type; }
+  if(!masterObj.has_stock){ const withHs=_mergeStudiosS.find(s=>s.has_stock); if(withHs) masterObj.has_stock=withHs.has_stock; }
+  if(!masterObj.salespeople){ const withSp=_mergeStudiosS.find(s=>s.salespeople); if(withSp) masterObj.salespeople=withSp.salespeople; }
+  masterObj._updatedAt=Date.now();
+
+  // Reasignar arquitectos vinculados a los estudios que se van a borrar
+  (D.contacts||[]).forEach(c=>{
+    if(loserIds.includes(c.studioId)) c.studioId=masterObj.id;
+  });
+  // Reasignar tareas ligadas a esos estudios
+  (D.adminTasks||[]).forEach(t=>{
+    if(t.entityType==='studio'&&loserIds.some(id=>String(id)===String(t.entityId))){
+      t.entityId=String(masterObj.id);
+    }
+  });
+
+  D.studios=D.studios.filter(s=>!loserIds.includes(s.id));
+
+  saveData();
+  closeM('modal-merge-studios');
+  _mergeStudiosS=[];
+  selectedStudios.clear();
+  toggleStudiosSelectMode(false);
+  renderStudios($('studio-search')?.value||'');
+  renderCKanban();renderCTable();
+  toast(`✅ ${loserIds.length+1} estudios fusionados en "${masterObj.name}"`);
+}
+
+// ══════════════════════════════════════════════════════
 //  SIDEBAR & USER HEADER
 // ══════════════════════════════════════════════════════
 function updateSidebarUser(){
@@ -3735,6 +4104,10 @@ function updateSidebarUser(){
   if(deleteBtn) deleteBtn.style.display=(ME&&ME.role==='admin')?'':'none';
   const trackerBtn=document.getElementById('tracker-send-btn');
   if(trackerBtn) trackerBtn.style.display=(ME&&ME.role==='admin')?'':'none';
+  const contactsMergeBtn=document.getElementById('contacts-merge-btn');
+  if(contactsMergeBtn) contactsMergeBtn.style.display=(ME&&ME.role==='admin')?'':'none';
+  const studiosMergeBtn=document.getElementById('studios-merge-btn');
+  if(studiosMergeBtn) studiosMergeBtn.style.display=(ME&&ME.role==='admin')?'':'none';
   const av=$('sb-user-av');
   av.style.cssText=`width:30px;height:30px;font-size:13px;background:${ME.color}22;color:${ME.color}`;
   av.textContent=ME.name[0];
@@ -3773,6 +4146,7 @@ const VIEW_CFG={
   'studio-profile-view':{title:'Perfil del Estudio',main:null,sec:null},
   'projects-view':{title:'Proyectos',main:'＋ Nuevo proyecto',mainFn:'openProjectModal()',sec:'＋ Contacto',secFn:'openContactModal()'},
   'providers-view':{title:'Proveedores',main:'＋ Nuevo proveedor',mainFn:'openProvEdit(null)',sec:null},
+  'database-view':{title:'Base de datos',main:null,sec:null},
   'profile-view':{title:'Perfil de contacto',main:null,sec:null},
   'kpi-view':{title:'KPIs del equipo',main:null,sec:null},
   'tareas-view':{title:'Tareas pendientes',main:null,sec:null},
@@ -3783,7 +4157,7 @@ function goView(id){
   document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
   $(id)?.classList.remove('hidden');
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
-  const map={'contacts-view':0,'studios-view':1,'studio-profile-view':1,'projects-view':2,'providers-view':3,'kpi-view':4,'tareas-view':5,'inbox-view':6,'settings-view':7};
+  const map={'contacts-view':0,'studios-view':1,'studio-profile-view':1,'projects-view':2,'providers-view':3,'database-view':4,'kpi-view':5,'tareas-view':6,'inbox-view':7,'settings-view':8};
   document.querySelectorAll('.ni')[map[id]]?.classList.add('active');
   const cfg=VIEW_CFG[id]||{};
   $('page-title').textContent=cfg.title||'';
@@ -3797,6 +4171,7 @@ function goView(id){
   if(id==='projects-view'){renderPKanban();renderPTable();}
   if(id==='kpi-view')renderKPIs();
   if(id==='providers-view')renderProviders();
+  if(id==='database-view')renderDatabaseView(true);
   if(id==='tareas-view'){renderTareas();const df=document.getElementById('nueva-tarea-fecha');if(df&&!df.value){const d=new Date();d.setDate(d.getDate()+1);df.value=d.toISOString().slice(0,10);}}
   if(id==='inbox-view')renderInbox();
   if(id==='settings-view')renderSettings();
