@@ -516,6 +516,7 @@ select.inp{cursor:pointer;}
           <input type="checkbox" class="sel-cb" id="studios-select-all" onchange="toggleSelectAllStudios(this.checked)" title="Seleccionar todos">
           <span class="bulk-bar-count" id="studios-sel-count">0 seleccionados</span>
           <button class="btn btn-red btn-sm" onclick="deleteSelectedStudios()">🗑️ Eliminar seleccionados</button>
+          <button class="btn btn-sm" id="tracker-send-btn" style="display:none;background:#1a56db;color:#fff;border:none;font-weight:500" onclick="openSendTracker()">🛰 Enviar al Tracker</button>
           <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="toggleStudiosSelectMode(false)">✕ Cancelar</button>
         </div>
         <div class="table-wrap" id="studios-list" style="padding:14px 22px 22px"></div>
@@ -712,6 +713,21 @@ select.inp{cursor:pointer;}
             <span id="dup-summary" style="font-size:12px;color:var(--text3);margin-left:auto"></span>
           </div>
           <div id="dup-results" style="max-height:60vh;overflow-y:auto;padding-right:4px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL: FUSIONAR CONTACTOS -->
+    <div class="overlay hidden" id="modal-merge-contacts">
+      <div class="modal wide" style="max-height:85vh;overflow-y:auto">
+        <div class="modal-hd"><h2>🔀 Fusionar contactos</h2><button class="modal-close" onclick="closeM('modal-merge-contacts')">✕</button></div>
+        <div class="modal-body">
+          <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Haz clic en un valor de cualquier columna para copiarlo al resultado. El resultado es editable directamente.</div>
+          <div id="merge-contacts-fields"></div>
+        </div>
+        <div class="modal-ft">
+          <button class="btn btn-ghost" onclick="closeM('modal-merge-contacts')">Cancelar</button>
+          <button class="btn btn-primary" onclick="confirmContactMerge()">🔀 Fusionar</button>
         </div>
       </div>
     </div>
@@ -970,6 +986,22 @@ select.inp{cursor:pointer;}
         <button class="btn btn-primary" onclick="addProvCat()">+ Añadir</button>
       </div>
       <div id="prov-cats-list" style="max-height:340px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: ENVIAR AL TRACKER -->
+<div class="overlay hidden" id="modal-tracker">
+  <div class="modal" style="width:540px">
+    <div class="modal-hd"><h2>🛰 Enviar al Tracker</h2><button class="modal-close" onclick="closeM('modal-tracker')">✕</button></div>
+    <div class="modal-body">
+      <div id="tracker-modal-body" style="max-height:50vh;overflow-y:auto"></div>
+      <div id="tracker-prog" style="display:none;font-size:12px;color:var(--text3);margin-top:12px">⏳ Enviando...</div>
+      <div id="tracker-result" style="font-size:12px;color:var(--text2);margin-top:8px"></div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost" onclick="closeM('modal-tracker')">Cancelar</button>
+      <button class="btn" id="btn-confirm-tracker" onclick="confirmSendTracker()" style="background:#1a56db;color:#fff;border:none;font-weight:500">Enviar al tracker</button>
     </div>
   </div>
 </div>
@@ -2779,6 +2811,174 @@ function showProvidersNav(){
 }
 
 // ══════════════════════════════════════════════════════
+//  ENVÍO AL TRACKER (fusionado del Gestor de Contactos, Fase 5)
+// ══════════════════════════════════════════════════════
+const TRACKER_URL    = 'https://trackingcentralamerica.onrender.com';
+const TRACKER_APIKEY = 'd616e0fb7b8e48741102ccd239b8f17061e5e20cb344307befa3662e60a75a01';
+const _trackerSynced = new Set(); // external_ids (= String(studio.id))
+
+async function loadTrackerSyncStatus(){
+  if(!ME||ME.role!=='admin') return;
+  if(!D.studios || !D.studios.length) return;
+  const ids = D.studios.map(s=>String(s.id)).join(',');
+  try{
+    const res = await fetch(`${TRACKER_URL}/api/clients/sync/status?ids=${ids}`, {
+      headers: { 'X-API-Key': TRACKER_APIKEY }
+    });
+    if(!res.ok) return;
+    const rows = await res.json();
+    _trackerSynced.clear();
+    rows.forEach(r => _trackerSynced.add(String(r.external_id)));
+    if(S.curView==='studios-view') renderStudios($('studio-search')?.value||'');
+  }catch(e){ console.warn('No se pudo consultar estado del tracker:', e.message); }
+}
+
+const TRACKER_COUNTRY_NAMES = {MEX:'México',GTM:'Guatemala',BLZ:'Belice',SLV:'El Salvador',HND:'Honduras',NIC:'Nicaragua',CRI:'Costa Rica',PAN:'Panamá',DOM:'República Dominicana',PRI:'Puerto Rico',JAM:'Jamaica',TTO:'Trinidad y Tobago',BHS:'Bahamas',BRB:'Barbados',ABW:'Aruba',CUW:'Curazao',COL:'Colombia'};
+const TRACKER_TYPE_NAMES = {dealer:'Dealer',specialized_chain:'Cadena especializada',project_manager:'Project Manager',developer:'Developer',importer:'Importador',installer:'Instalador',architecture_firm:'Estudio de arquitectura',general_contractor:'General contractor',end_user:'End user',operator:'Operator'};
+
+function openSendTracker(){
+  if(!ME||ME.role!=='admin'){ toast('Solo un administrador puede enviar al Tracker','⚠️'); return; }
+  const ids = [...selectedStudios];
+  if(!ids.length){ toast('Selecciona al menos un estudio','⚠️'); return; }
+  const studios = ids.map(id => (D.studios||[]).find(s=>s.id===id)).filter(Boolean);
+
+  const incomplete = studios.filter(s => !s.country || !s.client_type);
+  const ready      = studios.filter(s =>  s.country &&  s.client_type);
+
+  const countryOpts = Object.entries(TRACKER_COUNTRY_NAMES).map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+  const typeOpts    = Object.entries(TRACKER_TYPE_NAMES).map(([v,l])=>`<option value="${v}">${l}</option>`).join('');
+
+  let incompleteHTML = '';
+  if(incomplete.length){
+    incompleteHTML = `<div style="margin-bottom:12px;padding:10px;background:#fef3c7;border-radius:8px;font-size:12px;color:#92400e">
+      <strong>⚠️ ${incomplete.length} estudio${incomplete.length!==1?'s':''} sin país o tipo</strong> — completa los datos antes de enviar:
+    </div>
+    ${incomplete.map(s=>`
+      <div style="padding:10px 0;border-bottom:1px solid var(--border)" data-studio-id="${s.id}">
+        <div style="font-size:13px;font-weight:500;margin-bottom:8px">${esc(s.name)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label style="font-size:11px;color:var(--text3);font-weight:600">PAÍS</label>
+            <select class="inp tracker-country-fix" data-id="${s.id}" style="width:100%;margin-top:4px;font-size:12px">
+              <option value="">— Seleccionar —</option>${countryOpts}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text3);font-weight:600">TIPO DE CLIENTE</label>
+            <select class="inp tracker-type-fix" data-id="${s.id}" style="width:100%;margin-top:4px;font-size:12px">
+              <option value="">— Sin clasificar —</option>${typeOpts}
+            </select>
+          </div>
+        </div>
+      </div>`).join('')}`;
+  }
+
+  const readyHTML = ready.length ? `
+    <div style="margin-top:${incomplete.length?'12px':'0'}">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:6px">✅ Listos para enviar (${ready.length}):</div>
+      ${ready.map(s=>`<div style="font-size:12px;padding:3px 0;border-bottom:1px solid var(--border)">${esc(s.name)} <span style="color:var(--text3)">· ${TRACKER_COUNTRY_NAMES[s.country]||s.country} · ${TRACKER_TYPE_NAMES[s.client_type]||s.client_type}</span></div>`).join('')}
+    </div>` : '';
+
+  document.getElementById('tracker-modal-body').innerHTML = incompleteHTML + readyHTML;
+
+  incomplete.forEach(s=>{
+    const cs = document.querySelector(`.tracker-country-fix[data-id="${s.id}"]`);
+    const ts = document.querySelector(`.tracker-type-fix[data-id="${s.id}"]`);
+    if(cs && s.country) cs.value = s.country;
+    if(ts && s.client_type) ts.value = s.client_type;
+  });
+
+  document.getElementById('tracker-prog').style.display = 'none';
+  document.getElementById('tracker-result').textContent = '';
+  document.getElementById('btn-confirm-tracker').disabled = false;
+  document.getElementById('modal-tracker').classList.remove('hidden');
+}
+
+async function confirmSendTracker(){
+  if(!ME||ME.role!=='admin') return;
+  const ids = [...selectedStudios];
+  const studios = ids.map(id => (D.studios||[]).find(s=>s.id===id)).filter(Boolean);
+
+  const fixes = {};
+  document.querySelectorAll('.tracker-country-fix').forEach(el=>{
+    if(!fixes[el.dataset.id]) fixes[el.dataset.id]={};
+    fixes[el.dataset.id].country = el.value;
+  });
+  document.querySelectorAll('.tracker-type-fix').forEach(el=>{
+    if(!fixes[el.dataset.id]) fixes[el.dataset.id]={};
+    fixes[el.dataset.id].client_type = el.value;
+  });
+
+  const missing = studios.filter(s=>{
+    const fix = fixes[String(s.id)] || {};
+    return !(s.country || fix.country) || !(s.client_type || fix.client_type);
+  });
+  if(missing.length){
+    toast(`Faltan datos en: ${missing.map(s=>s.name).join(', ')}`, '⚠️');
+    return;
+  }
+
+  document.getElementById('btn-confirm-tracker').disabled = true;
+  document.getElementById('tracker-prog').style.display = '';
+  document.getElementById('tracker-result').textContent = '';
+
+  let ok=0, err=0, errs=[];
+  for(const s of studios){
+    const fix = fixes[String(s.id)] || {};
+    const country    = s.country    || fix.country    || '';
+    const clientType = s.client_type|| fix.client_type|| '';
+
+    if(fix.country    && !s.country)     { s.country=fix.country; }
+    if(fix.client_type&& !s.client_type) { s.client_type=fix.client_type; }
+
+    const contact = (D.contacts||[]).find(c=>c.studioId===s.id);
+
+    const payload = {
+      external_id:   String(s.id),
+      name:          s.name,
+      country_code:  country,
+      client_type:   clientType,
+      contact_name:  contact ? contact.name  : (s.contactName || null),
+      contact_email: contact ? contact.email : (s.email || null),
+      contact_phone: contact ? contact.phone : (s.phone || null),
+      notes:         s.notes || null,
+      has_stock:     s.has_stock    || false,
+      num_salespeople: s.salespeople|| 0,
+    };
+
+    try{
+      const res = await fetch(`${TRACKER_URL}/api/clients/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json', 'X-API-Key': TRACKER_APIKEY },
+        body: JSON.stringify(payload)
+      });
+      if(res.ok){
+        ok++;
+        _trackerSynced.add(String(s.id));
+        s.country=country; s.client_type=clientType;
+      } else {
+        let e={}; try{ e=await res.json(); }catch(_){}
+        err++; errs.push(`${s.name}: ${e.error||res.status}`);
+      }
+    }catch(e){ err++; errs.push(`${s.name}: ${e.message}`); }
+  }
+
+  document.getElementById('tracker-prog').style.display = 'none';
+
+  if(ok>0){
+    saveData();
+    renderStudios($('studio-search')?.value||'');
+    toast(`✅ ${ok} estudio${ok!==1?'s':''} enviado${ok!==1?'s':''} al tracker`,'✅');
+  }
+  if(err>0) toast(`❌ ${err} error${err!==1?'es':''}: ${errs.join(' | ')}`, '❌');
+
+  document.getElementById('tracker-result').textContent =
+    `${ok} enviado${ok!==1?'s':''} correctamente${err?` · ${err} con error`:''}`;
+
+  if(ok>0 && err===0) setTimeout(()=>{ closeM('modal-tracker'); selectedStudios.clear(); toggleStudiosSelectMode(false); }, 1800);
+}
+
+// ══════════════════════════════════════════════════════
 //  PROVEEDORES (fusionado del Gestor de Contactos, Fase 3)
 // ══════════════════════════════════════════════════════
 let _provCatFilter='';
@@ -3324,11 +3524,12 @@ function findDuplicates(by){
     const tipo=key.startsWith('p:')?'Teléfono':key.startsWith('e:')?'Email':'Nombre';
     const valor=key.slice(2);
     const groupKey2=key.replace(/[^a-z0-9]/gi,'_');
-    const ids=arr.map(c=>c.id).join(',');
+    window['_dupGroup_'+groupKey2]=arr.map(c=>c.id);
     return`<div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px" id="dup-group-${groupKey2}">
       <div style="font-size:11px;font-weight:700;color:var(--orange);margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span>${tipo}: ${valor}</span>
         <span style="color:var(--text3);font-weight:400">${arr.length} contactos</span>
+        ${ME&&ME.role==='admin'?`<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openMergeFromDupGroup('${groupKey2}')">🔀 Fusionar seleccionados</button>`:''}
       </div>
       ${arr.map((c,i)=>{
         const ag=USERS.find(u=>u.id===c.agent);
@@ -3336,6 +3537,7 @@ function findDuplicates(by){
         const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
         const inPipe=c.inPipeline!==false&&c.stage;
         return`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--border)">
+          ${ME&&ME.role==='admin'?`<input type="checkbox" class="sel-cb" id="dcb-${groupKey2}-${i}" checked style="flex-shrink:0">`:''}
           <div style="flex:1;min-width:0">
             <div style="font-weight:600;font-size:13px;cursor:pointer;color:var(--accent)" onclick="closeM('modal-duplicates');openProfile(${c.id})">${c.name||'(sin nombre)'}</div>
             <div style="font-size:11px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
@@ -3350,6 +3552,7 @@ function findDuplicates(by){
       }).join('')}
     </div>`;
   }).join('');
+  el.dataset.lastBy=by;
 }
 
 function deleteDupContact(id, groupKey){
@@ -3365,6 +3568,161 @@ function deleteDupContact(id, groupKey){
 }
 
 // ══════════════════════════════════════════════════════
+//  FUSIÓN DE CONTACTOS DUPLICADOS (fusionado del Gestor de Contactos, Fase 6 — solo contactos)
+// ══════════════════════════════════════════════════════
+let _mergeContactsC=[];
+const MERGE_FIELDS_CONTACT=[
+  {k:'name',label:'Nombre'},
+  {k:'mailingName',label:'Nombre mailing'},
+  {k:'phone',label:'Teléfono'},
+  {k:'email',label:'Email'},
+  {k:'email2',label:'Email 2'},
+  {k:'whatsapp',label:'WhatsApp'},
+  {k:'instagram',label:'Instagram'},
+  {k:'linkedin',label:'LinkedIn'},
+  {k:'web',label:'Web'},
+  {k:'city',label:'Ciudad'},
+  {k:'state',label:'Estado'},
+  {k:'origin',label:'Origen'},
+  {k:'priceList',label:'Lista de precio'},
+  {k:'studioEmail',label:'Email estudio'},
+  {k:'studioEmail2',label:'Email 2 estudio'},
+  {k:'studioPhone',label:'Teléfono estudio'},
+  {k:'studioWhatsapp',label:'WhatsApp estudio'},
+  {k:'studioInstagram',label:'Instagram estudio'},
+  {k:'studioLinkedin',label:'LinkedIn estudio'},
+  {k:'notes',label:'Notas'},
+];
+
+function openMergeFromDupGroup(groupKey2){
+  const allIds=window['_dupGroup_'+groupKey2]||[];
+  const checked=allIds.filter((id,i)=>{
+    const cb=document.getElementById(`dcb-${groupKey2}-${i}`);
+    return cb&&cb.checked;
+  });
+  if(checked.length<2){toast('Selecciona al menos 2 para fusionar','⚠️');return;}
+  openContactMerge(checked);
+}
+
+function openContactMerge(ids){
+  if(!ME||ME.role!=='admin'){toast('Solo un administrador puede fusionar contactos','⚠️');return;}
+  const contacts=ids.map(id=>D.contacts.find(c=>c.id===id)).filter(Boolean);
+  if(contacts.length<2){toast('Selecciona al menos 2 contactos','⚠️');return;}
+  if(contacts.length>5){toast('Máximo 5 contactos a la vez','⚠️');return;}
+  _mergeContactsC=contacts;
+  renderContactMergeFields();
+  $('modal-merge-contacts').classList.remove('hidden');
+}
+
+function renderContactMergeFields(){
+  const contacts=_mergeContactsC;
+  const gridCols=`140px ${Array(contacts.length).fill('1fr').join(' ')} minmax(170px,1.2fr)`;
+  let html=`<div style="display:grid;grid-template-columns:${gridCols};gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;font-size:13px">`;
+  html+=`<div style="background:var(--surface2);padding:9px 12px;font-weight:700;color:var(--text3);border-bottom:1px solid var(--border);font-size:11px">CAMPO</div>`;
+  contacts.forEach(c=>{
+    const st=C_STAGES.find(s=>s.id===c.stage);
+    const ag=USERS.find(u=>u.id===c.agent);
+    html+=`<div style="background:var(--surface2);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border)">
+      <div style="font-weight:700;font-size:13px">${esc(c.name)}</div>
+      <div style="font-size:10px;color:var(--text3)">${esc(ag?.name||'—')} · ${esc(st?.name||c.stage||'—')}</div>
+    </div>`;
+  });
+  html+=`<div style="background:rgba(230,51,41,.06);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent);font-weight:700;color:var(--accent);font-size:11px">RESULTADO</div>`;
+
+  MERGE_FIELDS_CONTACT.forEach(f=>{
+    const vals=contacts.map(c=>c[f.k]||'');
+    html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">${f.label}</div>`;
+    vals.forEach((v,ci)=>{
+      const isEmpty=!v;
+      html+=`<div onclick="mergePickContactField('${f.k}',${ci})"
+        style="padding:7px 10px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:var(--surface);cursor:${isEmpty?'default':'pointer'};color:${isEmpty?'var(--text3)':'var(--text)'};word-break:break-word"
+        onmouseover="if(!${isEmpty})this.style.background='var(--surface2)'"
+        onmouseout="this.style.background='var(--surface)'">${esc(v||'—')}</div>`;
+    });
+    let bestVal;
+    if(f.k==='notes'){
+      bestVal=vals.filter(Boolean).join(' | ');
+    } else {
+      bestVal=vals.find(v=>v)||'';
+    }
+    html+=`<div style="padding:5px 8px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);background:rgba(26,26,26,.02)">
+      <input autocomplete="off" id="mcm-${f.k}" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;box-sizing:border-box" value="${esc(bestVal)}">
+    </div>`;
+  });
+  html+='</div>';
+
+  const base=contacts[0];
+  const baseAg=USERS.find(u=>u.id===base.agent);
+  const baseSt=C_STAGES.find(s=>s.id===base.stage);
+  const baseStudio=(D.studios||[]).find(s=>s.id===base.studioId);
+  html+=`<div style="margin-top:12px;padding:10px 12px;background:var(--surface2);border-radius:8px;font-size:11px;color:var(--text3)">
+    <strong style="color:var(--text2)">Se conservan de "${esc(base.name)}"</strong> (el primero de la lista): tipo (${esc(base.type||'—')}), etapa (${esc(baseSt?.name||base.stage||'—')}), vendedor (${esc(baseAg?.name||'—')}), estudio (${esc(baseStudio?.name||'—')}), segmento y tags. Si algo de esto no es lo que quieres, ajústalo después desde "Editar contacto".
+  </div>`;
+
+  $('merge-contacts-fields').innerHTML=html;
+}
+
+function mergePickContactField(k,ci){
+  const c=_mergeContactsC[ci];
+  const v=c[k];
+  if(!v) return;
+  const inp=document.getElementById('mcm-'+k);
+  if(!inp) return;
+  inp.value=v;
+  inp.style.background='rgba(230,51,41,.25)';
+  setTimeout(()=>inp.style.background='',500);
+}
+
+function confirmContactMerge(){
+  if(!ME||ME.role!=='admin') return;
+  if(_mergeContactsC.length<2) return;
+  const base=_mergeContactsC[0];
+  const loserIds=_mergeContactsC.slice(1).map(c=>c.id);
+  const loserNames=_mergeContactsC.slice(1).map(c=>c.name).join(', ');
+  if(!confirm(`Se fusionarán ${_mergeContactsC.length} contactos en "${base.name}".\n\nSe eliminarán: ${loserNames}\nSus proyectos, tareas y actividades se reasignarán a "${base.name}".\n\n¿Continuar?`)) return;
+
+  const masterObj=D.contacts.find(c=>c.id===base.id);
+  if(!masterObj){toast('Contacto base no encontrado','⚠️');return;}
+
+  MERGE_FIELDS_CONTACT.forEach(f=>{
+    const inp=document.getElementById('mcm-'+f.k);
+    if(inp) masterObj[f.k]=inp.value.trim();
+  });
+  masterObj.tags=[...new Set(_mergeContactsC.flatMap(c=>c.tags||[]))];
+  masterObj._updatedAt=Date.now();
+
+  // Reasignar referencias de los contactos que se van a borrar hacia el contacto base
+  (D.projects||[]).forEach(p=>{
+    if(p.contactIds&&p.contactIds.some(id=>loserIds.includes(id))){
+      p.contactIds=[...new Set(p.contactIds.map(id=>loserIds.includes(id)?masterObj.id:id))];
+    }
+  });
+  (D.activities||[]).forEach(a=>{
+    if(loserIds.includes(a.contactId)) a.contactId=masterObj.id;
+  });
+  (D.adminTasks||[]).forEach(t=>{
+    if(t.entityType==='contact'&&loserIds.some(id=>String(id)===String(t.entityId))){
+      t.entityId=String(masterObj.id);
+    }
+  });
+  (D.pending||[]).forEach(p=>{
+    if(loserIds.includes(p.contactId)){ p.contactId=masterObj.id; p.contactName=masterObj.name; }
+  });
+
+  D.contacts=D.contacts.filter(c=>!loserIds.includes(c.id));
+
+  saveData();
+  closeM('modal-merge-contacts');
+  _mergeContactsC=[];
+  renderCKanban();renderCTable();
+  if(!$('modal-duplicates').classList.contains('hidden')){
+    const lastBy=$('dup-results').dataset.lastBy||'name';
+    findDuplicates(lastBy);
+  }
+  toast(`✅ ${loserIds.length+1} contactos fusionados en "${masterObj.name}"`);
+}
+
+// ══════════════════════════════════════════════════════
 //  SIDEBAR & USER HEADER
 // ══════════════════════════════════════════════════════
 function updateSidebarUser(){
@@ -3375,6 +3733,8 @@ function updateSidebarUser(){
   if(vcardBtn) vcardBtn.style.display=(ME&&ME.role==='admin')?'':'none';
   const deleteBtn=document.getElementById('contacts-delete-btn');
   if(deleteBtn) deleteBtn.style.display=(ME&&ME.role==='admin')?'':'none';
+  const trackerBtn=document.getElementById('tracker-send-btn');
+  if(trackerBtn) trackerBtn.style.display=(ME&&ME.role==='admin')?'':'none';
   const av=$('sb-user-av');
   av.style.cssText=`width:30px;height:30px;font-size:13px;background:${ME.color}22;color:${ME.color}`;
   av.textContent=ME.name[0];
@@ -3433,7 +3793,7 @@ function goView(id){
   if(id!=='profile-view')S.prevView=id;
   S.curView=id;
   if(id==='contacts-view'){renderCKanban();renderCTable();}
-  if(id==='studios-view')renderStudios();
+  if(id==='studios-view'){renderStudios();if(ME&&ME.role==='admin')loadTrackerSyncStatus();}
   if(id==='projects-view'){renderPKanban();renderPTable();}
   if(id==='kpi-view')renderKPIs();
   if(id==='providers-view')renderProviders();
@@ -5957,6 +6317,7 @@ function renderStudios(filter=''){
           <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap">
             ${s.name}
             ${owned?`<span class="studio-badge">Tu estudio</span>`:`<span class="studio-locked">🔒 ${ag?.name?.split(' ')[0]||'Otro vendedor'}</span>`}
+            ${(ME&&ME.role==='admin'&&_trackerSynced.has(String(s.id)))?'<span title="Ya enviado al tracker" style="font-size:10px;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:8px;font-weight:500">🛰 tracker</span>':''}
           </div>
           <div style="font-size:12px;color:var(--text2);margin-top:2px;display:flex;gap:10px;flex-wrap:wrap">
             ${(s.city||s.state)?`📍 ${[s.city,s.state].filter(Boolean).join(', ')}`:''}
