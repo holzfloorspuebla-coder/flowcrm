@@ -6106,15 +6106,54 @@ function renderStudioDropdown(studios, rawQ){
   dd.style.display='block';
 }
 
+// Crea el estudio directamente con los datos ya escritos en el modal de contacto
+// (sección "Datos del estudio") y lo deja seleccionado, sin abrir un modal aparte.
 function crearEstudioDesdeModal(nombrePrefill){
-  S._afterStudioSave='selectFromContact';
-  S._studioNamePrefill=nombrePrefill||'';
-  hideStudioDropdown();
-  openStudioModal();
-  if(nombrePrefill&&$('s-name')){
-    $('s-name').value=nombrePrefill;
-    checkStudioDuplicate(nombrePrefill);
+  const name=(nombrePrefill||'').trim();
+  if(!name){
+    hideStudioDropdown();
+    toast('Escribe el nombre del estudio en el buscador primero','⚠️');
+    $('c-studio-search')?.focus();
+    return;
   }
+  if(!D.studios)D.studios=[];
+  const dupName=D.studios.find(s=>norm(s.name)===norm(name));
+  if(dupName){
+    // Ya existe: no duplicar, simplemente seleccionarlo
+    selectStudio(dupName.id,dupName.name);
+    renderStudioDropdown([],'');
+    hideStudioDropdown();
+    toast('Ya existía un estudio con ese nombre — se seleccionó ✓','⚠️');
+    return;
+  }
+  const email=$('c-studio-email')?.value.trim()||'';
+  const phone=$('c-studio-phone')?.value.trim()||'';
+  if(email){
+    const dupEmail=D.studios.find(s=>s.email&&s.email.toLowerCase()===email.toLowerCase());
+    if(dupEmail){toast('Ese email de estudio ya está registrado en "'+dupEmail.name+'"','⚠️');return;}
+  }
+  if(phone){
+    const dupPhone=D.studios.find(s=>s.phone&&s.phone.replace(/\D/g,'')===phone.replace(/\D/g,''));
+    if(dupPhone){toast('Ese teléfono de estudio ya está registrado en "'+dupPhone.name+'"','⚠️');return;}
+  }
+  const newStudio={
+    id:nid(),code:nextCode('E'),name,
+    email, email2:$('c-studio-email2')?.value.trim()||'',
+    phone, whatsapp:$('c-studio-whatsapp')?.value.trim()||'',
+    city:$('c-city')?.value.trim()||'', state:$('c-state')?.value.trim()||'',
+    web:$('c-web')?.value.trim()||'', priceList:$('c-pricelist')?.value.trim()||'',
+    segment:$('c-segment')?.value||'',
+    instagram:$('c-studio-instagram')?.value.trim()||'', linkedin:$('c-studio-linkedin')?.value.trim()||'',
+    agent:parseInt($('c-agent')?.value)||ME.id,
+    notes:'', date:today(),
+  };
+  D.studios.push(newStudio);
+  saveData();
+  renderStudios();
+  selectStudio(newStudio.id,newStudio.name);
+  renderStudioDropdown([],'');
+  hideStudioDropdown();
+  toast('Estudio "'+newStudio.name+'" creado y seleccionado ✓');
 }
 
 function showStudioDropdown(){
@@ -7676,16 +7715,7 @@ function saveStudio(){
     const newStudio={id:nid(),code:nextCode('E'),...obj,date:today()};
     D.studios.push(newStudio);
     saveData();closeM('modal-studio');renderStudios();
-    // If created from contact modal, auto-select the new studio
-    if(S._afterStudioSave==='selectFromContact'){
-      S._afterStudioSave=null;
-      selectStudio(newStudio.id,newStudio.name);
-      renderStudioDropdown([],'');
-      hideStudioDropdown();
-      toast('Estudio "'+newStudio.name+'" creado y seleccionado ✓');
-    } else {
-      toast('Estudio creado 🎉');
-    }
+    toast('Estudio creado 🎉');
   }
 }
 function deleteStudio(id){
