@@ -1143,9 +1143,34 @@ select.inp{cursor:pointer;}
         <div class="fg"><label class="lbl">Email 2 arquitecto</label><input class="inp" id="c-email2" type="email" placeholder="juan2@correo.mx"></div>
         <div class="fg"><label class="lbl">LinkedIn arquitecto</label><input class="inp" id="c-linkedin" placeholder="linkedin.com/in/juan"></div>
       </div>
-      <div class="r2">
-        <div class="fg"><label class="lbl">Segmento</label><select class="inp" id="c-segment"></select></div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">Ciudad arquitecto</label><input class="inp" id="c-city" placeholder="Ciudad de México"></div>
+        <div class="fg"><label class="lbl">Estado arquitecto</label><input class="inp" id="c-state" placeholder="CDMX"></div>
+        <div class="fg"><label class="lbl">Origen</label><input class="inp" id="c-origin" placeholder="Referido / Expo / Web..."></div>
       </div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">Segmento</label><select class="inp" id="c-segment"></select></div>
+        <div class="fg"><label class="lbl">Vendedor asignado</label><select class="inp" id="c-agent"></select></div>
+        <div class="fg"><label class="lbl">Pipeline</label>
+          <select class="inp" id="c-stage">
+            <option value="">— Sin activar (no en pipeline) —</option>
+            <option value="c-lead">Lead captado</option>
+            <option value="c-msg1">Contactado · Mensaje 1</option>
+            <option value="c-msg2">Contactado · Mensaje 2</option>
+            <option value="c-msg3">Contactado · Mensaje 3</option>
+            <option value="c-msg4">Contactado · Mensaje 4</option>
+            <option value="c-msg5">Contactado · Mensaje 5</option>
+            <option value="c-respuesta">Respuesta recibida</option>
+            <option value="c-agendado">Visita al showroom agendada</option>
+            <option value="c-showroom">Visitó el showroom</option>
+            <option value="c-activado">Activado</option>
+            <option value="c-nopriority">No prioritario</option>
+            <option value="c-descartado">Descartado</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg"><label class="lbl">Etiquetas</label><div class="tag-wrap" id="c-tagwrap"><input class="tag-inp" id="c-taginp" placeholder="Escribe y Enter..."></div></div>
+      <div class="fg"><label class="lbl">Notas</label><textarea class="inp" id="c-notes" rows="2" placeholder="Contexto del contacto..."></textarea></div>
 
       <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">🏛️ Datos del estudio</div>
       <div class="fg" id="c-studio-row">
@@ -1173,40 +1198,14 @@ select.inp{cursor:pointer;}
         <div class="fg"><label class="lbl">Web</label><input class="inp" id="c-web" placeholder="https://estudio.mx"></div>
         <div class="fg"><label class="lbl">Price List</label><input class="inp" id="c-pricelist" placeholder="PL-A"></div>
       </div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">Ciudad estudio</label><input class="inp" id="c-studio-city" placeholder="Ciudad de México"></div>
+        <div class="fg"><label class="lbl">Estado estudio</label><input class="inp" id="c-studio-state" placeholder="CDMX"></div>
+      </div>
       <div class="r2">
         <div class="fg"><label class="lbl">Instagram estudio</label><input class="inp" id="c-studio-instagram" placeholder="@estudio_mx"></div>
         <div class="fg"><label class="lbl">LinkedIn estudio</label><input class="inp" id="c-studio-linkedin" placeholder="linkedin.com/company/estudio"></div>
       </div>
-
-      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin:14px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">📍 Ubicación y asignación</div>
-      <div class="r3">
-        <div class="fg"><label class="lbl">Ciudad</label><input class="inp" id="c-city" placeholder="Ciudad de México"></div>
-        <div class="fg"><label class="lbl">Estado</label><input class="inp" id="c-state" placeholder="CDMX"></div>
-        <div class="fg"><label class="lbl">Origen</label><input class="inp" id="c-origin" placeholder="Referido / Expo / Web..."></div>
-      </div>
-      <div class="r2">
-        <div class="fg"><label class="lbl">Vendedor asignado</label><select class="inp" id="c-agent"></select></div>
-        <div class="fg"><label class="lbl">Pipeline</label>
-          <select class="inp" id="c-stage">
-            <option value="">— Sin activar (no en pipeline) —</option>
-            <option value="c-lead">Lead captado</option>
-            <option value="c-msg1">Contactado · Mensaje 1</option>
-            <option value="c-msg2">Contactado · Mensaje 2</option>
-            <option value="c-msg3">Contactado · Mensaje 3</option>
-            <option value="c-msg4">Contactado · Mensaje 4</option>
-            <option value="c-msg5">Contactado · Mensaje 5</option>
-            <option value="c-respuesta">Respuesta recibida</option>
-            <option value="c-agendado">Visita al showroom agendada</option>
-            <option value="c-showroom">Visitó el showroom</option>
-            <option value="c-activado">Activado</option>
-            <option value="c-nopriority">No prioritario</option>
-            <option value="c-descartado">Descartado</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="fg"><label class="lbl">Etiquetas</label><div class="tag-wrap" id="c-tagwrap"><input class="tag-inp" id="c-taginp" placeholder="Escribe y Enter..."></div></div>
-      <div class="fg"><label class="lbl">Notas</label><textarea class="inp" id="c-notes" rows="2" placeholder="Contexto del contacto..."></textarea></div>
     </div>
     <div class="modal-ft"><button class="btn btn-ghost" onclick="closeM('modal-contact')">Cancelar</button><button class="btn btn-primary" onclick="saveContact()">Guardar</button></div>
   </div>
@@ -6140,7 +6139,7 @@ function crearEstudioDesdeModal(nombrePrefill){
     id:nid(),code:nextCode('E'),name,
     email, email2:$('c-studio-email2')?.value.trim()||'',
     phone, whatsapp:$('c-studio-whatsapp')?.value.trim()||'',
-    city:$('c-city')?.value.trim()||'', state:$('c-state')?.value.trim()||'',
+    city:$('c-studio-city')?.value.trim()||'', state:$('c-studio-state')?.value.trim()||'',
     web:$('c-web')?.value.trim()||'', priceList:$('c-pricelist')?.value.trim()||'',
     segment:$('c-segment')?.value||'',
     instagram:$('c-studio-instagram')?.value.trim()||'', linkedin:$('c-studio-linkedin')?.value.trim()||'',
@@ -6179,6 +6178,9 @@ function selectStudio(id,name){
     if($('c-studio-instagram')&&!$('c-studio-instagram').value) $('c-studio-instagram').value=s.instagram||'';
     if($('c-studio-linkedin')&&!$('c-studio-linkedin').value) $('c-studio-linkedin').value=s.linkedin||'';
     if($('c-web')&&!$('c-web').value) $('c-web').value=s.web||'';
+    if($('c-studio-city')&&!$('c-studio-city').value) $('c-studio-city').value=s.city||'';
+    if($('c-studio-state')&&!$('c-studio-state').value) $('c-studio-state').value=s.state||'';
+    if($('c-pricelist')&&!$('c-pricelist').value) $('c-pricelist').value=s.priceList||'';
   }
 }
 
@@ -6207,7 +6209,7 @@ function openContactModal(stageId,editId){
   populateStudioSelect(null);
   const allFields=['c-name','c-mailing-name','c-phone','c-email','c-email2','c-whatsapp','c-city','c-state','c-notes',
     'c-instagram','c-linkedin','c-studio-email','c-studio-email2','c-studio-phone','c-studio-whatsapp','c-web',
-    'c-studio-instagram','c-studio-linkedin','c-pricelist','c-origin'];
+    'c-studio-instagram','c-studio-linkedin','c-pricelist','c-origin','c-studio-city','c-studio-state'];
   if(editId){
     const c=D.contacts.find(x=>x.id===editId);
     allFields.forEach(i=>{const el=$(i);if(el)el.value='';});
@@ -6233,6 +6235,8 @@ function openContactModal(stageId,editId){
     $('c-studio-whatsapp').value=linkedStudio?.whatsapp||c.studioWhatsapp||'';
     $('c-studio-instagram').value=linkedStudio?.instagram||c.studioInstagram||'';
     $('c-studio-linkedin').value=linkedStudio?.linkedin||c.studioLinkedin||'';
+    $('c-studio-city').value=linkedStudio?.city||c.studioCity||'';
+    $('c-studio-state').value=linkedStudio?.state||c.studioState||'';
     $('c-segment').value=c.segment||'';
     $('c-stage').value=c.stage||'';
     $('c-agent').value=c.agent;
@@ -6269,6 +6273,9 @@ function saveContact(){
       const sLinked=$('c-studio-linkedin').value.trim();
       const sWeb=$('c-web').value.trim();
       const sWhatsapp=$('c-studio-whatsapp').value.trim();
+      const sCity=$('c-studio-city').value.trim();
+      const sState=$('c-studio-state').value.trim();
+      const sPriceList=$('c-pricelist').value.trim();
       if(sEmail) studio.email=sEmail;
       if(sEmail2) studio.email2=sEmail2;
       if(sPhone) studio.phone=sPhone;
@@ -6276,6 +6283,9 @@ function saveContact(){
       if(sLinked) studio.linkedin=sLinked;
       if(sWeb) studio.web=sWeb;
       if(sWhatsapp) studio.whatsapp=sWhatsapp;
+      if(sCity) studio.city=sCity;
+      if(sState) studio.state=sState;
+      if(sPriceList) studio.priceList=sPriceList;
     }
   }
   const stageVal=$('c-stage').value||(S.editCId?null:'c-lead');
@@ -6299,6 +6309,8 @@ function saveContact(){
     studioWhatsapp:$('c-studio-whatsapp').value.trim(),
     studioInstagram:$('c-studio-instagram').value.trim(),
     studioLinkedin:$('c-studio-linkedin').value.trim(),
+    studioCity:$('c-studio-city').value.trim(),
+    studioState:$('c-studio-state').value.trim(),
     segment:$('c-segment').value,
     type:ctype,
     studioId:studioId||null,
@@ -6322,7 +6334,7 @@ function saveContact(){
       // Vendedor: aplicar local (optimista) + enviar a pendientes
       const oldFields={};
       const newFields={};
-      const TRACK=['name','mailingName','phone','email','email2','whatsapp','instagram','linkedin','city','state','origin','priceList','web','studioId','studioEmail','studioEmail2','studioPhone','studioWhatsapp','studioInstagram','studioLinkedin','type','segment','notes'];
+      const TRACK=['name','mailingName','phone','email','email2','whatsapp','instagram','linkedin','city','state','origin','priceList','web','studioId','studioEmail','studioEmail2','studioPhone','studioWhatsapp','studioInstagram','studioLinkedin','studioCity','studioState','type','segment','notes'];
       TRACK.forEach(k=>{ if(String(_ec[k]||'')!==String(obj[k]||'')){oldFields[k]=_ec[k];newFields[k]=obj[k];} });
       if(Object.keys(newFields).length===0){closeM('modal-contact');toast('Sin cambios');return;}
       // Aplicar localmente (optimista)
