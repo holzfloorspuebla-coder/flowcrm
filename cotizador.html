@@ -418,7 +418,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         <span class="save-ind" id="save-ind"></span>
         <button class="btn btn-ghost" onclick="generateText()">✨ Generar texto</button>
         <button class="btn btn-ghost" onclick="exportExcel()">📥 Descargar Excel</button>
-        <button class="btn btn-ghost" onclick="generateQuotePPTXFromCurrent()">🖨️ Generar PPTX</button>
+        <button class="btn btn-ghost" onclick="generateQuotePPTXFromCurrent()">📥 Descargar PPTX</button>
+        <button class="btn btn-ghost" onclick="downloadAllFiles()">📦 Descargar todo</button>
         <button class="btn btn-ghost" onclick="downloadBackup()" title="Copia de seguridad">💾 Backup</button>
         <button class="btn btn-ghost" id="btn-close-quote" onclick="openCloseQuoteModal()" style="display:none">🔒 Cerrar</button>
         <button class="btn btn-ghost" id="btn-reopen-quote" onclick="reopenQuote()" style="display:none;color:var(--green)">🔓 Reabrir</button>
@@ -459,7 +460,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
                 <label class="lbl">Cliente</label>
                 <div class="autocomplete-wrap">
                   <div style="display:flex;gap:6px;align-items:center">
-                    <input class="inp" id="q-client" placeholder="Nombre del cliente" autocomplete="off" oninput="updateTopbar();markDirty();openClientSearchFromInput(this.value)" onfocus="openClientSearchFromInput(this.value)" style="flex:1">
+                    <input class="inp" id="q-client" placeholder="Nombre del cliente" autocomplete="off" oninput="if(CURRENT_Q)CURRENT_Q.clientMailingName='';updateTopbar();markDirty();openClientSearchFromInput(this.value)" onfocus="openClientSearchFromInput(this.value)" style="flex:1">
                     <button class="btn btn-ghost" id="btn-search-client" onclick="openClientSearch()" title="Buscar en CRM" style="flex-shrink:0;padding:7px 10px;font-size:13px">🔍</button>
                   </div>
                 </div>
@@ -507,23 +508,41 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         <div class="sec">
           <div class="sec-hd"><div class="sec-title">Datos para el PPTX de cotización</div></div>
           <div style="padding:14px 16px">
-            <div class="form-grid">
+            <div class="form-grid-3">
               <div class="fg"><label class="lbl">Plazo de entrega</label>
                 <input class="inp" id="q-plazo-entrega" placeholder="2 semanas" oninput="markDirty()">
               </div>
-              <div class="fg"><label class="lbl">Instalación</label>
+              <div class="fg"><label class="lbl">Instalación (texto en diapositiva 4)</label>
                 <input class="inp" id="q-instalacion" placeholder="Instalación no incluida en la presente cotización" oninput="markDirty()">
               </div>
-            </div>
-            <div class="fg">
-              <label class="lbl">Foto de producto (diapositiva de propuesta económica)</label>
-              <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
-                <div id="q-product-img-preview" style="width:64px;height:64px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;font-size:20px;color:var(--text3)">🖼️</div>
-                <input type="file" accept="image/*" id="q-product-img-input" style="display:none" onchange="handleProductImageUpload(this)">
-                <button class="btn btn-ghost" onclick="document.getElementById('q-product-img-input').click()">📤 Subir foto</button>
-                <button class="btn btn-ghost" id="q-product-img-clear" onclick="clearProductImage()" style="display:none">✕ Quitar</button>
+              <div class="fg"><label class="lbl">¿Instalación incluida?</label>
+                <select class="inp" id="q-instalacion-incluida" onchange="markDirty()">
+                  <option value="no">No</option>
+                  <option value="si">Sí</option>
+                </select>
               </div>
-              <div style="font-size:11px;color:var(--text3);margin-top:5px">Si no subes una foto, el PPTX usa la foto genérica de la plantilla.</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+              <div class="fg">
+                <label class="lbl">Foto de portada (diapositiva 1)</label>
+                <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+                  <div id="q-cover-img-preview" style="width:64px;height:64px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;font-size:20px;color:var(--text3)">🖼️</div>
+                  <input type="file" accept="image/*" id="q-cover-img-input" style="display:none" onchange="handleCoverImageUpload(this)">
+                  <button class="btn btn-ghost" onclick="document.getElementById('q-cover-img-input').click()">📤 Subir foto</button>
+                  <button class="btn btn-ghost" id="q-cover-img-clear" onclick="clearCoverImage()" style="display:none">✕ Quitar</button>
+                </div>
+                <div style="font-size:11px;color:var(--text3);margin-top:5px">Si no subes una foto, el PPTX usa la foto genérica de la plantilla.</div>
+              </div>
+              <div class="fg">
+                <label class="lbl">Foto de producto (diapositiva de propuesta económica)</label>
+                <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+                  <div id="q-product-img-preview" style="width:64px;height:64px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;font-size:20px;color:var(--text3)">🖼️</div>
+                  <input type="file" accept="image/*" id="q-product-img-input" style="display:none" onchange="handleProductImageUpload(this)">
+                  <button class="btn btn-ghost" onclick="document.getElementById('q-product-img-input').click()">📤 Subir foto</button>
+                  <button class="btn btn-ghost" id="q-product-img-clear" onclick="clearProductImage()" style="display:none">✕ Quitar</button>
+                </div>
+                <div style="font-size:11px;color:var(--text3);margin-top:5px">Si no subes una foto, el PPTX usa la foto genérica de la plantilla.</div>
+              </div>
             </div>
           </div>
         </div>
@@ -944,7 +963,7 @@ async function loadAllFromCloud(){
     // Pre-cargar cache de contactos para el buscador de clientes
     _csCache = (data.contacts||[]).map(c=>({
       name:c.name||'', priceList:c.priceList||'', city:c.city||'',
-      phone:c.phone||'', email:c.email||''
+      phone:c.phone||'', email:c.email||'', mailingName:c.mailingName||''
     })).filter(c=>c.name);
 
     // Cargar unidades custom
@@ -1030,16 +1049,17 @@ function renderCSResults(matches){
     return;
   }
   res.innerHTML=matches.slice(0,12).map(c=>`
-    <div class="autocomplete-item" style="border-radius:var(--r);margin-bottom:3px;border:1px solid var(--border)" onclick="selectClientFromModal('${esc(c.name)}','${esc(c.priceList)}')">
+    <div class="autocomplete-item" style="border-radius:var(--r);margin-bottom:3px;border:1px solid var(--border)" onclick="selectClientFromModal('${esc(c.name)}','${esc(c.priceList)}','${esc(c.mailingName)}')">
       <div class="ac-name">${esc(c.name)}</div>
       <div class="ac-sub">${[c.priceList,c.city,c.email].filter(Boolean).map(esc).join(' · ')}</div>
     </div>`).join('');
 }
 
-function selectClientFromModal(name,pl){
+function selectClientFromModal(name,pl,mailingName){
   document.getElementById('q-client').value=name;
   closeModal('modal-client-search');
   if(pl) setValue('q-pricelist',pl);
+  if(CURRENT_Q) CURRENT_Q.clientMailingName=mailingName||'';
   updateTopbar(); recalcAll(); markDirty();
 }
 
@@ -2113,9 +2133,10 @@ function newQuote(){
   var cotNum='C001';
   var num=projNum+'/'+cotNum+'/'+year;
   var q={id:uid(),num:num,projectNum:projNum,cotNum:cotNum,numYear:String(year),
-    date:today(),project:'',client:'',pricelist:'',discPP:0,projectStatus:'active',
+    date:today(),project:'',client:'',clientMailingName:'',pricelist:'',discPP:0,projectStatus:'active',
     realExtras:[],realIncomes:[],supply:[],labor:[],extraCosts:[],text:'',
-    plazoEntrega:'2 semanas',instalacionText:'Instalación no incluida en la presente cotización',productImageDataUrl:null,
+    plazoEntrega:'2 semanas',instalacionText:'Instalación no incluida en la presente cotización',instalacionIncluida:false,
+    productImageDataUrl:null,coverImageDataUrl:null,
     _createdAt:Date.now()};
   QUOTES.unshift(q);
   renderQuoteList();
@@ -2192,7 +2213,9 @@ function loadQuoteToForm(){
   document.getElementById('proposal-text').innerHTML=q.text||'';
   setValue('q-plazo-entrega',q.plazoEntrega||'2 semanas');
   setValue('q-instalacion',q.instalacionText||'Instalación no incluida en la presente cotización');
+  setValue('q-instalacion-incluida',q.instalacionIncluida?'si':'no');
   renderProductImagePreview();
+  renderCoverImagePreview();
 }
 async function saveQuote(){
   if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
@@ -2208,6 +2231,7 @@ async function saveQuote(){
   q.text=document.getElementById('proposal-text').innerHTML;
   q.plazoEntrega=val('q-plazo-entrega')||'2 semanas';
   q.instalacionText=val('q-instalacion')||'Instalación no incluida en la presente cotización';
+  q.instalacionIncluida=val('q-instalacion-incluida')==='si';
   q._updatedAt=Date.now();
   const idx=QUOTES.findIndex(x=>x.id===q.id);
   if(idx>-1) QUOTES[idx]=q;
@@ -3299,7 +3323,11 @@ function pxHtmlToLines(html){
 }
 function pxBuildBodyParagraphs(lines){
   if(!lines.length) return '<a:p><a:endParaRPr lang="es-ES" sz="1050"/></a:p>';
-  return lines.map(l=>'<a:p><a:r><a:rPr lang="es-ES" sz="1050" dirty="0"/><a:t>'+_pxEsc(l)+'</a:t></a:r></a:p>').join('');
+  return lines.map((l,i)=>{
+    const bold=i>=lines.length-2; // las últimas 2 líneas (firma) van en negrita
+    const b=bold?' b="1"':'';
+    return '<a:p><a:r><a:rPr lang="es-ES" sz="1050"'+b+' dirty="0"/><a:t>'+_pxEsc(l)+'</a:t></a:r></a:p>';
+  }).join('');
 }
 
 // ---- fit "HOLA NOMBRE," on one line ----
@@ -3351,15 +3379,17 @@ async function generateQuotePPTX(quote){
   let s1=await zip.file('ppt/slides/slide1.xml').async('string');
   s1=s1.replace('<a:t>F E C H A : 0 5 / 0 8 / 2 0 2 6</a:t>',
     '<a:t>'+_pxEsc('F E C H A : '+_pxSpaceOut(quote.date))+'</a:t>');
+  const _pxProjNumOnly=String(quote.projectNum||'').replace(/^P/i,'');
   s1=s1.replace('<a:t>N U M E R O : P 0 9 6 / C 0 0 1 / 2 0 2 6</a:t>',
-    '<a:t>'+_pxEsc('N U M E R O : '+_pxSpaceOut(quote.num))+'</a:t>');
+    '<a:t>'+_pxEsc('N U M E R O : '+_pxSpaceOut(_pxProjNumOnly))+'</a:t>');
   s1=s1.replace('<a:t>P R O Y E C T O : P 0 9 6 – W O W  D E S I G N</a:t>',
     '<a:t>'+_pxEsc('P R O Y E C T O : '+_pxSpaceOut(quote.projectNum+' – '+quote.project.toUpperCase()))+'</a:t>');
   zip.file('ppt/slides/slide1.xml',s1);
 
   // ---- slide2: greeting + pitch body ----
   let s2=await zip.file('ppt/slides/slide2.xml').async('string');
-  const greeting='HOLA '+quote.client.toUpperCase()+',';
+  const _pxGreetName=(quote.clientMailingName||quote.client||'').toUpperCase();
+  const greeting='HOLA '+_pxGreetName+',';
   const greetSz=pxFitGreetingSize(greeting);
   const oldRun='<a:rPr lang="es-ES" sz="2800" b="1" dirty="0"><a:solidFill><a:srgbClr val="000000"/></a:solidFill><a:latin typeface="Franklin Gothic Book" panose="020B0503020102020204" pitchFamily="34" charset="0"/><a:ea typeface="Pragmatica Bold"/><a:cs typeface="Pragmatica Bold"/><a:sym typeface="Pragmatica Bold"/></a:rPr><a:t>HOLA DENISSE,</a:t>';
   const newRun='<a:rPr lang="es-ES" sz="'+greetSz+'" b="1" dirty="0"><a:solidFill><a:srgbClr val="000000"/></a:solidFill><a:latin typeface="Franklin Gothic Book" panose="020B0503020102020204" pitchFamily="34" charset="0"/><a:ea typeface="Pragmatica Bold"/><a:cs typeface="Pragmatica Bold"/><a:sym typeface="Pragmatica Bold"/></a:rPr><a:t>'+_pxEsc(greeting)+'</a:t>';
@@ -3422,6 +3452,9 @@ async function generateQuotePPTX(quote){
   if(quote.productImageBytes){
     zip.file('ppt/media/image3.jpeg',quote.productImageBytes,{binary:true});
   }
+  if(quote.coverImageBytes){
+    zip.file('ppt/media/image2.jpg',quote.coverImageBytes,{binary:true});
+  }
 
   // ---- slide4: plazo de entrega + instalación ----
   let s4=await zip.file('ppt/slides/slide4.xml').async('string');
@@ -3430,6 +3463,14 @@ async function generateQuotePPTX(quote){
   s4=s4.replace('<a:t>Instalación no incluida en la presente cotización</a:t>',
     '<a:t>'+_pxEsc(quote.instalacionText||'Instalación no incluida en la presente cotización')+'</a:t>');
   zip.file('ppt/slides/slide4.xml',s4);
+
+  // ---- slide5: estructura de pago (condicional según instalación) ----
+  let s5=await zip.file('ppt/slides/slide5.xml').async('string');
+  if(!quote.instalacionIncluida){
+    s5=s5.replace('<a:t>Contra entrega: 20%</a:t>',
+      '<a:t>Previo al envío de los materiales a obra: 20%</a:t>');
+  }
+  zip.file('ppt/slides/slide5.xml',s5);
 
   return await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation'});
 }
@@ -3498,25 +3539,33 @@ async function generateQuotePPTXFromCurrent(){
   if(!project){toast('Falta el nombre del proyecto','⚠️');return;}
   try{
     toast('Generando PPTX…','⏳');
+    const projNum=val('q-proj-num')||CURRENT_Q.projectNum||'';
+    const cotNum=val('q-cot-num')||CURRENT_Q.cotNum||'';
+    const mailingName=(CURRENT_Q.clientMailingName||'').trim();
     const quote={
       date: formatDateForPPTX(val('q-date')||today()),
       num: val('q-num'),
-      projectNum: val('q-proj-num')||CURRENT_Q.projectNum||'',
+      projectNum: projNum,
+      cotNum: cotNum,
       project: project,
       client: client,
+      clientMailingName: mailingName,
       discPP: parseFloat(val('q-disc-pp'))||0,
       text: document.getElementById('proposal-text').innerHTML||'',
       plazoEntrega: val('q-plazo-entrega')||'2 semanas',
       instalacionText: val('q-instalacion')||'Instalación no incluida en la presente cotización',
+      instalacionIncluida: val('q-instalacion-incluida')==='si',
       supply: CURRENT_Q.supply.map(x=>({desc:x.desc,vol:x.vol,unit:x.unit,pvp:x.pvp,disc:x.disc||0,currency:x.currency||'MXN',tcRef:x.tcRef||_TC||17.5})),
       labor: CURRENT_Q.labor.map(x=>({desc:x.desc,vol:x.vol,unit:x.unit,pvp:x.pvp,disc:x.disc||0,currency:x.currency||'MXN',tcRef:x.tcRef||_TC||17.5})),
       productImageBytes: CURRENT_Q.productImageDataUrl ? _pxDataUrlToUint8(CURRENT_Q.productImageDataUrl) : null,
+      coverImageBytes: CURRENT_Q.coverImageDataUrl ? _pxDataUrlToUint8(CURRENT_Q.coverImageDataUrl) : null,
     };
     const blob=await generateQuotePPTX(quote);
     const url=URL.createObjectURL(blob);
     const a=document.createElement('a');
     a.href=url;
-    a.download='Cotizacion_'+(quote.num||'').replace(/\//g,'-')+'_'+client.replace(/[\/\\:*?"<>|]/g,'')+'.pptx';
+    const fnameParts=[projNum,cotNum,(mailingName||client),project].filter(Boolean);
+    a.download=fnameParts.join(' - ').replace(/[\/\\:*?"<>|]/g,'')+'.pptx';
     a.click();
     URL.revokeObjectURL(url);
     toast('PPTX descargado 🎉','✅','success');
@@ -3530,6 +3579,14 @@ function formatDateForPPTX(isoDate){
   const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
   if(!m) return isoDate;
   return m[3]+'/'+m[2]+'/'+m[1];
+}
+
+// ==== Botón "Descargar todo" (Excel + PPTX en un solo paso) ====
+async function downloadAllFiles(){
+  if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
+  await exportExcel();
+  await new Promise(r=>setTimeout(r,350)); // pequeño espacio entre descargas para navegadores estrictos
+  await generateQuotePPTXFromCurrent();
 }
 
 </script>
