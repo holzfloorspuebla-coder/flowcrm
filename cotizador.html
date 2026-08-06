@@ -3521,6 +3521,51 @@ function clearProductImage(){
   renderProductImagePreview();
   markDirty();
 }
+// ==== Foto de portada (diapositiva 1, para el PPTX) ====
+function renderCoverImagePreview(){
+  const box=document.getElementById('q-cover-img-preview');
+  const clearBtn=document.getElementById('q-cover-img-clear');
+  if(!box) return;
+  const url=CURRENT_Q&&CURRENT_Q.coverImageDataUrl;
+  if(url){
+    box.innerHTML='<img src="'+url+'" style="width:100%;height:100%;object-fit:cover">';
+    if(clearBtn) clearBtn.style.display='';
+  } else {
+    box.innerHTML='🖼️';
+    if(clearBtn) clearBtn.style.display='none';
+  }
+}
+function handleCoverImageUpload(inputEl){
+  if(!CURRENT_Q){toast('Abre o crea una cotización primero','⚠️');return;}
+  const file=inputEl.files&&inputEl.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    const img=new Image();
+    img.onload=function(){
+      const MAX=1400;
+      let w=img.width,h=img.height;
+      if(w>MAX||h>MAX){ const s=MAX/Math.max(w,h); w=Math.round(w*s); h=Math.round(h*s); }
+      const canvas=document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      CURRENT_Q.coverImageDataUrl=canvas.toDataURL('image/jpeg',0.85);
+      renderCoverImagePreview();
+      markDirty();
+      toast('Foto cargada ✓','📷','success');
+    };
+    img.onerror=function(){ toast('No se pudo leer la imagen','❌','error'); };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+  inputEl.value='';
+}
+function clearCoverImage(){
+  if(!CURRENT_Q) return;
+  CURRENT_Q.coverImageDataUrl=null;
+  renderCoverImagePreview();
+  markDirty();
+}
 function _pxDataUrlToUint8(dataUrl){
   const b64=dataUrl.split(',')[1];
   const bin=atob(b64);
