@@ -508,6 +508,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         <div class="sec">
           <div class="sec-hd"><div class="sec-title">Datos para el PPTX de cotización</div></div>
           <div style="padding:14px 16px">
+            <div class="fg"><label class="lbl">Material que se cotiza (para el NÚMERO en la diapositiva 1: Pxxx/Cxxx/Material)</label>
+              <input class="inp" id="q-material-cotizado" placeholder="Ej. Deck WPC" oninput="markDirty()">
+            </div>
             <div class="form-grid-3">
               <div class="fg"><label class="lbl">Plazo de entrega</label>
                 <input class="inp" id="q-plazo-entrega" placeholder="2 semanas" oninput="markDirty()">
@@ -2136,6 +2139,7 @@ function newQuote(){
     date:today(),project:'',client:'',clientMailingName:'',pricelist:'',discPP:0,projectStatus:'active',
     realExtras:[],realIncomes:[],supply:[],labor:[],extraCosts:[],text:'',
     plazoEntrega:'2 semanas',instalacionText:'Instalación no incluida en la presente cotización',instalacionIncluida:false,
+    materialCotizado:'',
     productImageDataUrl:null,coverImageDataUrl:null,
     _createdAt:Date.now()};
   QUOTES.unshift(q);
@@ -2214,11 +2218,16 @@ function loadQuoteToForm(){
   setValue('q-plazo-entrega',q.plazoEntrega||'2 semanas');
   setValue('q-instalacion',q.instalacionText||'Instalación no incluida en la presente cotización');
   setValue('q-instalacion-incluida',q.instalacionIncluida?'si':'no');
+  setValue('q-material-cotizado',q.materialCotizado||'');
   renderProductImagePreview();
   renderCoverImagePreview();
 }
-async function saveQuote(){
-  if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
+function syncFormToCurrentQ(){
+  // Vuelca al objeto CURRENT_Q los valores que en ese momento están en el
+  // formulario (incluyendo el texto de la propuesta, que vive en un div
+  // contenteditable y NO se sincroniza automáticamente). Se usa tanto al
+  // guardar como al duplicar, para que nunca se pierdan cambios sin guardar.
+  if(!CURRENT_Q) return;
   const q=CURRENT_Q;
   q.num=val('q-num'); q.date=val('q-date'); q.project=val('q-project');
   q.projectNum=val('q-proj-num'); q.cotNum=val('q-cot-num'); q.numYear=val('q-year');
@@ -2232,6 +2241,12 @@ async function saveQuote(){
   q.plazoEntrega=val('q-plazo-entrega')||'2 semanas';
   q.instalacionText=val('q-instalacion')||'Instalación no incluida en la presente cotización';
   q.instalacionIncluida=val('q-instalacion-incluida')==='si';
+  q.materialCotizado=val('q-material-cotizado')||'';
+}
+async function saveQuote(){
+  if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
+  syncFormToCurrentQ();
+  const q=CURRENT_Q;
   q._updatedAt=Date.now();
   const idx=QUOTES.findIndex(x=>x.id===q.id);
   if(idx>-1) QUOTES[idx]=q;
@@ -2442,6 +2457,7 @@ function selectLinkCatalog(catalogId){
 
 function duplicateQuote(){
   if(!CURRENT_Q){ toast('Sin cotización activa','⚠️'); return; }
+  syncFormToCurrentQ(); // para que la copia incluya cambios aún no guardados (texto, fotos, etc.)
   const newNum=prompt('Número de la nueva cotización:',CURRENT_Q.num+' (copia)');
   if(newNum===null) return; // cancelado
   const copy=JSON.parse(JSON.stringify(CURRENT_Q));
@@ -3201,7 +3217,7 @@ function montoALetrasMXN(monto){
   if(centavos===100){ entero+=1; centavos=0; }
   let texto=numeroALetras(entero);
   texto=texto.charAt(0).toUpperCase()+texto.slice(1);
-  return texto+" "+String(centavos).padStart(2,'0')+"/100 m.n.";
+  return texto+" pesos "+String(centavos).padStart(2,'0')+"/100 m.n.";
 }
 
 // ---- helpers ----
@@ -3338,22 +3354,17 @@ function pxBuildBodyParagraphs(lines){
 function pxFitGreetingSize(greeting){
   const BOX_W_EMU=2960455;
   const usablePx=(BOX_W_EMU/9525)-18; // EMU->px at 96dpi, minus a small inset margin
-  let canvasSz=28;
+  const TARGET_SZ=32; // tamaño estándar solicitado
+  let sz=TARGET_SZ;
   try{
     const canvas=document.createElement('canvas');
     const ctx=canvas.getContext('2d');
-    while(canvasSz>12){
-      ctx.font='bold '+(canvasSz*1.3333).toFixed(1)+'px "Franklin Gothic Book", Arial, sans-serif';
+    while(sz>16){
+      ctx.font='bold '+(sz*1.3333).toFixed(1)+'px "Franklin Gothic Book", Arial, sans-serif';
       if(ctx.measureText(greeting).width<=usablePx) break;
-      canvasSz-=0.5;
+      sz-=0.5;
     }
-  }catch(e){ canvasSz=28; }
-
-  const baseLen=13; // "HOLA DENISSE," fits at 28pt
-  const heuristicSz=greeting.length<=baseLen ? 28
-    : Math.max(12, Math.round(28*baseLen/greeting.length*0.8*2)/2);
-
-  const sz=Math.min(canvasSz,heuristicSz);
+  }catch(e){ sz=TARGET_SZ; }
   return Math.round(sz*2)*50; // -> PowerPoint sz units (hundredths of a point), snapped to .5pt
 }
 
@@ -3379,9 +3390,9 @@ async function generateQuotePPTX(quote){
   let s1=await zip.file('ppt/slides/slide1.xml').async('string');
   s1=s1.replace('<a:t>F E C H A : 0 5 / 0 8 / 2 0 2 6</a:t>',
     '<a:t>'+_pxEsc('F E C H A : '+_pxSpaceOut(quote.date))+'</a:t>');
-  const _pxProjNumOnly=String(quote.projectNum||'').replace(/^P/i,'');
+  const _pxNumeroLine=[quote.projectNum||'',quote.cotNum||'',quote.materialCotizado||''].filter(Boolean).join('/');
   s1=s1.replace('<a:t>N U M E R O : P 0 9 6 / C 0 0 1 / 2 0 2 6</a:t>',
-    '<a:t>'+_pxEsc('N U M E R O : '+_pxSpaceOut(_pxProjNumOnly))+'</a:t>');
+    '<a:t>'+_pxEsc('N U M E R O : '+_pxSpaceOut(_pxNumeroLine))+'</a:t>');
   s1=s1.replace('<a:t>P R O Y E C T O : P 0 9 6 – W O W  D E S I G N</a:t>',
     '<a:t>'+_pxEsc('P R O Y E C T O : '+_pxSpaceOut(quote.projectNum+' – '+quote.project.toUpperCase()))+'</a:t>');
   zip.file('ppt/slides/slide1.xml',s1);
@@ -3600,6 +3611,7 @@ async function generateQuotePPTXFromCurrent(){
       plazoEntrega: val('q-plazo-entrega')||'2 semanas',
       instalacionText: val('q-instalacion')||'Instalación no incluida en la presente cotización',
       instalacionIncluida: val('q-instalacion-incluida')==='si',
+      materialCotizado: val('q-material-cotizado')||'',
       supply: CURRENT_Q.supply.map(x=>({desc:x.desc,vol:x.vol,unit:x.unit,pvp:x.pvp,disc:x.disc||0,currency:x.currency||'MXN',tcRef:x.tcRef||_TC||17.5})),
       labor: CURRENT_Q.labor.map(x=>({desc:x.desc,vol:x.vol,unit:x.unit,pvp:x.pvp,disc:x.disc||0,currency:x.currency||'MXN',tcRef:x.tcRef||_TC||17.5})),
       productImageBytes: CURRENT_Q.productImageDataUrl ? _pxDataUrlToUint8(CURRENT_Q.productImageDataUrl) : null,
