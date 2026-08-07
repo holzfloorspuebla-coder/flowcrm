@@ -2909,14 +2909,14 @@ async function exportExcel(){
 
   const wb=new ExcelJS.Workbook();
   const ws=wb.addWorksheet('Cotización');
-  ws.columns=[{width:55},{width:12},{width:10},{width:16},{width:14},{width:14},{width:14}];
+  ws.columns=[{width:50},{width:11},{width:9},{width:14},{width:14},{width:13},{width:18},{width:14}];
 
   let r=0;
   function addRow(values){ r++; return ws.addRow(values); }
 
   function addSectionRow(title){
-    const row=addRow([title,'','','','','','']);
-    ws.mergeCells(r,1,r,7);
+    const row=addRow([title,'','','','','','','']);
+    ws.mergeCells(r,1,r,8);
     const mc=row.getCell(1);
     mc.fill=BLACK_FILL; mc.font=WHITE_FONT;
     mc.alignment={horizontal:'center',vertical:'middle'};
@@ -2924,39 +2924,42 @@ async function exportExcel(){
   }
 
   function addHeaderRow(){
-    const row=addRow(['PARTIDA','VOLUMEN','UD.','PVP','SUBTOTAL','DESCUENTO','TOTAL']);
-    [1,2,3,4,5,6,7].forEach(col=>{
+    const row=addRow(['PARTIDA','VOLUMEN','UD.','PVP/UD','SUBTOTAL','DESCUENTO','PVP/UD CON DESCUENTO','TOTAL']);
+    [1,2,3,4,5,6,7,8].forEach(col=>{
       const cell=row.getCell(col);
       cell.fill=BLACK_FILL; cell.font=WHITE_FONT;
-      cell.alignment={horizontal:col===1?'left':'center',vertical:'middle'};
+      cell.alignment={horizontal:col===1?'left':'center',vertical:'middle',wrapText:true};
     });
-    row.height=16;
+    row.height=28;
   }
 
   function addDataRow(x){
     const sub=round(x.vol*x.pvp,2);
-    const discAmt=round(sub*((parseFloat(x.disc)||0)/100),2);
+    const discPct=(parseFloat(x.disc)||0)/100;
+    const discAmt=round(sub*discPct,2);
     const total=round(sub-discAmt,2);
-    const row=addRow([x.desc,x.vol,x.unit,x.pvp,sub,discAmt,total]);
+    const pvpDesc=round(x.pvp*(1-discPct),2);
+    const row=addRow([x.desc,x.vol,x.unit,x.pvp,sub,discAmt,pvpDesc,total]);
     row.getCell(1).font=NORMAL_FONT; row.getCell(1).alignment={wrapText:true,vertical:'top'};
     row.getCell(2).font=NORMAL_FONT; row.getCell(2).numFmt=NUM_FMT; row.getCell(2).alignment={horizontal:'center'};
     row.getCell(3).font=NORMAL_FONT; row.getCell(3).alignment={horizontal:'center'};
     row.getCell(4).font=NORMAL_FONT; row.getCell(4).numFmt=MONEY_FMT; row.getCell(4).alignment={horizontal:'right'};
     row.getCell(5).font=NORMAL_FONT; row.getCell(5).numFmt=MONEY_FMT; row.getCell(5).alignment={horizontal:'right'};
     row.getCell(6).font=NORMAL_FONT; row.getCell(6).numFmt=MONEY_FMT; row.getCell(6).alignment={horizontal:'right'};
-    row.getCell(7).font=BOLD_FONT; row.getCell(7).numFmt=MONEY_FMT; row.getCell(7).alignment={horizontal:'right'};
+    row.getCell(7).font=NORMAL_FONT; row.getCell(7).numFmt=MONEY_FMT; row.getCell(7).alignment={horizontal:'right'};
+    row.getCell(8).font=BOLD_FONT; row.getCell(8).numFmt=MONEY_FMT; row.getCell(8).alignment={horizontal:'right'};
   }
 
   function addTotalRow(label, value){
-    // Col 1 empty, cols 2-6 merged for label (left), col 7 for value (right)
-    const row=addRow(['','','','','','',value]);
-    ws.mergeCells(r,2,r,6);
-    const labelCell=row.getCell(2); // master cell of merge B-F
+    // Col 1 empty, cols 2-7 merged for label (left), col 8 for value (right)
+    const row=addRow(['','','','','','','',value]);
+    ws.mergeCells(r,2,r,7);
+    const labelCell=row.getCell(2); // master cell of merge B-G
     labelCell.value=label;
     labelCell.fill=BLACK_FILL; labelCell.font=WHITE_FONT;
     labelCell.alignment={horizontal:'left',vertical:'middle'};
     row.getCell(1).fill=BLACK_FILL; // col A also black but empty
-    const valCell=row.getCell(7);
+    const valCell=row.getCell(8);
     valCell.fill=BLACK_FILL; valCell.font=WHITE_FONT;
     valCell.numFmt=MONEY_FMT; valCell.alignment={horizontal:'right',vertical:'middle'};
     row.height=16;
@@ -3335,68 +3338,78 @@ function _pxSpaceOut(s){ return String(s).split('').join(' '); }
 // las plantillas originales de 5 columnas extraídas de la plantilla PPTX real.
 // Se clonan celdas existentes (mismo estilo/bordes/fuente) en vez de escribir
 // XML desde cero, para no perder ninguna propiedad visual del diseño original.
-function _px7Col(){
-  // 1) Encabezado de sección: gridSpan 5->7, agrega 2 celdas hMerge de relleno
+function _px8Col(){
+  // Deriva plantillas de 8 columnas (PARTIDA/VOLUMEN/UD./PVP-UD/SUBTOTAL/
+  // DESCUENTO/PVP-UD CON DESCUENTO/TOTAL) a partir de las 5 columnas
+  // originales de la plantilla PPTX real, clonando celdas existentes.
+
+  // 1) Encabezado de sección: gridSpan 5->8, agrega 3 celdas hMerge de relleno
   const fillerCell=ROW_SECTION_HEADER_TPL.match(/<a:tc hMerge="1">[\s\S]*?<\/a:tc>/)[0];
   const sectionTpl=ROW_SECTION_HEADER_TPL
-    .replace('gridSpan="5"','gridSpan="7"')
-    .replace('<a:extLst>', fillerCell+fillerCell+'<a:extLst>');
+    .replace('gridSpan="5"','gridSpan="8"')
+    .replace('<a:extLst>', fillerCell+fillerCell+fillerCell+'<a:extLst>');
 
-  // 2) Encabezados de columna: clona la celda SUBTOTAL para DESCUENTO y TOTAL
+  // 2) Encabezados de columna: renombra PVP->PVP/UD, clona SUBTOTAL para las
+  // 3 columnas nuevas (DESCUENTO, PVP/UD CON DESC., TOTAL)
   const headerCells=ROW_COLUMN_HEADERS_TPL.match(/<a:tc>[\s\S]*?<\/a:tc>/g);
+  const pvpHeaderCell=headerCells[3].replace('<a:t>PVP</a:t>','<a:t>PVP/UD</a:t>');
   const lastHeaderCell=headerCells[headerCells.length-1];
   const descHeaderCell=lastHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>DESCUENTO</a:t>');
+  const pvpDescHeaderCell=lastHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>PVP C/DESC.</a:t>');
   const totalHeaderCell=lastHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>TOTAL</a:t>');
-  const headersTpl=ROW_COLUMN_HEADERS_TPL.replace('<a:extLst>', descHeaderCell+totalHeaderCell+'<a:extLst>');
+  let headersTpl=ROW_COLUMN_HEADERS_TPL.replace(headerCells[3], pvpHeaderCell);
+  headersTpl=headersTpl.replace('<a:extLst>', descHeaderCell+pvpDescHeaderCell+totalHeaderCell+'<a:extLst>');
 
-  // 3) Fila de partida: clona la celda PVP (normal) para DESCUENTO y la celda
-  // SUBTOTAL (negrita) para TOTAL, que pasa a ser la última columna en negrita
+  // 3) Fila de partida: clona la celda PVP (normal) para DESCUENTO y PVP/UD
+  // CON DESCUENTO, y la celda SUBTOTAL (negrita) para TOTAL (última, negrita)
   const itemCells=ROW_ITEM_TPL.match(/<a:tc>[\s\S]*?<\/a:tc>/g);
   const pvpCell=itemCells[3];
   const subtotalCell=itemCells[4];
   const descuentoItemCell=pvpCell.replace('__PVP__','__DESCUENTO__');
+  const pvpDescItemCell=pvpCell.replace('__PVP__','__PVPDESC__');
   const totalItemCell=subtotalCell.replace('__SUBTOTAL__','__TOTAL__');
-  const itemTpl=ROW_ITEM_TPL.replace('<a:extLst>', descuentoItemCell+totalItemCell+'<a:extLst>');
+  const itemTpl=ROW_ITEM_TPL.replace('<a:extLst>', descuentoItemCell+pvpDescItemCell+totalItemCell+'<a:extLst>');
 
-  // 4) Fila de totales: gridSpan 3->5 para la etiqueta, agrega 2 celdas hMerge
+  // 4) Fila de totales: gridSpan 3->6 para la etiqueta, agrega 3 celdas hMerge
   // más antes de la celda de valor (que ahora cae en la columna TOTAL)
   const hMergeCell=ROW_TOTAL_TPL.match(/<a:tc hMerge="1">[\s\S]*?<\/a:tc>/)[0];
   const doubleHMerge=hMergeCell+hMergeCell;
   const totalRowTpl=ROW_TOTAL_TPL
-    .replace('gridSpan="3"','gridSpan="5"')
-    .replace(doubleHMerge, doubleHMerge+doubleHMerge);
+    .replace('gridSpan="3"','gridSpan="6"')
+    .replace(doubleHMerge, doubleHMerge+hMergeCell+hMergeCell+hMergeCell);
 
   return {sectionTpl,headersTpl,itemTpl,totalRowTpl};
 }
-const _PX7=_px7Col();
-const PX_TBL_GRID_7COL='<a:tblGrid><a:gridCol w="2600000"/><a:gridCol w="520000"/><a:gridCol w="420000"/><a:gridCol w="650000"/><a:gridCol w="650000"/><a:gridCol w="600000"/><a:gridCol w="594020"/></a:tblGrid>';
+const _PX8=_px8Col();
+const PX_TBL_GRID_8COL='<a:tblGrid><a:gridCol w="2200000"/><a:gridCol w="480000"/><a:gridCol w="380000"/><a:gridCol w="560000"/><a:gridCol w="560000"/><a:gridCol w="550000"/><a:gridCol w="604020"/><a:gridCol w="700000"/></a:tblGrid>';
 
-function _pxBuildItemRow(desc,vol,unit,pvp,subtotal,descuento,total){
-  let x=_PX7.itemTpl;
+function _pxBuildItemRow(desc,vol,unit,pvp,subtotal,descuento,pvpDesc,total){
+  let x=_PX8.itemTpl;
   x=x.replace('__DESC__',_pxEsc(desc));
   x=x.replace('__VOL__',_pxEsc(vol));
   x=x.replace('__UNIT__',_pxEsc(unit));
   x=x.replace('__PVP__',_pxEsc(_pxMxn(pvp)));
   x=x.replace('__SUBTOTAL__',_pxEsc(_pxMxn(subtotal)));
   x=x.replace('__DESCUENTO__',_pxEsc(_pxMxn(descuento)));
+  x=x.replace('__PVPDESC__',_pxEsc(_pxMxn(pvpDesc)));
   x=x.replace('__TOTAL__',_pxEsc(_pxMxn(total)));
   return x;
 }
 function _pxBuildSectionRow(title){
-  return _PX7.sectionTpl.replace('__TITLE__',_pxEsc(title));
+  return _PX8.sectionTpl.replace('__TITLE__',_pxEsc(title));
 }
 function _pxBuildTotalRow(label,value){
-  let x=_PX7.totalRowTpl;
+  let x=_PX8.totalRowTpl;
   x=x.replace('__LABEL__',_pxEsc(label));
   x=x.replace('__VALUE__',_pxEsc(_pxMxn(value)));
   return x;
 }
 function _pxRound2(n){ return Math.round((n+1e-9)*100)/100; }
 
-const _PX_DESC_CHARS_PER_LINE=34; // recalibrado: columna PARTIDA ahora es mas angosta (2600000 EMU vs 3437100 original) para dar espacio a DESCUENTO/TOTAL
+const _PX_DESC_CHARS_PER_LINE=29; // recalibrado: columna PARTIDA ahora es 2200000 EMU (vs 3437100 original) para dar espacio a las 3 columnas nuevas
 const _PX_TOTAL_LABEL_CHARS_PER_LINE=18;
 const _PX_EMU_SECTION_ROW=130000;
-const _PX_EMU_COLHEADER_ROW=420000; // los encabezados ahora envuelven a 2 líneas en columnas angostas (VOLUMEN/SUBTOTAL/DESCUENTO)
+const _PX_EMU_COLHEADER_ROW=520000; // 8 columnas angostas -> encabezados envuelven a 2-3 líneas (ej. PVP C/DESC.)
 const _PX_EMU_TOTAL_ROW=125000;
 const _PX_EMU_TOTAL_LINE=130000;
 const _PX_EMU_ITEM_LINE=155000;
@@ -3424,19 +3437,22 @@ function pxBuildTableRows(supply,labor,discPPpct){
   let estH=0;
   function pushItem(x){
     const amt=mxnAmount(x);
-    const discAmt=_pxRound2(amt*((parseFloat(x.disc)||0)/100));
+    const pvpUnit=x.vol?amt/x.vol:0;
+    const discPct=(parseFloat(x.disc)||0)/100;
+    const discAmt=_pxRound2(amt*discPct);
     const totalAmt=_pxRound2(amt-discAmt);
-    rows.push(_pxBuildItemRow(x.desc,x.vol,x.unit,x.vol?amt/x.vol:0,amt,discAmt,totalAmt));
+    const pvpDesc=_pxRound2(pvpUnit*(1-discPct));
+    rows.push(_pxBuildItemRow(x.desc,x.vol,x.unit,pvpUnit,amt,discAmt,pvpDesc,totalAmt));
     estH+=_pxEstimateItemRowH(x.desc);
   }
   if(supply.length){
     rows.push(_pxBuildSectionRow('SUMINISTRO DE MATERIALES')); estH+=_PX_EMU_SECTION_ROW;
-    rows.push(_PX7.headersTpl); estH+=_PX_EMU_COLHEADER_ROW;
+    rows.push(_PX8.headersTpl); estH+=_PX_EMU_COLHEADER_ROW;
     supply.forEach(pushItem);
   }
   if(labor.length){
     rows.push(_pxBuildSectionRow('MANO DE OBRA')); estH+=_PX_EMU_SECTION_ROW;
-    rows.push(_PX7.headersTpl); estH+=_PX_EMU_COLHEADER_ROW;
+    rows.push(_PX8.headersTpl); estH+=_PX_EMU_COLHEADER_ROW;
     labor.forEach(pushItem);
   }
   const allItems=[...supply,...labor];
@@ -3462,7 +3478,7 @@ function pxBuildTableRows(supply,labor,discPPpct){
   const total=_pxRound2(subtotalFinal*1.16);
   addTotal('IVA (16%)',iva);
   addTotal('TOTAL A PAGAR',total);
-  estH=Math.round(estH*1.15)+100000; // margen de seguridad ampliado tras agregar columnas DESCUENTO/TOTAL
+  estH=Math.round(estH*1.18)+120000; // margen de seguridad ampliado tras pasar a 8 columnas
   return {xml:rows.join(''), total, estH};
 }
 
@@ -3547,7 +3563,7 @@ async function generateQuotePPTX(quote){
   // (agrega DESCUENTO y TOTAL) manteniendo el mismo ancho total de tabla.
   const oldGridRe=/<a:tblGrid>[\s\S]*?<\/a:tblGrid>/;
   if(!oldGridRe.test(s3)) throw new Error('No se encontró el tblGrid de la tabla en la plantilla');
-  s3=s3.replace(oldGridRe, PX_TBL_GRID_7COL);
+  s3=s3.replace(oldGridRe, PX_TBL_GRID_8COL);
   const gridRe=/(<\/a:tblGrid>)([\s\S]*?)(<\/a:tbl>)/;
   const gm=s3.match(gridRe);
   if(!gm) throw new Error('No se encontró la tabla en la plantilla');
