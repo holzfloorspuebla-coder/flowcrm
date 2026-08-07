@@ -648,6 +648,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           <div class="proposal-text" id="proposal-text" contenteditable="true" style="outline:none"></div>
         </div>
       </div>
+      <div class="sec">
+        <div class="sec-hd"><div class="sec-title">📁 Textos predeterminados por categoría</div></div>
+        <div style="padding:14px 16px">
+          <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Guarda el texto actual como plantilla de una categoría de producto (las mismas categorías del Catálogo), o carga una plantilla ya guardada en esta cotización.</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select class="inp" id="pt-category" style="flex:1;min-width:180px" onchange="updatePTStatus()"></select>
+            <button class="btn btn-ghost" onclick="savePropuestaTemplate()">💾 Guardar como predeterminado</button>
+            <button class="btn btn-ghost" onclick="loadPropuestaTemplate()">📋 Cargar predeterminado</button>
+          </div>
+          <div id="pt-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
+        </div>
+      </div>
     </div>
 
     <!-- TAB RENTABILIDAD -->
@@ -1360,11 +1372,12 @@ async function saveCatEditor(){
   const newName=document.getElementById('ce-name').value.trim();
   if(!newName){toast('Escribe un nombre para la categoría','⚠️');return;}
   const fields=getCEFields();
+  const _ceExisting=CAT_DEFS[CE_CAT_KEY]||{};
   if(!CE_IS_NEW&&CE_CAT_KEY&&CE_CAT_KEY!==newName){
     CATALOG.forEach(p=>{if(p.category===CE_CAT_KEY)p.category=newName;});
     delete CAT_DEFS[CE_CAT_KEY];
   }
-  CAT_DEFS[newName]={fields};
+  CAT_DEFS[newName]={..._ceExisting,fields}; // conserva proposalText y otras props al renombrar/editar
   CAT_ACTIVE_CAT=newName;
   closeModal('modal-cat-editor');
   renderCatTabs(); renderCatalogTable(); renderCatalogTabTable();
@@ -2369,6 +2382,8 @@ function renderQTable(tbodyId,items,table){
       <td><input class="mini-inp" type="number" value="${x.disc||0}" min="0" max="100" style="width:46px;text-align:center" onchange="CURRENT_Q['${table}'][${i}].disc=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()"></td>
       <td class="num">${x.currency==='USD'?'<span style="color:#60a5fa">USD '+fmtUSD(sub)+'</span>':mxn(sub)}</td>
       <td style="display:flex;gap:2px;align-items:center">
+        <button class="btn-icon" title="Subir" onclick="moveItem('${table}',${i},-1)" style="font-size:10px;line-height:1${i===0?';opacity:0.3;pointer-events:none':''}">▲</button>
+        <button class="btn-icon" title="Bajar" onclick="moveItem('${table}',${i},1)" style="font-size:10px;line-height:1${i===items.length-1?';opacity:0.3;pointer-events:none':''}">▼</button>
         <button class="btn-icon" title="${x.catalogId?'Sincronizar con catálogo':'Vincular a catálogo'}" onclick="syncItemFromCatalog('${table}',${i})" style="font-size:11px;opacity:${x.catalogId?'1':'0.45'}">🔄</button>
         <button class="btn-icon" onclick="removeItem('${table}',${i})">✕</button>
       </td>
@@ -2376,6 +2391,13 @@ function renderQTable(tbodyId,items,table){
   }).join('');
 }
 function removeItem(table,i){ CURRENT_Q[table].splice(i,1); renderQuoteTables(); recalcAll(); markDirty(); }
+function moveItem(table,i,dir){
+  const arr=CURRENT_Q[table];
+  const j=i+dir;
+  if(j<0||j>=arr.length) return;
+  const tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp;
+  renderQuoteTables(); recalcAll(); markDirty();
+}
 
 function syncItemFromCatalog(table,i){
   const item=CURRENT_Q[table][i];
@@ -2984,6 +3006,53 @@ function copyText(){
     .then(()=>toast('Texto copiado','📋','success')).catch(()=>toast('Error','❌','error'));
 }
 
+// ── TEXTOS PREDETERMINADOS POR CATEGORÍA (Propuesta) ──
+function renderPTCategorySelect(){
+  const sel=document.getElementById('pt-category');
+  if(!sel) return;
+  const prev=sel.value;
+  const cats=[...new Set([...Object.keys(CAT_DEFS||{}), ...CATALOG.map(p=>p.category||'')].filter(Boolean))].sort();
+  sel.innerHTML=cats.map(c=>{
+    const has=CAT_DEFS[c]&&CAT_DEFS[c].proposalText;
+    return `<option value="${esc(c)}">${esc(c)}${has?' ✓':''}</option>`;
+  }).join('');
+  if(cats.includes(prev)) sel.value=prev;
+  updatePTStatus();
+}
+function updatePTStatus(){
+  const sel=document.getElementById('pt-category');
+  const status=document.getElementById('pt-status');
+  if(!sel||!status) return;
+  const cat=sel.value;
+  const has=cat&&CAT_DEFS[cat]&&CAT_DEFS[cat].proposalText;
+  status.textContent=cat?(has?`Esta categoría ya tiene un texto predeterminado guardado.`:`"${cat}" aún no tiene un texto predeterminado.`):'';
+}
+async function savePropuestaTemplate(){
+  const cat=document.getElementById('pt-category')?.value;
+  if(!cat){ toast('No hay categorías disponibles — crea una en el Catálogo primero','⚠️'); return; }
+  const html=document.getElementById('proposal-text').innerHTML||'';
+  if(!html.trim()){ toast('El texto de la propuesta está vacío','⚠️'); return; }
+  if(!CAT_DEFS[cat]) CAT_DEFS[cat]={fields:[]};
+  if(CAT_DEFS[cat].proposalText && !confirm(`Ya existe un texto predeterminado para "${cat}". ¿Reemplazarlo con el texto actual?`)) return;
+  CAT_DEFS[cat].proposalText=html;
+  await persistAll();
+  renderPTCategorySelect();
+  toast(`Texto guardado como predeterminado de "${cat}"`,'💾','success');
+}
+function loadPropuestaTemplate(){
+  if(!CURRENT_Q){ toast('Sin cotización activa','⚠️'); return; }
+  const cat=document.getElementById('pt-category')?.value;
+  if(!cat){ toast('No hay categorías disponibles','⚠️'); return; }
+  const tpl=CAT_DEFS[cat]&&CAT_DEFS[cat].proposalText;
+  if(!tpl){ toast(`"${cat}" no tiene un texto predeterminado guardado`,'⚠️'); return; }
+  const current=document.getElementById('proposal-text').innerHTML||'';
+  if(current.trim() && !confirm('Esto reemplazará el texto actual de la propuesta. ¿Continuar?')) return;
+  document.getElementById('proposal-text').innerHTML=tpl;
+  CURRENT_Q.text=tpl;
+  markDirty();
+  toast(`Predeterminado de "${cat}" cargado`,'📋','success');
+}
+
 // ── TABS ──
 function switchTab(name,el){
   document.querySelectorAll('.tab-btn').forEach(t=>t.classList.remove('active'));
@@ -3002,6 +3071,7 @@ function switchTabById(id){
   });
   if(id==='tab-rent'){ recalcAll(); loadAccountingEntities(); }
   if(id==='tab-catalog-tab') renderCatalogTabTable();
+  if(id==='tab-text') renderPTCategorySelect();
 }
 
 // ── CATALOG TAB ──
