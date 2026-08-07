@@ -649,11 +649,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         </div>
       </div>
       <div class="sec">
-        <div class="sec-hd"><div class="sec-title">📁 Textos predeterminados por categoría</div></div>
+        <div class="sec-hd"><div class="sec-title">📁 Textos predeterminados por producto</div></div>
         <div style="padding:14px 16px">
-          <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Guarda el texto actual como plantilla de una categoría de producto (las mismas categorías del Catálogo), o carga una plantilla ya guardada en esta cotización.</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Guarda el texto actual como plantilla del producto del catálogo que se está cotizando, o carga una plantilla ya guardada para ese producto. Solo aplica a partidas vinculadas al catálogo (🔄).</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <select class="inp" id="pt-category" style="flex:1;min-width:180px" onchange="updatePTStatus()"></select>
+            <select class="inp" id="pt-product" style="flex:1;min-width:180px" onchange="updatePTStatus()"></select>
             <button class="btn btn-ghost" onclick="savePropuestaTemplate()">💾 Guardar como predeterminado</button>
             <button class="btn btn-ghost" onclick="loadPropuestaTemplate()">📋 Cargar predeterminado</button>
           </div>
@@ -2909,14 +2909,14 @@ async function exportExcel(){
 
   const wb=new ExcelJS.Workbook();
   const ws=wb.addWorksheet('Cotización');
-  ws.columns=[{width:55},{width:12},{width:10},{width:16},{width:14}];
+  ws.columns=[{width:55},{width:12},{width:10},{width:16},{width:14},{width:14},{width:14}];
 
   let r=0;
   function addRow(values){ r++; return ws.addRow(values); }
 
   function addSectionRow(title){
-    const row=addRow([title,'','','','']);
-    ws.mergeCells(r,1,r,5);
+    const row=addRow([title,'','','','','','']);
+    ws.mergeCells(r,1,r,7);
     const mc=row.getCell(1);
     mc.fill=BLACK_FILL; mc.font=WHITE_FONT;
     mc.alignment={horizontal:'center',vertical:'middle'};
@@ -2924,8 +2924,8 @@ async function exportExcel(){
   }
 
   function addHeaderRow(){
-    const row=addRow(['PARTIDA','VOLUMEN','UD.','PVP','SUBTOTAL']);
-    [1,2,3,4,5].forEach(col=>{
+    const row=addRow(['PARTIDA','VOLUMEN','UD.','PVP','SUBTOTAL','DESCUENTO','TOTAL']);
+    [1,2,3,4,5,6,7].forEach(col=>{
       const cell=row.getCell(col);
       cell.fill=BLACK_FILL; cell.font=WHITE_FONT;
       cell.alignment={horizontal:col===1?'left':'center',vertical:'middle'};
@@ -2935,24 +2935,28 @@ async function exportExcel(){
 
   function addDataRow(x){
     const sub=round(x.vol*x.pvp,2);
-    const row=addRow([x.desc,x.vol,x.unit,x.pvp,sub]);
+    const discAmt=round(sub*((parseFloat(x.disc)||0)/100),2);
+    const total=round(sub-discAmt,2);
+    const row=addRow([x.desc,x.vol,x.unit,x.pvp,sub,discAmt,total]);
     row.getCell(1).font=NORMAL_FONT; row.getCell(1).alignment={wrapText:true,vertical:'top'};
     row.getCell(2).font=NORMAL_FONT; row.getCell(2).numFmt=NUM_FMT; row.getCell(2).alignment={horizontal:'center'};
     row.getCell(3).font=NORMAL_FONT; row.getCell(3).alignment={horizontal:'center'};
     row.getCell(4).font=NORMAL_FONT; row.getCell(4).numFmt=MONEY_FMT; row.getCell(4).alignment={horizontal:'right'};
-    row.getCell(5).font=BOLD_FONT; row.getCell(5).numFmt=MONEY_FMT; row.getCell(5).alignment={horizontal:'right'};
+    row.getCell(5).font=NORMAL_FONT; row.getCell(5).numFmt=MONEY_FMT; row.getCell(5).alignment={horizontal:'right'};
+    row.getCell(6).font=NORMAL_FONT; row.getCell(6).numFmt=MONEY_FMT; row.getCell(6).alignment={horizontal:'right'};
+    row.getCell(7).font=BOLD_FONT; row.getCell(7).numFmt=MONEY_FMT; row.getCell(7).alignment={horizontal:'right'};
   }
 
   function addTotalRow(label, value){
-    // Col 1 empty, cols 2-4 merged for label (left), col 5 for value (right)
-    const row=addRow(['','','','',value]);
-    ws.mergeCells(r,2,r,4);
-    const labelCell=row.getCell(2); // master cell of merge B-D
+    // Col 1 empty, cols 2-6 merged for label (left), col 7 for value (right)
+    const row=addRow(['','','','','','',value]);
+    ws.mergeCells(r,2,r,6);
+    const labelCell=row.getCell(2); // master cell of merge B-F
     labelCell.value=label;
     labelCell.fill=BLACK_FILL; labelCell.font=WHITE_FONT;
     labelCell.alignment={horizontal:'left',vertical:'middle'};
     row.getCell(1).fill=BLACK_FILL; // col A also black but empty
-    const valCell=row.getCell(5);
+    const valCell=row.getCell(7);
     valCell.fill=BLACK_FILL; valCell.font=WHITE_FONT;
     valCell.numFmt=MONEY_FMT; valCell.alignment={horizontal:'right',vertical:'middle'};
     row.height=16;
@@ -3006,51 +3010,75 @@ function copyText(){
     .then(()=>toast('Texto copiado','📋','success')).catch(()=>toast('Error','❌','error'));
 }
 
-// ── TEXTOS PREDETERMINADOS POR CATEGORÍA (Propuesta) ──
+// ── TEXTOS PREDETERMINADOS POR PRODUCTO (Propuesta) ──
+// Ligado directamente al producto del catálogo que se está cotizando (item.catalogId),
+// no a la categoría — cada producto puede tener su propio texto de propuesta.
+function _ptProductsInQuote(){
+  if(!CURRENT_Q) return [];
+  const items=[...(CURRENT_Q.supply||[]),...(CURRENT_Q.labor||[])].filter(x=>x.catalogId);
+  const seen=new Set(); const out=[];
+  items.forEach(x=>{
+    if(seen.has(x.catalogId)) return;
+    seen.add(x.catalogId);
+    const p=CATALOG.find(c=>c.id===x.catalogId);
+    out.push({id:x.catalogId, label:(p&&(p.description||p.model))||x.desc||x.catalogId});
+  });
+  return out;
+}
 function renderPTCategorySelect(){
-  const sel=document.getElementById('pt-category');
+  const sel=document.getElementById('pt-product');
   if(!sel) return;
   const prev=sel.value;
-  const cats=[...new Set([...Object.keys(CAT_DEFS||{}), ...CATALOG.map(p=>p.category||'')].filter(Boolean))].sort();
-  sel.innerHTML=cats.map(c=>{
-    const has=CAT_DEFS[c]&&CAT_DEFS[c].proposalText;
-    return `<option value="${esc(c)}">${esc(c)}${has?' ✓':''}</option>`;
+  const prods=_ptProductsInQuote();
+  if(!prods.length){
+    sel.innerHTML='<option value="">— Ninguna partida vinculada al catálogo —</option>';
+    updatePTStatus();
+    return;
+  }
+  sel.innerHTML=prods.map(p=>{
+    const cat=CATALOG.find(c=>c.id===p.id);
+    const has=cat&&cat.proposalText;
+    return `<option value="${esc(p.id)}">${esc(p.label)}${has?' ✓':''}</option>`;
   }).join('');
-  if(cats.includes(prev)) sel.value=prev;
+  if(prods.some(p=>p.id===prev)) sel.value=prev;
   updatePTStatus();
 }
 function updatePTStatus(){
-  const sel=document.getElementById('pt-category');
+  const sel=document.getElementById('pt-product');
   const status=document.getElementById('pt-status');
   if(!sel||!status) return;
-  const cat=sel.value;
-  const has=cat&&CAT_DEFS[cat]&&CAT_DEFS[cat].proposalText;
-  status.textContent=cat?(has?`Esta categoría ya tiene un texto predeterminado guardado.`:`"${cat}" aún no tiene un texto predeterminado.`):'';
+  const id=sel.value;
+  if(!id){ status.textContent='Vincula al menos una partida al catálogo (botón 🔄 en la tabla) para poder guardar o cargar un texto predeterminado.'; return; }
+  const p=CATALOG.find(c=>c.id===id);
+  const has=p&&p.proposalText;
+  status.textContent=has?'Este producto ya tiene un texto predeterminado guardado.':'Este producto aún no tiene un texto predeterminado.';
 }
 async function savePropuestaTemplate(){
-  const cat=document.getElementById('pt-category')?.value;
-  if(!cat){ toast('No hay categorías disponibles — crea una en el Catálogo primero','⚠️'); return; }
+  const id=document.getElementById('pt-product')?.value;
+  if(!id){ toast('Vincula una partida al catálogo primero','⚠️'); return; }
+  const p=CATALOG.find(c=>c.id===id);
+  if(!p){ toast('Producto no encontrado en el catálogo','⚠️'); return; }
   const html=document.getElementById('proposal-text').innerHTML||'';
   if(!html.trim()){ toast('El texto de la propuesta está vacío','⚠️'); return; }
-  if(!CAT_DEFS[cat]) CAT_DEFS[cat]={fields:[]};
-  if(CAT_DEFS[cat].proposalText && !confirm(`Ya existe un texto predeterminado para "${cat}". ¿Reemplazarlo con el texto actual?`)) return;
-  CAT_DEFS[cat].proposalText=html;
+  if(p.proposalText && !confirm(`Ya existe un texto predeterminado para "${p.description||p.model}". ¿Reemplazarlo con el texto actual?`)) return;
+  p.proposalText=html;
   await persistAll();
   renderPTCategorySelect();
-  toast(`Texto guardado como predeterminado de "${cat}"`,'💾','success');
+  toast(`Texto guardado como predeterminado de "${p.description||p.model}"`,'💾','success');
 }
 function loadPropuestaTemplate(){
   if(!CURRENT_Q){ toast('Sin cotización activa','⚠️'); return; }
-  const cat=document.getElementById('pt-category')?.value;
-  if(!cat){ toast('No hay categorías disponibles','⚠️'); return; }
-  const tpl=CAT_DEFS[cat]&&CAT_DEFS[cat].proposalText;
-  if(!tpl){ toast(`"${cat}" no tiene un texto predeterminado guardado`,'⚠️'); return; }
+  const id=document.getElementById('pt-product')?.value;
+  if(!id){ toast('Vincula una partida al catálogo primero','⚠️'); return; }
+  const p=CATALOG.find(c=>c.id===id);
+  const tpl=p&&p.proposalText;
+  if(!tpl){ toast(`"${p?(p.description||p.model):id}" no tiene un texto predeterminado guardado`,'⚠️'); return; }
   const current=document.getElementById('proposal-text').innerHTML||'';
   if(current.trim() && !confirm('Esto reemplazará el texto actual de la propuesta. ¿Continuar?')) return;
   document.getElementById('proposal-text').innerHTML=tpl;
   CURRENT_Q.text=tpl;
   markDirty();
-  toast(`Predeterminado de "${cat}" cargado`,'📋','success');
+  toast(`Predeterminado de "${p.description||p.model}" cargado`,'📋','success');
 }
 
 // ── TABS ──
@@ -3422,20 +3450,7 @@ function pxBuildBodyParagraphs(lines){
 // a lot from what actually ships in the user's PowerPoint (Franklin Gothic Book
 // may not be installed everywhere) — we take the smaller (safer) of the two.
 function pxFitGreetingSize(greeting){
-  const BOX_W_EMU=2960455;
-  const usablePx=(BOX_W_EMU/9525)-18; // EMU->px at 96dpi, minus a small inset margin
-  const TARGET_SZ=32; // tamaño estándar solicitado
-  let sz=TARGET_SZ;
-  try{
-    const canvas=document.createElement('canvas');
-    const ctx=canvas.getContext('2d');
-    while(sz>16){
-      ctx.font='bold '+(sz*1.3333).toFixed(1)+'px "Franklin Gothic Book", Arial, sans-serif';
-      if(ctx.measureText(greeting).width<=usablePx) break;
-      sz-=0.5;
-    }
-  }catch(e){ sz=TARGET_SZ; }
-  return Math.round(sz*2)*50; // -> PowerPoint sz units (hundredths of a point), snapped to .5pt
+  return 3200; // tamaño fijo de 32pt, siempre, sin reducción automática
 }
 
 function _pxB64ToUint8(b64){
