@@ -471,6 +471,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
                     <input class="inp" id="q-project" placeholder="Revestimientos oficinas" autocomplete="off" oninput="markDirty()" style="flex:1">
                     <button class="btn btn-ghost" onclick="openProjectSearch()" title="Buscar en CRM" style="flex-shrink:0;padding:7px 10px;font-size:13px">🔍</button>
                   </div>
+                  <div id="crm-link-badge" style="font-size:11px;margin-top:4px"></div>
                 </div>
               </div>
             </div>
@@ -987,7 +988,7 @@ async function loadAllFromCloud(){
 
     // Pre-cargar cache de proyectos
     _psCache = (data.projects||[]).map(p=>({
-      name:p.name||p.title||'', client:p.client||p.clientName||'',
+      id:p.id, name:p.name||p.title||'', client:p.client||p.clientName||'',
       stage:p.stage||'', city:p.city||''
     })).filter(p=>p.name);
 
@@ -997,7 +998,12 @@ async function loadAllFromCloud(){
 
     migrateQuoteNums();
     renderQuoteList();
-    // No auto-seleccionar — el usuario elige desde el sidebar
+    // No auto-seleccionar — el usuario elige desde el sidebar, salvo que se
+    // haya llegado desde el CRM con una cotización específica (?openQuote=)
+    if(_urlOpenQuoteId){
+      const _oq=QUOTES.find(x=>String(x.id)===String(_urlOpenQuoteId));
+      if(_oq) selectQuote(_oq.id);
+    }
   }catch(e){
     setSyncDot('err'); setSyncLbl('Error de conexión');
     toast('No se pudo conectar al servidor','❌','error');
@@ -1013,6 +1019,21 @@ async function loadAllFromCloud(){
 let _csTimer = null;
 let _csCache = null; // cache de contactos para la sesión
 let _psCache = null; // cache de proyectos para la sesión
+
+// ── Vínculo con proyecto del CRM (llega por URL desde la ficha del proyecto) ──
+const _urlParams = new URLSearchParams(location.search);
+const _urlOpenQuoteId = _urlParams.get('openQuote') || '';
+let INCOMING_PROJECT = null;
+{
+  const _pid = _urlParams.get('projectId');
+  if(_pid){
+    INCOMING_PROJECT = {
+      id: _pid,
+      name: _urlParams.get('projectName') || '',
+      client: _urlParams.get('client') || ''
+    };
+  }
+}
 
 function openClientSearch(){
   document.getElementById('cs-input').value='';
@@ -1231,7 +1252,11 @@ function addCustomUnit(){
 }
 
 // ── PROJECT SEARCH ──
-function openProjectSearch(){
+let _psPendingCreate=false;
+function openProjectSearch(forCreate){
+  _psPendingCreate=!!forCreate;
+  const hd=document.querySelector('#modal-project-search h2');
+  if(hd) hd.textContent=_psPendingCreate?'📁 Elige el proyecto para esta cotización':'📁 Buscar proyecto en CRM';
   document.getElementById('ps-input').value='';
   document.getElementById('ps-results').innerHTML='<div style="color:var(--text3);font-size:12px;text-align:center;padding:20px">Escribe para buscar...</div>';
   document.getElementById('modal-project-search').classList.remove('hidden');
@@ -1259,14 +1284,22 @@ function renderPSResults(matches){
     return;
   }
   res.innerHTML=matches.slice(0,15).map(p=>`
-    <div class="autocomplete-item" style="border-radius:var(--r);margin-bottom:3px;border:1px solid var(--border)" onclick="selectProjectFromModal('${esc(p.name)}','${esc(p.client)}')">
+    <div class="autocomplete-item" style="border-radius:var(--r);margin-bottom:3px;border:1px solid var(--border)" onclick="selectProjectFromModal('${esc(String(p.id))}','${esc(p.name)}','${esc(p.client)}')">
       <div class="ac-name">${esc(p.name)}</div>
       <div class="ac-sub">${[p.client,p.stage,p.city].filter(Boolean).map(esc).join(' · ')}</div>
     </div>`).join('');
 }
 
-function selectProjectFromModal(name, client){
+function selectProjectFromModal(id, name, client){
+  if(_psPendingCreate){
+    _psPendingCreate=false;
+    closeModal('modal-project-search');
+    _createQuoteForProject(id, name, client);
+    return;
+  }
   document.getElementById('q-project').value=name;
+  if(CURRENT_Q) CURRENT_Q.crmProjectId=id;
+  renderCrmLinkBadge();
   // Si el campo cliente está vacío, pre-llenarlo con el cliente del proyecto
   const clientEl=document.getElementById('q-client');
   if(client && !clientEl.value.trim()){
@@ -2143,13 +2176,31 @@ function migrateQuoteNums(){
   });
 }
 function newQuote(){
+  // Toda cotización nueva debe quedar vinculada a un proyecto registrado
+  // en el pipeline del CRM. Si se llegó desde la ficha del proyecto (URL),
+  // se usa ese vínculo directo; si no, se obliga a elegir uno existente.
+  if(INCOMING_PROJECT){
+    _createQuoteForProject(INCOMING_PROJECT.id, INCOMING_PROJECT.name, INCOMING_PROJECT.client);
+    return;
+  }
+  if(!_psCache){
+    toast('Cargando proyectos del CRM, espera un momento...','⏳');
+    return;
+  }
+  if(!_psCache.length){
+    toast('No hay proyectos registrados en el CRM. Créalo primero en el pipeline de proyectos.','⚠️','error');
+    return;
+  }
+  openProjectSearch(true);
+}
+function _createQuoteForProject(projectId, projectName, clientName){
   var year=new Date().getFullYear();
   var pn=getNextProjectNum();
   var projNum='P'+String(pn).padStart(3,'0');
   var cotNum='C001';
   var num=projNum+'/'+cotNum+'/'+year;
   var q={id:uid(),num:num,projectNum:projNum,cotNum:cotNum,numYear:String(year),
-    date:today(),project:'',client:'',clientMailingName:'',pricelist:'',discPP:0,projectStatus:'active',
+    date:today(),project:projectName||'',crmProjectId:projectId||'',client:clientName||'',clientMailingName:'',pricelist:'',discPP:0,projectStatus:'active',
     realExtras:[],realIncomes:[],supply:[],labor:[],extraCosts:[],text:'',
     plazoEntrega:'2 semanas',instalacionText:'Instalación no incluida en la presente cotización',instalacionIncluida:false,
     materialCotizado:'',
@@ -2234,6 +2285,16 @@ function loadQuoteToForm(){
   setValue('q-material-cotizado',q.materialCotizado||'');
   renderProductImagePreview();
   renderCoverImagePreview();
+  renderCrmLinkBadge();
+}
+function renderCrmLinkBadge(){
+  const el=document.getElementById('crm-link-badge');
+  if(!el) return;
+  if(CURRENT_Q && CURRENT_Q.crmProjectId){
+    el.innerHTML='<span style="color:#3ecf8e">🔗 Vinculado al proyecto del CRM</span>';
+  } else {
+    el.innerHTML='<span style="color:var(--text3)">Sin vínculo al pipeline de proyectos</span>';
+  }
 }
 function syncFormToCurrentQ(){
   // Vuelca al objeto CURRENT_Q los valores que en ese momento están en el
