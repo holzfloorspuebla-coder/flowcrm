@@ -2721,6 +2721,7 @@ function filterMUCStudio(q){
     &#65291; Crear estudio${q?' "'+q+'"':' nuevo'}
   </div>`;
   dd.innerHTML=html;
+  _floatDropdown($('muc-c-studio-search'), dd);
   dd.style.display='block';
 }
 function createMUCStudioInline(name){
@@ -5648,6 +5649,13 @@ function openProjDetail(id){
       ${p.closeDate?`<div><div class="il">Fecha de cierre</div><div class="iv">🏆 ${p.closeDate}</div></div>`:''}
       <div><div class="il">Etiquetas</div><div style="margin-top:2px;display:flex;gap:3px;flex-wrap:wrap">${(p.tags||[]).map(tH).join('')||'—'}</div></div>
     </div>
+    <div style="margin-bottom:14px">
+      <div class="il" style="margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
+        <span>📄 Cotizaciones</span>
+        <button class="btn btn-primary btn-sm" onclick="crearCotizacionDesdeProyecto(${p.id})">+ Crear cotización</button>
+      </div>
+      <div id="proj-quotes-${p.id}" style="font-size:12px;color:var(--text3)">Cargando cotizaciones...</div>
+    </div>
     ${contacts.length?`<div style="margin-bottom:14px">
       <div class="il" style="margin-bottom:8px">Contactos vinculados</div>
       ${contacts.map(c=>{const ag=USERS.find(a=>a.id===c.agent);return`<div style="display:flex;align-items:center;gap:9px;padding:8px;background:var(--surface2);border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="closeM('modal-proj-detail');openProfile(${c.id})">
@@ -5681,7 +5689,54 @@ function openProjDetail(id){
     ${owned?`<button class="btn btn-primary" onclick="closeM('modal-proj-detail');openProjectModal(null,null,${id})">✏️ Editar</button>`:''}
   `;
   $('modal-proj-detail').classList.remove('hidden');
+  loadProjQuotesForProject(id, p.name, contacts[0]?contacts[0].name:'');
 }
+
+// ── Integración con el cotizador ──
+// El cotizador vive en el mismo repositorio (misma carpeta que este CRM),
+// por eso se referencia con ruta relativa 'cotizador.html'.
+function crearCotizacionDesdeProyecto(id){
+  const p=D.projects.find(x=>x.id===id);
+  if(!p) return;
+  const contacts=D.contacts.filter(c=>p.contactIds?.includes(c.id));
+  const clientName=contacts.length?contacts[0].name:'';
+  const params=new URLSearchParams({projectId:String(id), projectName:p.name||''});
+  if(clientName) params.set('client', clientName);
+  window.open('cotizador.html?'+params.toString(), '_blank');
+}
+
+async function loadProjQuotesForProject(projectId, projectName, clientName){
+  const el=document.getElementById('proj-quotes-'+projectId);
+  if(!el) return;
+  try{
+    const r=await fetch(_HARDCODED_URL+'/data?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const quotes=(d.quotes||[]).filter(q=>String(q.crmProjectId)===String(projectId));
+    if(!quotes.length){
+      el.innerHTML='<div style="font-size:12px;color:var(--text3)">Sin cotizaciones todavía</div>';
+      return;
+    }
+    quotes.sort((a,b)=>(b._createdAt||0)-(a._createdAt||0));
+    el.innerHTML=quotes.map(q=>{
+      const items=[...(q.supply||[]),...(q.labor||[])];
+      const total=items.reduce((sum,x)=>{
+        const sub=(parseFloat(x.vol)||0)*(parseFloat(x.pvp)||0);
+        const disc=(parseFloat(x.disc)||0)/100;
+        return sum+(sub*(1-disc));
+      },0);
+      const params=new URLSearchParams({projectId:String(projectId), projectName:projectName||'', openQuote:q.id});
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 10px;background:var(--surface2);border-radius:8px;margin-bottom:6px;cursor:pointer" onclick="window.open('cotizador.html?${params.toString()}','_blank')">
+        <div><div style="font-weight:600;font-size:13px">${q.num||'Cotización'}</div><div style="font-size:11px;color:var(--text2)">${q.date||''}</div></div>
+        <div style="font-weight:700;font-size:13px;color:var(--green)">${fmtVal(total)}</div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    el.innerHTML='<div style="font-size:12px;color:var(--red)">Error al cargar cotizaciones</div>';
+    console.warn('loadProjQuotesForProject error:',e);
+  }
+}
+
 function changeProjStage(id,stage,selectEl){
   const p=D.projects.find(x=>x.id===id);
   if(!p||!canEdit(p.agent)){toast('Sin permiso','⚠️');return;}
@@ -6068,6 +6123,30 @@ function populateStudioSelect(selectedId){
   hideStudioDropdown();
 }
 
+// Los desplegables de búsqueda (#c-studio-dropdown, #muc-c-studio-dropdown) usan
+// position:absolute, pero viven dentro de un modal con overflow-y:auto que los
+// recorta visualmente cuando el campo queda más abajo en el formulario — por
+// eso "no se ven" aunque sí se estén generando. Los movemos a document.body
+// con position:fixed, calculando su posición a partir del input.
+function _floatDropdown(inputEl, ddEl){
+  if(!inputEl||!ddEl) return;
+  if(ddEl.parentNode!==document.body) document.body.appendChild(ddEl);
+  const r=inputEl.getBoundingClientRect();
+  ddEl.style.position='fixed';
+  ddEl.style.left=r.left+'px';
+  ddEl.style.top=(r.bottom+4)+'px';
+  ddEl.style.width=r.width+'px';
+  ddEl.style.zIndex='9999';
+}
+// Si el modal se desplaza con el desplegable abierto, se cierra en vez de
+// quedar mal posicionado (captura=true para detectar scroll dentro del modal).
+document.addEventListener('scroll',function(){
+  const dd1=document.getElementById('c-studio-dropdown');
+  if(dd1&&dd1.style.display==='block')dd1.style.display='none';
+  const dd2=document.getElementById('muc-c-studio-dropdown');
+  if(dd2&&dd2.style.display==='block')dd2.style.display='none';
+},true);
+
 function filterStudioDropdown(q){
   const all=D.studios||[];
   const nq=norm(q);
@@ -6102,6 +6181,7 @@ function renderStudioDropdown(studios, rawQ){
     ${label}
   </div>`;
   dd.innerHTML=html;
+  _floatDropdown($('c-studio-search'), dd);
   dd.style.display='block';
 }
 
@@ -6194,7 +6274,7 @@ function clearStudioSelection(){
 
 // Close dropdown when clicking outside
 document.addEventListener('click',e=>{
-  if(!e.target.closest('#c-studio-row'))hideStudioDropdown();
+  if(!e.target.closest('#c-studio-row')&&!e.target.closest('#c-studio-dropdown'))hideStudioDropdown();
 });
 function openContactModal(stageId,editId){
   S.editCId=editId||null;S.cTags=[];
