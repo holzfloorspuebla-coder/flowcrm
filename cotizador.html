@@ -3439,8 +3439,12 @@ function _px8Col(){
   // se deja igual — y se agregan 3 celdas en blanco más (para B, C y D) junto
   // a la que ya existía para A, y se alinea el texto de la etiqueta a la derecha.
   const blankCell=ROW_TOTAL_TPL.match(/<a:tc>[\s\S]*?<\/a:tc>/)[0];
+  // Celda en blanco SIN bordes (la original traía un borde derecho para
+  // separarla de la etiqueta cuando esta empezaba justo a un lado; ahora que
+  // hay 4 celdas en blanco seguidas, ese borde se veía como una cuadrícula).
+  const blankCellNoBorder=blankCell.replace(/<a:lnR[\s\S]*?<\/a:lnR>/,'<a:lnR><a:noFill\/><\/a:lnR>');
   const totalRowTpl=ROW_TOTAL_TPL
-    .replace(blankCell, blankCell+blankCell+blankCell+blankCell)
+    .replace(blankCell, blankCellNoBorder+blankCellNoBorder+blankCellNoBorder+blankCellNoBorder)
     .replace('algn="l" fontAlgn="ctr"','algn="r" fontAlgn="ctr"');
 
   return {sectionTpl,headersTpl,itemTpl,totalRowTpl};
@@ -3472,7 +3476,8 @@ function _pxBuildTotalRow(label,value){
 function _pxRound2(n){ return Math.round((n+1e-9)*100)/100; }
 
 const _PX_DESC_CHARS_PER_LINE=29; // recalibrado: columna PARTIDA ahora es 2200000 EMU (vs 3437100 original) para dar espacio a las 3 columnas nuevas
-const _PX_TOTAL_LABEL_CHARS_PER_LINE=11; // recalibrado: la etiqueta ahora solo ocupa E-F-G (antes B-G)
+const _PX_TOTAL_LABEL_CHARS_PER_LINE=20; // calibrado con evidencia real: "DESCUENTO PRONTO PAGO" (22 car.) cabe en 1 línea
+const _PX_TOTAL_VALUE_CHARS_PER_LINE=10; // columna TOTAL (H) es angosta; montos largos ($132,885.68) envuelven a 2 líneas
 const _PX_EMU_SECTION_ROW=130000;
 const _PX_EMU_COLHEADER_ROW=520000; // 8 columnas angostas -> encabezados envuelven a 2-3 líneas (ej. PVP C/DESC.)
 const _PX_EMU_TOTAL_ROW=125000;
@@ -3484,8 +3489,10 @@ function _pxEstimateItemRowH(desc){
   const lines=Math.max(1,Math.ceil(String(desc).length/_PX_DESC_CHARS_PER_LINE));
   return Math.max(353059,_PX_EMU_ITEM_BASE+lines*_PX_EMU_ITEM_LINE);
 }
-function _pxEstimateTotalRowH(label){
-  const lines=Math.max(1,Math.ceil(String(label).length/_PX_TOTAL_LABEL_CHARS_PER_LINE));
+function _pxEstimateTotalRowH(label,valueStr){
+  const labelLines=Math.max(1,Math.ceil(String(label).length/_PX_TOTAL_LABEL_CHARS_PER_LINE));
+  const valueLines=Math.max(1,Math.ceil(String(valueStr||'').length/_PX_TOTAL_VALUE_CHARS_PER_LINE));
+  const lines=Math.max(labelLines,valueLines);
   return _PX_EMU_TOTAL_ROW+(lines-1)*_PX_EMU_TOTAL_LINE;
 }
 
@@ -3529,7 +3536,7 @@ function pxBuildTableRows(supply,labor,discPPpct){
 
   function addTotal(label,value){
     rows.push(_pxBuildTotalRow(label,value));
-    estH+=_pxEstimateTotalRowH(label);
+    estH+=_pxEstimateTotalRowH(label,_pxMxn(value));
   }
   // El descuento por partida ya se ve en cada renglón (columnas DESCUENTO /
   // PVP C/DESC.) — aquí solo bajamos un subtotal, el descuento por pronto
@@ -3642,12 +3649,18 @@ async function generateQuotePPTX(quote){
      +_pxEsc(part2)
      +s3.slice(tm.index+tm[1].length+tm[2].length+tm[3].length+tm[4].length);
 
-  // dynamic repositioning of total-words box + product image based on estimated table height
-  const TABLE_TOP=930895, GAP1=470000, TOTAL_TEXT_H=276999, GAP2=200000;
-  const FOOTER_SAFE_Y=8500000, IMAGE_MIN_H=900000, IMAGE_MAX_H=4257675;
+  // dynamic repositioning of total-words box + product image based on estimated table height.
+  // Con cotizaciones muy largas (varias partidas con descripciones extensas) la
+  // tabla puede acercarse al límite físico de la diapositiva — el texto en letras
+  // NUNCA debe quedar fuera de esta, así que se acota (clamp) a una posición
+  // segura por encima del pie de página, aunque eso implique quedar más pegado
+  // al final de la tabla en esos casos extremos.
+  const TABLE_TOP=930895, GAP1=250000, TOTAL_TEXT_H=276999, GAP2=120000;
+  const FOOTER_SAFE_Y=8500000, IMAGE_MIN_H=500000, IMAGE_MAX_H=4257675;
   const TABLE_CX=6034020, TABLE_X=411989;
+  const MAX_TOTAL_TEXT_Y=FOOTER_SAFE_Y-TOTAL_TEXT_H;
   const tableBottom=TABLE_TOP+estH;
-  const totalTextY=tableBottom+GAP1;
+  const totalTextY=Math.min(tableBottom+GAP1, MAX_TOTAL_TEXT_Y);
   const imageY=totalTextY+TOTAL_TEXT_H+GAP2;
   const maxImageH=FOOTER_SAFE_Y-imageY;
 
