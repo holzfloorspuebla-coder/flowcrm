@@ -3047,13 +3047,13 @@ async function exportExcel(){
     }
   }
 
-  const subtotalBruto=supRawMXN+labRawMXN;
-  addTotalRow('SUBTOTAL PROYECTO', subtotalBruto);
-  if(discVolAmtE>0) addTotalRow('DESCUENTO POR VOLUMEN', -discVolAmtE);
+  // El descuento por partida ya se ve en cada renglón (columnas DESCUENTO /
+  // PVP/UD CON DESCUENTO) — aquí solo bajamos un subtotal, el descuento por
+  // pronto pago (si aplica) y el total.
+  addTotalRow('SUBTOTAL PROYECTO', baseAfterVolE);
   if(dp>0) addTotalRow('DESCUENTO PRONTO PAGO ('+(dp*100).toFixed(0)+'%)', -round(baseAfterVolE*dp,2));
 
   const subtotalFinal=supNetMXN;
-  if(discVolAmtE>0||dp>0) addTotalRow('SUBTOTAL PROYECTO', subtotalFinal);
   addTotalRow('IVA (16%)', subtotalFinal*0.16);
   addTotalRow('TOTAL A PAGAR', subtotalFinal*1.16);
   if(hasUSD){
@@ -3433,13 +3433,15 @@ function _px8Col(){
   const totalItemCell=subtotalCell.replace('__SUBTOTAL__','__TOTAL__');
   const itemTpl=ROW_ITEM_TPL.replace('<a:extLst>', descuentoItemCell+pvpDescItemCell+totalItemCell+'<a:extLst>');
 
-  // 4) Fila de totales: gridSpan 3->6 para la etiqueta, agrega 3 celdas hMerge
-  // más antes de la celda de valor (que ahora cae en la columna TOTAL)
-  const hMergeCell=ROW_TOTAL_TPL.match(/<a:tc hMerge="1">[\s\S]*?<\/a:tc>/)[0];
-  const doubleHMerge=hMergeCell+hMergeCell;
+  // 4) Fila de totales: la etiqueta+valor deben verse como un resumen
+  // compacto pegado a la derecha, no como una barra de ancho completo.
+  // gridSpan="3" ya cubre exactamente E, F y G (Subtotal/Descuento/PVP c/desc) —
+  // se deja igual — y se agregan 3 celdas en blanco más (para B, C y D) junto
+  // a la que ya existía para A, y se alinea el texto de la etiqueta a la derecha.
+  const blankCell=ROW_TOTAL_TPL.match(/<a:tc>[\s\S]*?<\/a:tc>/)[0];
   const totalRowTpl=ROW_TOTAL_TPL
-    .replace('gridSpan="3"','gridSpan="6"')
-    .replace(doubleHMerge, doubleHMerge+hMergeCell+hMergeCell+hMergeCell);
+    .replace(blankCell, blankCell+blankCell+blankCell+blankCell)
+    .replace('algn="l" fontAlgn="ctr"','algn="r" fontAlgn="ctr"');
 
   return {sectionTpl,headersTpl,itemTpl,totalRowTpl};
 }
@@ -3470,7 +3472,7 @@ function _pxBuildTotalRow(label,value){
 function _pxRound2(n){ return Math.round((n+1e-9)*100)/100; }
 
 const _PX_DESC_CHARS_PER_LINE=29; // recalibrado: columna PARTIDA ahora es 2200000 EMU (vs 3437100 original) para dar espacio a las 3 columnas nuevas
-const _PX_TOTAL_LABEL_CHARS_PER_LINE=18;
+const _PX_TOTAL_LABEL_CHARS_PER_LINE=11; // recalibrado: la etiqueta ahora solo ocupa E-F-G (antes B-G)
 const _PX_EMU_SECTION_ROW=130000;
 const _PX_EMU_COLHEADER_ROW=520000; // 8 columnas angostas -> encabezados envuelven a 2-3 líneas (ej. PVP C/DESC.)
 const _PX_EMU_TOTAL_ROW=125000;
@@ -3529,14 +3531,11 @@ function pxBuildTableRows(supply,labor,discPPpct){
     rows.push(_pxBuildTotalRow(label,value));
     estH+=_pxEstimateTotalRowH(label);
   }
-  if(discVolAmt>0||dp>0){
-    addTotal('SUBTOTAL PROYECTO',rawTotal);
-    if(discVolAmt>0) addTotal('DESCUENTO POR VOLUMEN',-discVolAmt);
-    if(dp>0) addTotal('DESCUENTO PRONTO PAGO ('+Math.round(dp*100)+'%)',-_pxRound2(baseAfterVol*dp));
-    addTotal('SUBTOTAL PROYECTO',subtotalFinal);
-  } else {
-    addTotal('SUBTOTAL PROYECTO',subtotalFinal);
-  }
+  // El descuento por partida ya se ve en cada renglón (columnas DESCUENTO /
+  // PVP C/DESC.) — aquí solo bajamos un subtotal, el descuento por pronto
+  // pago (si aplica, es distinto del descuento por partida) y el total.
+  addTotal('SUBTOTAL PROYECTO',baseAfterVol);
+  if(dp>0) addTotal('DESCUENTO PRONTO PAGO ('+Math.round(dp*100)+'%)',-_pxRound2(baseAfterVol*dp));
   const iva=_pxRound2(subtotalFinal*0.16);
   const total=_pxRound2(subtotalFinal*1.16);
   addTotal('IVA (16%)',iva);
