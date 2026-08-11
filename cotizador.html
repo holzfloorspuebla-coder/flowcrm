@@ -1539,14 +1539,21 @@ async function saveProdEdit(){
   // No forzar a 1 cuando unit==='m2': el factor de conversion m2/caja sigue
   // haciendo falta si algun proveedor cotiza por caja/pieza aunque el
   // producto se venda por m2 (antes esto se perdia al guardar).
-  const m2perUnit=parseFloat(document.getElementById('pe-conversion')?.value)||0;
+  // m2perUnit (campo "m² por caja/pieza") es la fuente de verdad para los
+  // cálculos de precio; si el usuario no lo llenó pero sí existe el campo de
+  // categoría "M2/Caja" (obj.m2perBox, ya asignado arriba por fields.forEach),
+  // se usa ese como respaldo. Los dos campos SIEMPRE quedan sincronizados al
+  // guardar para que no puedan volver a divergir (antes uno podía tener el
+  // valor correcto y el otro uno obsoleto).
+  const m2perUnitInput=parseFloat(document.getElementById('pe-conversion')?.value)||0;
+  const m2perUnit=m2perUnitInput||parseFloat(obj.m2perBox)||0;
   obj.unit=unit;
   obj.m2perUnit=m2perUnit;
   obj.spec=(document.getElementById('pe-spec').value||'').trim();
   // Guardar lista de proveedores y recalcular campos raíz (proveedor más barato)
   obj.suppliers=_peSuppliers.map(s=>{ const {_calc,...clean}=s; return clean; });
   obj.priceUnit=(_peSuppliers[0]?.priceUnit)||unit;
-  obj.m2perBox=unit==='caja'?m2perUnit:(obj.m2perBox||null);
+  obj.m2perBox=m2perUnit||obj.m2perBox||null;
   recalcProductFromSuppliers(obj);
   obj.description=buildDesc(obj,fields);
   if(PE_PRODUCT){ const idx=CATALOG.findIndex(p=>p.id===PE_PRODUCT.id); if(idx>-1) CATALOG[idx]=obj; }
@@ -1994,8 +2001,12 @@ async function deleteProduct(id){
 // Aplica los valores de un proveedor (pvpM2MXN/costoM2MXN/pvpCajaMXN/costoNetoMXN/currency)
 // a los campos pa-pvp/pa-cost, respetando la unidad de venta del producto.
 function _paApplySupplierValues(p, supplierData){
-  const m2pb=parseFloat(p.m2perBox)||0;
-  const m2pu=parseFloat(p.m2perUnit)||0;
+  // m2perUnit es el campo canonico (el que realmente se edita en 'm² por
+  // caja/pieza' en el editor de producto); m2perBox es un espejo legado que
+  // a veces queda desactualizado. Siempre se usa el mismo valor combinado
+  // para evitar que un campo tenga el dato correcto y el otro uno viejo.
+  const m2pb=parseFloat(p.m2perUnit||p.m2perBox)||0;
+  const m2pu=m2pb;
   const volLbl=document.getElementById('pa-vol-lbl');
   const boxesWrap=document.getElementById('pa-boxes-wrap');
   const boxesLbl=document.getElementById('pa-boxes-lbl');
@@ -2060,7 +2071,7 @@ function onPASupplierChange(){
   const idx=parseInt(document.getElementById('pa-supplier').value);
   const s=p.suppliers?.[idx];
   if(!s) return;
-  const calc=s._calc||computeSupplierPrices({unit:p.unit,priceUnit:s.priceUnit||p.priceUnit||p.unit,m2perUnit:p.m2perUnit}, s);
+  const calc=s._calc||computeSupplierPrices({unit:p.unit,priceUnit:s.priceUnit||p.priceUnit||p.unit,m2perUnit:p.m2perUnit||p.m2perBox}, s);
   _paApplySupplierValues(p, calc);
 }
 
@@ -2128,7 +2139,7 @@ function openProductAdd(id){
   if(p.suppliers && p.suppliers.length>1){
     let bestCost=Infinity;
     p.suppliers.forEach((s,i)=>{
-      const calc=computeSupplierPrices({unit:p.unit,priceUnit:s.priceUnit||p.priceUnit||p.unit,m2perUnit:p.m2perUnit}, s);
+      const calc=computeSupplierPrices({unit:p.unit,priceUnit:s.priceUnit||p.priceUnit||p.unit,m2perUnit:p.m2perUnit||p.m2perBox}, s);
       s._calc=calc;
       const c=calc.costoNetoMXN||Infinity;
       if(c<bestCost){ bestCost=c; bestIdx=i; }
@@ -2160,14 +2171,14 @@ function calcPA(){
   const p=PA_PRODUCT;
   const vol=parseFloat(document.getElementById('pa-vol').value)||0;
 
+  const _paM2conv=p?(parseFloat(p.m2perUnit||p.m2perBox)||0):0;
   if(p&&p.unit==='pieza'){
     // vol = cantidad de piezas; m² equivalentes solo informativo
-    const m2pu=parseFloat(p.m2perUnit)||0;
     document.getElementById('pa-boxes').value='';
-    document.getElementById('pa-m2r').value=vol&&m2pu?round(vol*m2pu,3):'';
-  } else if(p&&p.m2perBox&&vol){
-    const boxes=Math.ceil(vol/p.m2perBox);
-    const m2r=round(boxes*p.m2perBox,3);
+    document.getElementById('pa-m2r').value=vol&&_paM2conv?round(vol*_paM2conv,3):'';
+  } else if(p&&_paM2conv&&vol){
+    const boxes=Math.ceil(vol/_paM2conv);
+    const m2r=round(boxes*_paM2conv,3);
     document.getElementById('pa-boxes').value=boxes;
     document.getElementById('pa-m2r').value=m2r;
   } else {
@@ -2179,7 +2190,7 @@ function calcPA(){
     const pvpVal=parseFloat(document.getElementById('pa-pvp').value)||0;
     const costVal=parseFloat(document.getElementById('pa-cost').value)||0;
     let qty=vol;
-    if(p&&p.unit!=='pieza'&&p.m2perBox) qty=round(Math.ceil(vol/p.m2perBox)*p.m2perBox,3);
+    if(p&&p.unit!=='pieza'&&_paM2conv) qty=round(Math.ceil(vol/_paM2conv)*_paM2conv,3);
     if(pvpVal){
       const totPVP=round(qty*pvpVal,2), totCost=round(qty*costVal,2);
       const margin=totPVP-totCost, pct=totPVP?margin/totPVP:0;
@@ -2202,10 +2213,11 @@ function confirmAddToQuote(){
     // vol = cantidad de piezas, pvp/cost ya están en MXN/pieza
     vol=parseFloat(document.getElementById('pa-vol').value)||0;
     unit='pieza';
-  } else if(p.m2perBox&&document.getElementById('pa-vol').value){
+  } else if((parseFloat(p.m2perUnit||p.m2perBox)||0)&&document.getElementById('pa-vol').value){
+    const _cqM2conv=parseFloat(p.m2perUnit||p.m2perBox)||0;
     const volRaw=parseFloat(document.getElementById('pa-vol').value)||0;
-    const boxes=Math.ceil(volRaw/p.m2perBox);
-    vol=round(boxes*p.m2perBox,3); unit=p.unit||'m2';
+    const boxes=Math.ceil(volRaw/_cqM2conv);
+    vol=round(boxes*_cqM2conv,3); unit=p.unit||'m2';
   }else{
     vol=parseFloat(document.getElementById('pa-vol').value)||0;
     unit=p.unit||'m2';
@@ -2603,13 +2615,13 @@ function syncItemFromCatalog(table,i){
   // Recalcular pvp con el mejor proveedor
   PA_PRODUCT=p;
   const bestSupplier=p.suppliers?.reduce((best,s)=>{
-    const calc=computeSupplierPrices({unit:p.unit,priceUnit:s.priceUnit||p.priceUnit||p.unit,m2perUnit:p.m2perUnit},s);
+    const calc=computeSupplierPrices({unit:p.unit,priceUnit:s.priceUnit||p.priceUnit||p.unit,m2perUnit:p.m2perUnit||p.m2perBox},s);
     s._calc=calc;
     if(!best||((calc.costoNetoMXN||Infinity)<(best._calc?.costoNetoMXN||Infinity))) return s;
     return best;
   },null);
   if(!bestSupplier){ toast('Sin proveedores en el producto','⚠️'); return; }
-  const calc=bestSupplier._calc||computeSupplierPrices({unit:p.unit,priceUnit:bestSupplier.priceUnit||p.unit,m2perUnit:p.m2perUnit},bestSupplier);
+  const calc=bestSupplier._calc||computeSupplierPrices({unit:p.unit,priceUnit:bestSupplier.priceUnit||p.unit,m2perUnit:p.m2perUnit||p.m2perBox},bestSupplier);
   const m2pb=parseFloat(p.m2perUnit||p.m2perBox)||0;
   let pvpVal=0, costVal=0;
   if(p.unit==='pieza'){
@@ -3316,7 +3328,7 @@ function renderCatalogTabTable(){
   tbody.innerHTML=items.map(p=>{
     const pvpM2=p.pvpM2MXN||0;
     const pvpCaja=p.pvpCajaMXN||0;
-    const costoNeto=p.costoM2MXN||(p.costoNetoMXN&&p.m2perBox?round(p.costoNetoMXN/p.m2perBox,2):0)||(p.costoNetoMXN||0);
+    const costoNeto=p.costoM2MXN||(p.costoNetoMXN&&(p.m2perUnit||p.m2perBox)?round(p.costoNetoMXN/(p.m2perUnit||p.m2perBox),2):0)||(p.costoNetoMXN||0);
     const margen=pvpM2&&costoNeto?(pvpM2-costoNeto)/pvpM2:(pvpCaja&&costoNeto?(pvpCaja-costoNeto)/pvpCaja:null);
     return`<tr>
       <td>${esc(p.brand||'—')}</td>
@@ -3324,7 +3336,7 @@ function renderCatalogTabTable(){
         ${esc(p.model||p.description||'—')}</td>
       <td><span style="font-size:10px;background:var(--surface3);padding:2px 6px;border-radius:10px">${esc(p.category||'—')}</span></td>
       <td style="color:var(--text3)">${esc(p.unit||'m2')}</td>
-      <td style="color:var(--text3)">${p.m2perBox||'—'}</td>
+      <td style="color:var(--text3)">${p.m2perUnit||p.m2perBox||'—'}</td>
       <td style="font-family:var(--mono)">${pvpM2?mxn(pvpM2):'—'}</td>
       <td style="font-family:var(--mono)">${pvpCaja?mxn(pvpCaja):'—'}</td>
       ${IS_ADMIN?`<td style="font-family:var(--mono);color:var(--orange)">${costoNeto?mxn(costoNeto):'—'}</td>`:'<td></td>'}
