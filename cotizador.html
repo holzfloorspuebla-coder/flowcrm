@@ -259,7 +259,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 <!-- MODAL: ADD TO QUOTE -->
 <div class="overlay hidden" id="modal-prod-add">
   <div class="modal" style="width:480px">
-    <div class="modal-hd"><h2 id="pa-title">Añadir a cotización</h2><button class="modal-close" onclick="closeModal('modal-prod-add')">✕</button></div>
+    <div class="modal-hd"><h2 id="pa-title">Añadir a cotización</h2><button class="modal-close" onclick="closeProdAddModal()">✕</button></div>
     <div class="modal-body">
       <p id="pa-desc" style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.6"></p>
       <div class="fg" id="pa-supplier-wrap" style="display:none;margin-bottom:10px">
@@ -281,8 +281,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <div id="pa-rent" style="margin-top:10px;padding:8px;background:var(--surface2);border-radius:var(--r);font-size:11px"></div>
     </div>
     <div class="modal-ft">
-      <button class="btn btn-ghost" onclick="closeModal('modal-prod-add')">Cancelar</button>
-      <button class="btn btn-primary" onclick="confirmAddToQuote()">Añadir</button>
+      <button class="btn btn-ghost" onclick="closeProdAddModal()">Cancelar</button>
+      <button class="btn btn-primary" id="pa-confirm-btn" onclick="confirmAddToQuote()">Añadir</button>
     </div>
   </div>
 </div>
@@ -828,6 +828,12 @@ let CAT_TARGET_TABLE = 'supply';
 let CAT_ACTIVE_CAT   = '';
 let PA_PRODUCT = null;
 let PA_SELECTED_CURRENCY = 'MXN';
+// Modo edición del modal 'Añadir a cotización': cuando se edita una
+// partida ya existente (para que el redondeo a cajas cerradas se calcule
+// bien) en vez de crear una partida nueva al confirmar.
+let PA_EDIT_MODE = false;
+let PA_EDIT_TABLE = null;
+let PA_EDIT_IDX = null;
 let CUSTOM_UNITS = []; // unidades extra definidas por el usuario
 const BASE_UNITS = [{v:'m2',l:'m²'},{v:'caja',l:'Caja'},{v:'pieza',l:'Pieza'}];
 function getAllUnits(){ return [...BASE_UNITS,...CUSTOM_UNITS.map(u=>({v:u,l:u}))]; }
@@ -2058,10 +2064,57 @@ function onPASupplierChange(){
   _paApplySupplierValues(p, calc);
 }
 
+// Cierra el modal 'Añadir a cotización' y limpia cualquier estado de edición
+// pendiente, para que la próxima vez que se abra (añadir o editar) empiece limpio.
+function closeProdAddModal(){
+  PA_EDIT_MODE=false; PA_EDIT_TABLE=null; PA_EDIT_IDX=null;
+  const btn=document.getElementById('pa-confirm-btn');
+  if(btn) btn.textContent='Añadir';
+  closeModal('modal-prod-add');
+}
+
+// Abre el modal 'Añadir a cotización' en modo edición para una partida ya
+// existente en la cotización, vinculada a un producto del catálogo. Se
+// reutiliza toda la lógica de cálculo (calcPA/confirmAddToQuote) para que el
+// redondeo a cajas cerradas se aplique correctamente al cambiar el volumen
+// (cosa que no pasaba editando el campo de volumen directo en la tabla).
+function openEditQuoteItem(table,i){
+  const item=CURRENT_Q?.[table]?.[i];
+  if(!item) return;
+  if(!item.catalogId){
+    toast('Esta partida no está vinculada a un producto del catálogo — edítala directamente en la tabla','⚠️');
+    return;
+  }
+  const p=CATALOG.find(x=>x.id===item.catalogId);
+  if(!p){ toast('Producto no encontrado en catálogo','⚠️'); return; }
+
+  openProductAdd(p.id); // precarga proveedor/PVP/costo por defecto del producto
+
+  PA_EDIT_MODE=true; PA_EDIT_TABLE=table; PA_EDIT_IDX=i;
+  document.getElementById('pa-title').textContent='Editar partida — '+((p.brand||'')+' — '+(p.model||''));
+  const btn=document.getElementById('pa-confirm-btn');
+  if(btn) btn.textContent='Guardar cambios';
+
+  // Sobreescribir con los valores reales guardados en la partida (pueden
+  // diferir del proveedor "más barato" por defecto si se editaron a mano)
+  document.getElementById('pa-vol').value=item.vol||'';
+  document.getElementById('pa-pvp').value=item.pvp||'';
+  document.getElementById('pa-cost').value=item.cost||'';
+  document.getElementById('pa-table').value=table;
+  calcPA();
+}
+
 function openProductAdd(id){
   PA_PRODUCT=CATALOG.find(p=>p.id===id);
   if(!PA_PRODUCT) return;
   const p=PA_PRODUCT;
+  // Reset de seguridad: si se abre para añadir un producto nuevo, nunca debe
+  // quedar arrastrado un modo edición de una partida anterior sin cerrar.
+  // openEditQuoteItem() vuelve a activar estas banderas justo después si
+  // corresponde.
+  PA_EDIT_MODE=false; PA_EDIT_TABLE=null; PA_EDIT_IDX=null;
+  const _paBtn=document.getElementById('pa-confirm-btn');
+  if(_paBtn) _paBtn.textContent='Añadir';
   document.getElementById('pa-title').textContent=(p.brand||'')+' — '+(p.model||'');
   document.getElementById('pa-desc').textContent=p.description||'';
   document.getElementById('pa-vol').value='';
@@ -2158,9 +2211,32 @@ function confirmAddToQuote(){
     unit=p.unit||'m2';
   }
   if(!vol||!pvpVal){toast('Ingresa volumen y PVP','⚠️');return;}
+
+  if(PA_EDIT_MODE && PA_EDIT_TABLE!=null && PA_EDIT_IDX!=null){
+    // Editando una partida existente: actualizar en su lugar (conservando id
+    // y descuento) en vez de crear una partida nueva.
+    const oldItem=CURRENT_Q[PA_EDIT_TABLE]?.[PA_EDIT_IDX];
+    if(!oldItem){ toast('La partida ya no existe','⚠️'); closeProdAddModal(); return; }
+    const updated={...oldItem,catalogId:p.id,desc:p.description||p.model||oldItem.desc,vol,unit,
+      m2perUnit:parseFloat(p.m2perUnit||p.m2perBox)||0,pvp:pvpVal,cost:costVal,
+      currency:PA_SELECTED_CURRENCY||'MXN',tcRef:p.tcUsado||_TC||0};
+    if(table===PA_EDIT_TABLE){
+      CURRENT_Q[PA_EDIT_TABLE][PA_EDIT_IDX]=updated;
+    } else {
+      // Se cambió la tabla destino (ej. de Suministro a Mano de obra): mover la partida
+      CURRENT_Q[PA_EDIT_TABLE].splice(PA_EDIT_IDX,1);
+      CURRENT_Q[table]=CURRENT_Q[table]||[];
+      CURRENT_Q[table].push(updated);
+    }
+    closeProdAddModal();
+    renderQuoteTables(); recalcAll(); markDirty();
+    toast('Partida actualizada','✅','success');
+    return;
+  }
+
   // pvp y cost se guardan en la unidad de venta (vol*pvp = subtotal)
   CURRENT_Q[table].push({id:uid(),catalogId:p.id,desc:p.description||p.model,vol,unit,m2perUnit:parseFloat(p.m2perUnit||p.m2perBox)||0,pvp:pvpVal,cost:costVal,currency:PA_SELECTED_CURRENCY||'MXN',tcRef:p.tcUsado||_TC||0});
-  closeModal('modal-prod-add');
+  closeProdAddModal();
   renderQuoteTables(); recalcAll(); markDirty();
   toast('Producto añadido','✅','success');
 }
@@ -2477,7 +2553,14 @@ function renderQTable(tbodyId,items,table){
       <td><textarea class="desc-inp" rows="2" onchange="CURRENT_Q['${table}'][${i}].desc=this.value;markDirty()">${esc(x.desc)}</textarea></td>
       <td>
         <div style="display:flex;flex-direction:column;align-items:center;gap:1px">
+          ${x.catalogId?`
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-family:var(--mono);font-size:12px">${x.vol}</span>
+            <button class="btn-icon" title="Editar volumen (recalcula cajas cerradas)" onclick="openEditQuoteItem('${table}',${i})" style="font-size:11px">✏️</button>
+          </div>
+          `:`
           <input class="mini-inp" type="number" value="${x.vol}" style="width:65px" onchange="CURRENT_Q['${table}'][${i}].vol=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()">
+          `}
           ${x.m2perUnit&&x.unit!=='m2'?`<span style="font-size:10px;color:var(--text3)">${round(x.vol*(x.m2perUnit||0),2)} m²</span>`:''}
         </div>
       </td>
