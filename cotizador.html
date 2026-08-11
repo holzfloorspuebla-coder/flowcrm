@@ -969,6 +969,7 @@ async function loadAllFromCloud(){
           cost: p.currency==='USD' ? (p.costoUSD||0) : (p.costoMXN||0),
           d1: p.descD1||0,
           d2: p.descD2||0,
+          d3: p.descD3||0,
           tc: p.tcUsado||0,
           pvp: p.pvpCajaMXN||0
         }];
@@ -1492,7 +1493,7 @@ function openEditProduct(id){
   const _pEdit=PE_PRODUCT;
   const _peUnitE=document.getElementById('pe-unit'); if(_peUnitE) _peUnitE.value=_pEdit.unit||(_pEdit.m2perBox?'caja':(_pEdit.pvpM2MXN?'m2':'caja'));
   const _peConvE=document.getElementById('pe-conversion'); if(_peConvE) _peConvE.value=_pEdit.m2perUnit||_pEdit.m2perBox||'';
-  _peSuppliers=(_pEdit.suppliers&&_pEdit.suppliers.length)?_pEdit.suppliers.map(s=>({...s})):[{providerId:'',providerName:'',currency:_pEdit.currency||'MXN',cost:(_pEdit.currency==='USD'?_pEdit.costoUSD:_pEdit.costoMXN)||0,d1:_pEdit.descD1||0,d2:_pEdit.descD2||0,tc:_pEdit.tcUsado||0,pvp:_pEdit.pvpCajaMXN||0,priceUnit:_pEdit.priceUnit||_pEdit.unit||'caja'}];
+  _peSuppliers=(_pEdit.suppliers&&_pEdit.suppliers.length)?_pEdit.suppliers.map(s=>({...s})):[{providerId:'',providerName:'',currency:_pEdit.currency||'MXN',cost:(_pEdit.currency==='USD'?_pEdit.costoUSD:_pEdit.costoMXN)||0,d1:_pEdit.descD1||0,d2:_pEdit.descD2||0,d3:_pEdit.descD3||0,tc:_pEdit.tcUsado||0,pvp:_pEdit.pvpCajaMXN||0,priceUnit:_pEdit.priceUnit||_pEdit.unit||'caja'}];
   onPEUnitChange();
   if(!IS_ADMIN){
     document.getElementById('pe-suppliers-section').style.display='none';
@@ -1650,9 +1651,10 @@ function renderPESuppliers(){
         <label class="lbl">Tipo de cambio USD → MXN</label>
         <input class="inp" type="number" value="${s.tc||_TC||17.5}" step="0.01" oninput="updatePESupplier(${i},'tc',this.value)">
       </div>`:''}
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px">
         <div class="fg" style="margin-bottom:0"><label class="lbl">Desc. 1 proveedor %</label><input class="inp" type="number" value="${s.d1||0}" min="0" max="100" oninput="updatePESupplier(${i},'d1',this.value)"></div>
         <div class="fg" style="margin-bottom:0"><label class="lbl">Desc. 2 %</label><input class="inp" type="number" value="${s.d2||0}" min="0" max="100" oninput="updatePESupplier(${i},'d2',this.value)"></div>
+        <div class="fg" style="margin-bottom:0"><label class="lbl">Desc. 3 %</label><input class="inp" type="number" value="${s.d3||0}" min="0" max="100" oninput="updatePESupplier(${i},'d3',this.value)"></div>
       </div>
       <div id="pe-sup-calc-${i}" style="margin-bottom:8px">
         <div onclick="togglePVPCalc(${i})" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:5px 0;user-select:none">
@@ -1778,7 +1780,8 @@ function resetPVPAuto(i){
   const costRaw=parseFloat(s.cost)||0;
   const d1v=(parseFloat(s.d1)||0)/100;
   const d2v=(parseFloat(s.d2)||0)/100;
-  const costoNeto=round(costRaw*(1-d1v)*(1-d2v),2);
+  const d3v=(parseFloat(s.d3)||0)/100;
+  const costoNeto=round(costRaw*(1-d1v)*(1-d2v)*(1-d3v),2);
   if(costoNeto>0){
     s.pvp=round(costoNeto*2,2);
     const pvpInput=document.getElementById('pe-sup-pvp-'+i);
@@ -1811,18 +1814,19 @@ function updatePESupplier(i,field,value){
   } else if(field==='pvp'){
     s.pvp=parseFloat(value)||0;
     s._pvpManual=true; // el usuario editó el PVP manualmente
-  } else if(['cost','d1','d2','tc'].includes(field)){
+  } else if(['cost','d1','d2','d3','tc'].includes(field)){
     s[field]=parseFloat(value)||0;
   } else {
     s[field]=value;
   }
 
   // PVP automático = costo neto × 2 en la misma moneda del costo, salvo que el usuario ya lo haya editado manualmente
-  if(['cost','d1','d2','tc','currency'].includes(field) && !s._pvpManual){
+  if(['cost','d1','d2','d3','tc','currency'].includes(field) && !s._pvpManual){
     const costRaw=parseFloat(s.cost)||0;
     const d1v=(parseFloat(s.d1)||0)/100;
     const d2v=(parseFloat(s.d2)||0)/100;
-    const costoNeto=round(costRaw*(1-d1v)*(1-d2v),2);
+    const d3v=(parseFloat(s.d3)||0)/100;
+    const costoNeto=round(costRaw*(1-d1v)*(1-d2v)*(1-d3v),2);
     if(costoNeto>0){
       s.pvp=round(costoNeto*2,2);
       const pvpInput=document.getElementById('pe-sup-pvp-'+i);
@@ -1848,9 +1852,10 @@ function computeSupplierPrices(p, supplier){
   const costRaw=parseFloat(supplier.cost)||0;
   const d1=(parseFloat(supplier.d1)||0)/100;
   const d2=(parseFloat(supplier.d2)||0)/100;
+  const d3=(parseFloat(supplier.d3)||0)/100;
   const tc=parseFloat(supplier.tc)||_TC||17.5;
   const costoMXN=currency==='USD'&&costRaw?round(costRaw*tc,2):costRaw;
-  const costoNetoRaw=costoMXN?round(costoMXN*(1-d1)*(1-d2),2):0;
+  const costoNetoRaw=costoMXN?round(costoMXN*(1-d1)*(1-d2)*(1-d3),2):0;
 
   // Convertir costo neto a saleUnit (igual lógica que saveProdEdit)
   let costoNetoSaleUnit=costoNetoRaw;
@@ -1884,6 +1889,7 @@ function computeSupplierPrices(p, supplier){
     tcUsado: currency==='USD'?tc:null,
     descD1: parseFloat(supplier.d1)||0,
     descD2: parseFloat(supplier.d2)||0,
+    descD3: parseFloat(supplier.d3)||0,
     costoNetoMXN: costoNetoSaleUnit||null,
     pvpCajaMXN: pvpUnitMXN,   // siempre MXN para cálculos internos
     pvpM2MXN,
@@ -1909,6 +1915,7 @@ function recalcProductFromSuppliers(p){
   p.tcUsado=best.tcUsado;
   p.descD1=best.descD1;
   p.descD2=best.descD2;
+  p.descD3=best.descD3;
   p.costoNetoMXN=best.costoNetoMXN;
   p.pvpCajaMXN=best.pvpCajaMXN;
   p.pvpM2MXN=best.pvpM2MXN;
@@ -3231,7 +3238,7 @@ function openProdEditFromCatalogTab(id){
   const specElCat=document.getElementById('pe-spec'); if(specElCat) specElCat.value=p.spec||'';
   const _peUnitC=document.getElementById('pe-unit'); if(_peUnitC) _peUnitC.value=p.unit||(p.m2perBox?'caja':(p.pvpM2MXN?'m2':'caja'));
   const _peConvC=document.getElementById('pe-conversion'); if(_peConvC) _peConvC.value=p.m2perUnit||p.m2perBox||'';
-  _peSuppliers=(p.suppliers&&p.suppliers.length)?p.suppliers.map(s=>({...s})):[{providerId:'',providerName:'',currency:p.currency||'MXN',cost:(p.currency==='USD'?p.costoUSD:p.costoMXN)||0,d1:p.descD1||0,d2:p.descD2||0,tc:p.tcUsado||0,pvp:p.pvpCajaMXN||0,priceUnit:p.priceUnit||p.unit||'caja'}];
+  _peSuppliers=(p.suppliers&&p.suppliers.length)?p.suppliers.map(s=>({...s})):[{providerId:'',providerName:'',currency:p.currency||'MXN',cost:(p.currency==='USD'?p.costoUSD:p.costoMXN)||0,d1:p.descD1||0,d2:p.descD2||0,d3:p.descD3||0,tc:p.tcUsado||0,pvp:p.pvpCajaMXN||0,priceUnit:p.priceUnit||p.unit||'caja'}];
   onPEUnitChange();
   if(!IS_ADMIN){
     document.getElementById('pe-suppliers-section').style.display='none';
