@@ -977,6 +977,21 @@ async function loadAllFromCloud(){
       }
     });
 
+    // Reparación única de datos: un bug previo forzaba m2perUnit=1 cuando la
+    // unidad de venta era 'm2' (perdiendo el factor real de conversión m2/caja
+    // que sí quedó guardado en m2perBox), lo que hacía que costo/PVP por m²
+    // se mostraran como si fueran por caja (ej. $552.60 en vez de $412.70).
+    // Si detectamos ese patrón, adoptamos m2perBox como valor correcto.
+    let _m2FixApplied=false;
+    CATALOG.forEach(p=>{
+      if(p.unit==='m2' && (!p.m2perUnit||p.m2perUnit===1) && p.m2perBox && p.m2perBox!==p.m2perUnit){
+        p.m2perUnit=p.m2perBox;
+        if(p.suppliers&&p.suppliers.length) recalcProductFromSuppliers(p);
+        _m2FixApplied=true;
+      }
+    });
+    if(_m2FixApplied){ persistAll(); }
+
     // Pre-cargar cache de contactos para el buscador de clientes
     _csCache = (data.contacts||[]).map(c=>({
       name:c.name||'', priceList:c.priceList||'', city:c.city||'',
@@ -1515,7 +1530,10 @@ async function saveProdEdit(){
     if(el) obj[f.key]=f.type==='number'?(parseFloat(el.value)||0):el.value.trim();
   });
   const unit=document.getElementById('pe-unit')?.value||'caja';
-  const m2perUnit=unit==='m2'?1:(parseFloat(document.getElementById('pe-conversion')?.value)||0);
+  // No forzar a 1 cuando unit==='m2': el factor de conversion m2/caja sigue
+  // haciendo falta si algun proveedor cotiza por caja/pieza aunque el
+  // producto se venda por m2 (antes esto se perdia al guardar).
+  const m2perUnit=parseFloat(document.getElementById('pe-conversion')?.value)||0;
   obj.unit=unit;
   obj.m2perUnit=m2perUnit;
   obj.spec=(document.getElementById('pe-spec').value||'').trim();
@@ -1537,8 +1555,13 @@ function onPEUnitChange(){
   const unit=document.getElementById('pe-unit').value;
   const convWrap=document.getElementById('pe-conversion-wrap');
   const convLbl=document.getElementById('pe-conversion-lbl');
+  // El factor de conversión m²/caja (o m²/pieza) sigue haciendo falta aunque
+  // el producto se venda por m², si algún proveedor cotiza por caja o pieza
+  // (ej. compras por caja pero vendes por m²). Antes se ocultaba este campo
+  // cuando unit==='m2' y se perdía el dato al guardar.
   if(unit==='m2'){
-    convWrap.style.display='none';
+    convWrap.style.display='';
+    convLbl.textContent='m² por caja/pieza (si algún proveedor cotiza así)';
   } else if(unit==='caja'){
     convWrap.style.display='';
     convLbl.textContent='m² por caja';
@@ -1564,7 +1587,7 @@ function peGenerateText(){
 
 // Recalcula _calc de todos los proveedores y devuelve el índice del más barato
 function _peRecalcAll(){
-  const tmpProduct={unit:document.getElementById('pe-unit')?.value||'caja', priceUnit:'', m2perUnit:parseFloat(document.getElementById('pe-conversion')?.value)||(document.getElementById('pe-unit')?.value==='m2'?1:0)};
+  const tmpProduct={unit:document.getElementById('pe-unit')?.value||'caja', priceUnit:'', m2perUnit:parseFloat(document.getElementById('pe-conversion')?.value)||0};
   let bestIdx=-1, bestCost=Infinity;
   _peSuppliers.forEach((s,i)=>{
     s.priceUnit=s.priceUnit||tmpProduct.unit;
@@ -1776,7 +1799,7 @@ function applyPVPCalc(i){
 function resetPVPAuto(i){
   const s=_peSuppliers[i]; if(!s) return;
   s._pvpManual=false;
-  const tmpProduct={unit:document.getElementById('pe-unit')?.value||'caja',priceUnit:'',m2perUnit:parseFloat(document.getElementById('pe-conversion')?.value)||(document.getElementById('pe-unit')?.value==='m2'?1:0)};
+  const tmpProduct={unit:document.getElementById('pe-unit')?.value||'caja',priceUnit:'',m2perUnit:parseFloat(document.getElementById('pe-conversion')?.value)||0};
   const costRaw=parseFloat(s.cost)||0;
   const d1v=(parseFloat(s.d1)||0)/100;
   const d2v=(parseFloat(s.d2)||0)/100;
@@ -1847,7 +1870,13 @@ function updatePESupplier(i,field,value){
 function computeSupplierPrices(p, supplier){
   const unit=p.unit||'caja';
   const priceUnit=supplier.priceUnit||p.priceUnit||unit;
-  const m2perUnit=unit==='m2'?1:(parseFloat(p.m2perUnit)||0);
+  // m2perUnit = cuantos m2 hay en una caja/pieza (factor de conversion fijo
+  // del producto, ej. "Caja con 1.339 m2"). Se usa tal cual venga de
+  // p.m2perUnit SIEMPRE que haga falta convertir entre m2 y caja/pieza, sin
+  // importar si el que es m2 es priceUnit o unit (antes se forzaba a 1 en
+  // ese caso, lo que rompia la conversion cuando se compra por caja pero se
+  // vende por m2, o viceversa).
+  const m2perUnit=parseFloat(p.m2perUnit)||0;
   const currency=supplier.currency||'MXN';
   const costRaw=parseFloat(supplier.cost)||0;
   const d1=(parseFloat(supplier.d1)||0)/100;
@@ -1869,12 +1898,21 @@ function computeSupplierPrices(p, supplier){
   // El PVP en moneda original se conserva en supplier.pvp y se muestra en el campo
   const pvpUnitMXN=pvpUnit?(currency==='USD'?round(pvpUnit*tc,2):pvpUnit):null;
 
+  // Convertir PVP a saleUnit con la MISMA lógica que el costo (antes esto no
+  // se hacía cuando unit==='m2' y priceUnit era caja/pieza, y el PVP por caja
+  // se mostraba tal cual como si fuera PVP por m2).
+  let pvpSaleUnitMXN=pvpUnitMXN;
+  if(pvpUnitMXN && priceUnit!==unit && m2perUnit){
+    if(priceUnit==='m2' && unit!=='m2') pvpSaleUnitMXN=round(pvpUnitMXN*m2perUnit,4);
+    else if(priceUnit!=='m2' && unit==='m2') pvpSaleUnitMXN=round(pvpUnitMXN/m2perUnit,4);
+  }
+
   let pvpM2MXN=null, costoM2MXN=null;
   if(priceUnit==='m2'){
     pvpM2MXN=pvpUnitMXN;
     costoM2MXN=costoNetoRaw||null;
   } else if(unit==='m2'){
-    pvpM2MXN=pvpUnitMXN;
+    pvpM2MXN=pvpSaleUnitMXN;
     costoM2MXN=costoNetoSaleUnit||null;
   } else if(m2perUnit&&pvpUnitMXN){
     pvpM2MXN=round(pvpUnitMXN/m2perUnit,2);
