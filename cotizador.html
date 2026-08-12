@@ -3650,35 +3650,44 @@ function _pxEstimateTotalRowH(label,valueStr){
   return _PX_EMU_TOTAL_ROW+(lines-1)*_PX_EMU_TOTAL_LINE;
 }
 
-function pxBuildTableRows(supply,labor,discPPpct){
+// Margen de seguridad: las estimaciones de alto por renglón son aproximadas
+// (dependen de cómo PowerPoint hace el wrap real del texto), así que cada
+// renglón se infla un 18% al calcularlo — así el empaquetado por página
+// (_pxPaginateRows) nunca deja pasar de largo más contenido del que en
+// realidad cabe. Antes este margen se aplicaba UNA sola vez al final sobre
+// la suma total, lo cual funcionaba con una sola diapositiva pero no sirve
+// para decidir, renglón a renglón, dónde cortar la página.
+function _pxRowH(rawH){ return Math.round(rawH*1.18); }
+
+// Arma los datos de la tabla (secciones + renglones de totales) sin unirlos
+// todavía en un solo bloque de XML — cada renglón se queda con su alto
+// estimado individual para que _pxPaginateRows pueda repartirlos entre
+// varias diapositivas cuando la cotización es muy larga para caber en una.
+function _pxBuildRowsStructured(supply,labor,discPPpct){
   supply=supply||[]; labor=labor||[];
   function mxnAmount(x){
     let pvp=x.pvp;
     if(x.currency==='USD') pvp=pvp*(x.tcRef||17.5);
     return x.vol*pvp;
   }
-  const rows=[];
-  let estH=0;
-  function pushItem(x){
-    const amt=mxnAmount(x);
-    const pvpUnit=x.vol?amt/x.vol:0;
-    const discPct=(parseFloat(x.disc)||0)/100;
-    const discAmt=_pxRound2(amt*discPct);
-    const totalAmt=_pxRound2(amt-discAmt);
-    const pvpDesc=_pxRound2(pvpUnit*(1-discPct));
-    rows.push(_pxBuildItemRow(x.desc,x.vol,x.unit,pvpUnit,amt,pvpDesc,totalAmt));
-    estH+=_pxEstimateItemRowH(x.desc);
+  function buildItems(list){
+    return list.map(x=>{
+      const amt=mxnAmount(x);
+      const pvpUnit=x.vol?amt/x.vol:0;
+      const discPct=(parseFloat(x.disc)||0)/100;
+      const discAmt=_pxRound2(amt*discPct);
+      const totalAmt=_pxRound2(amt-discAmt);
+      const pvpDesc=_pxRound2(pvpUnit*(1-discPct));
+      return {
+        xml:_pxBuildItemRow(x.desc,x.vol,x.unit,pvpUnit,amt,pvpDesc,totalAmt),
+        h:_pxRowH(_pxEstimateItemRowH(x.desc))
+      };
+    });
   }
-  if(supply.length){
-    rows.push(_pxBuildSectionRow('SUMINISTRO DE MATERIALES')); estH+=_PX_EMU_SECTION_ROW;
-    rows.push(_PX7.headersTpl); estH+=_PX_EMU_COLHEADER_ROW;
-    supply.forEach(pushItem);
-  }
-  if(labor.length){
-    rows.push(_pxBuildSectionRow('MANO DE OBRA')); estH+=_PX_EMU_SECTION_ROW;
-    rows.push(_PX7.headersTpl); estH+=_PX_EMU_COLHEADER_ROW;
-    labor.forEach(pushItem);
-  }
+  const sections=[];
+  if(supply.length) sections.push({title:'SUMINISTRO DE MATERIALES',items:buildItems(supply)});
+  if(labor.length) sections.push({title:'MANO DE OBRA',items:buildItems(labor)});
+
   const allItems=[...supply,...labor];
   const rawTotal=allItems.reduce((s,x)=>s+mxnAmount(x),0);
   const discVolAmt=allItems.reduce((s,x)=>s+mxnAmount(x)*((parseFloat(x.disc)||0)/100),0);
@@ -3686,9 +3695,9 @@ function pxBuildTableRows(supply,labor,discPPpct){
   const dp=(discPPpct||0)/100;
   const subtotalFinal=_pxRound2(baseAfterVol*(1-dp));
 
+  const totalsRows=[];
   function addTotal(label,value){
-    rows.push(_pxBuildTotalRow(label,value));
-    estH+=_pxEstimateTotalRowH(label,_pxMxn(value));
+    totalsRows.push({xml:_pxBuildTotalRow(label,value),h:_pxRowH(_pxEstimateTotalRowH(label,_pxMxn(value)))});
   }
   // El descuento por partida ya se ve en cada renglón (columnas DESCUENTO /
   // PVP C/DESC.) — aquí solo bajamos un subtotal, el descuento por pronto
@@ -3699,8 +3708,56 @@ function pxBuildTableRows(supply,labor,discPPpct){
   const total=_pxRound2(subtotalFinal*1.16);
   addTotal('IVA (16%)',iva);
   addTotal('TOTAL A PAGAR',total);
-  estH=Math.round(estH*1.18)+120000; // margen de seguridad ampliado tras pasar a 8 columnas
-  return {xml:rows.join(''), total, estH};
+
+  return {sections,totalsRows,total};
+}
+
+// Reparte secciones + renglones de totales en tantas "páginas" (cada una se
+// convierte después en una diapositiva) como haga falta para que ninguna
+// exceda pageBudget (alto disponible arriba del pie de página). Si una
+// sección no cabe completa en lo que queda de página, se corta y se repite
+// su encabezado (con "(continuación)") al inicio de la siguiente. Los
+// renglones de totales se intentan meter al final de la última página con
+// contenido; si no caben, se agregan en una página adicional solo para ellos.
+function _pxPaginateRows(sections,totalsRows,pageBudget){
+  const pages=[];
+  let cur=null;
+  function startPage(){ cur={blocks:[],h:0}; pages.push(cur); }
+  function fits(h){ return cur.h+h<=pageBudget; }
+  function push(xml,h){ cur.blocks.push(xml); cur.h+=h; }
+  startPage();
+
+  sections.forEach(section=>{
+    let idx=0;
+    let first=true;
+    // Sección vacía (no debería pasar, ya se filtran antes, pero por
+    // seguridad no generamos encabezado sin renglones debajo).
+    if(!section.items.length) return;
+    while(idx<section.items.length){
+      const headerH=_pxRowH(_PX_EMU_SECTION_ROW)+_pxRowH(_PX_EMU_COLHEADER_ROW);
+      // Si ni el encabezado + el primer renglón caben en lo que queda de
+      // página, empezamos una página nueva (evita dejar un encabezado
+      // "huérfano" sin ningún renglón debajo).
+      if(!fits(headerH+section.items[idx].h) && cur.blocks.length){
+        startPage();
+      }
+      const title=first?section.title:section.title+' (continuación)';
+      push(_pxBuildSectionRow(title),_pxRowH(_PX_EMU_SECTION_ROW));
+      push(_PX7.headersTpl,_pxRowH(_PX_EMU_COLHEADER_ROW));
+      first=false;
+      while(idx<section.items.length && fits(section.items[idx].h)){
+        push(section.items[idx].xml,section.items[idx].h);
+        idx++;
+      }
+      if(idx<section.items.length) startPage();
+    }
+  });
+
+  const totalsH=totalsRows.reduce((s,t)=>s+t.h,0);
+  if(!fits(totalsH) && cur.blocks.length) startPage();
+  totalsRows.forEach(t=>push(t.xml,t.h));
+
+  return pages.map((p,i)=>({xml:p.blocks.join(''),h:p.h,isLastPage:i===pages.length-1}));
 }
 
 // ---- HTML (from the "Propuesta" contenteditable) -> plain paragraph lines ----
@@ -3743,6 +3800,48 @@ function _pxB64ToUint8(b64){
 //   plazoEntrega, instalacionText, supply:[{desc,vol,unit,pvp,disc,currency,tcRef}], labor:[...],
 //   productImageBytes: Uint8Array|null  (JPEG bytes; if omitted keeps the template's default photo)
 // }
+// Inserta una diapositiva nueva en el paquete PPTX justo después de la que
+// tiene el r:id `afterRid` (dentro de ppt/presentation.xml), registrando
+// todo lo que OOXML necesita para que la diapositiva sea válida: entrada en
+// [Content_Types].xml, relación en ppt/_rels/presentation.xml.rels, entrada
+// en <p:sldIdLst> de presentation.xml (en la posición correcta), y su propio
+// archivo .rels (copia del de slide3, misma referencia a layout + imagen).
+// Devuelve el r:id de la diapositiva recién insertada, para poder encadenar
+// la siguiente inserción justo después de esta (mantiene el orden).
+async function _pxInsertSlideAfter(zip,afterRid,newPartPath,newSlideXml){
+  const fileName=newPartPath.split('/').pop();
+
+  let ct=await zip.file('[Content_Types].xml').async('string');
+  const overrideTag='<Override PartName="/'+newPartPath+'" ContentType="application/vnd.openxmlformats-officedocument.presentationml.slide+xml"/>';
+  if(!ct.includes(overrideTag)) ct=ct.replace('</Types>', overrideTag+'</Types>');
+  zip.file('[Content_Types].xml', ct);
+
+  let relsXml=await zip.file('ppt/_rels/presentation.xml.rels').async('string');
+  const existingIds=[...relsXml.matchAll(/Id="rId(\d+)"/g)].map(m=>parseInt(m[1],10));
+  const newIdNum=Math.max(0,...existingIds)+1;
+  const newRid='rId'+newIdNum;
+  const relTag='<Relationship Id="'+newRid+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/'+fileName+'"/>';
+  relsXml=relsXml.replace('</Relationships>', relTag+'</Relationships>');
+  zip.file('ppt/_rels/presentation.xml.rels', relsXml);
+
+  let pres=await zip.file('ppt/presentation.xml').async('string');
+  const existingSldIds=[...pres.matchAll(/<p:sldId id="(\d+)"/g)].map(m=>parseInt(m[1],10));
+  const newSldIdNum=Math.max(0,...existingSldIds)+1;
+  const afterTagRe=new RegExp('<p:sldId id="\\d+" r:id="'+afterRid+'"/>');
+  const am=pres.match(afterTagRe);
+  if(!am) throw new Error('No se encontró el sldId de referencia '+afterRid+' en presentation.xml');
+  const newSldTag='<p:sldId id="'+newSldIdNum+'" r:id="'+newRid+'"/>';
+  pres=pres.slice(0,am.index+am[0].length)+newSldTag+pres.slice(am.index+am[0].length);
+  zip.file('ppt/presentation.xml', pres);
+
+  const slide3Rels=await zip.file('ppt/slides/_rels/slide3.xml.rels').async('string');
+  zip.file('ppt/slides/_rels/'+fileName+'.rels', slide3Rels);
+
+  zip.file(newPartPath, newSlideXml);
+
+  return newRid;
+}
+
 async function generateQuotePPTX(quote){
   if(typeof JSZip==='undefined'){
     throw new Error('JSZip no está disponible');
@@ -3777,36 +3876,18 @@ async function generateQuotePPTX(quote){
   s2=s2.slice(0,bm.index+bm[1].length)+newParas+s2.slice(bm.index+bm[1].length+bm[2].length);
   zip.file('ppt/slides/slide2.xml',s2);
 
-  // ---- slide3: table + total-in-words + product image ----
-  let s3=await zip.file('ppt/slides/slide3.xml').async('string');
-  const {xml:tableRowsXml,total,estH}=pxBuildTableRows(quote.supply,quote.labor,quote.discPP);
-  // Tabla original: 5 columnas. Se reemplaza el tblGrid por uno de 7 columnas
-  // (agrega DESCUENTO y TOTAL) manteniendo el mismo ancho total de tabla.
-  const oldGridRe=/<a:tblGrid>[\s\S]*?<\/a:tblGrid>/;
-  if(!oldGridRe.test(s3)) throw new Error('No se encontró el tblGrid de la tabla en la plantilla');
-  s3=s3.replace(oldGridRe, PX_TBL_GRID_7COL);
-  const gridRe=/(<\/a:tblGrid>)([\s\S]*?)(<\/a:tbl>)/;
-  const gm=s3.match(gridRe);
-  if(!gm) throw new Error('No se encontró la tabla en la plantilla');
-  s3=s3.slice(0,gm.index+gm[1].length)+tableRowsXml+s3.slice(gm.index+gm[1].length+gm[2].length);
+  // ---- slide3 (+ posibles diapositivas adicionales): tabla + texto en
+  // letras + foto de producto. Cuando la cotización tiene muchas partidas,
+  // la tabla puede no caber en una sola diapositiva — antes eso hacía que
+  // los renglones se salieran del límite físico de la diapositiva (7.5x10in)
+  // y se montaran con el pie de página. Ahora se pagina: si hace falta más
+  // de una diapositiva, se clona la plantilla de la tabla y se insertan
+  // diapositivas adicionales justo después, repitiendo encabezados de
+  // sección con "(continuación)". Totales + texto en letras + foto solo van
+  // en la última página con contenido.
+  const s3Pristine=await zip.file('ppt/slides/slide3.xml').async('string');
+  const {sections,totalsRows,total}=_pxBuildRowsStructured(quote.supply,quote.labor,quote.discPP);
 
-  const letras=montoALetrasMXN(total);
-  const idx=letras.lastIndexOf('/100');
-  const part1=letras.slice(0,idx), part2=letras.slice(idx);
-  const totalRe=/(<a:t>TOTAL A PAGAR: <\/a:t><\/a:r><a:r>[\s\S]*?<a:t>)([\s\S]*?)(<\/a:t><\/a:r><a:r>[\s\S]*?<a:t>)([\s\S]*?)(<\/a:t>)/;
-  const tm=s3.match(totalRe);
-  if(!tm) throw new Error('No se encontró el texto "TOTAL A PAGAR" en la plantilla');
-  s3=s3.slice(0,tm.index+tm[1].length)+_pxEsc(part1)
-     +s3.slice(tm.index+tm[1].length+tm[2].length, tm.index+tm[1].length+tm[2].length+tm[3].length)
-     +_pxEsc(part2)
-     +s3.slice(tm.index+tm[1].length+tm[2].length+tm[3].length+tm[4].length);
-
-  // dynamic repositioning of total-words box + product image based on estimated table height.
-  // Con cotizaciones muy largas (varias partidas con descripciones extensas) la
-  // tabla puede acercarse al límite físico de la diapositiva — el texto en letras
-  // NUNCA debe quedar fuera de esta, así que se acota (clamp) a una posición
-  // segura por encima del pie de página, aunque eso implique quedar más pegado
-  // al final de la tabla en esos casos extremos.
   const TABLE_TOP=930895, GAP1=250000, TOTAL_TEXT_H=276999, GAP2=120000;
   // El logo "hølzfloors" del pie de página vive en la plantilla en
   // y=8456431 (encontrado inspeccionando el PPTX original) — antes
@@ -3817,28 +3898,83 @@ async function generateQuotePPTX(quote){
   const FOOTER_SAFE_Y=8100000, IMAGE_MIN_H=500000, IMAGE_MAX_H=2800000;
   const TABLE_CX=6034020, TABLE_X=411989;
   const MAX_TOTAL_TEXT_Y=FOOTER_SAFE_Y-TOTAL_TEXT_H;
-  const tableBottom=TABLE_TOP+estH;
-  const totalTextY=Math.min(tableBottom+GAP1, MAX_TOTAL_TEXT_Y);
-  const imageY=totalTextY+TOTAL_TEXT_H+GAP2;
-  const maxImageH=FOOTER_SAFE_Y-imageY;
+  // Presupuesto de alto por página: de TABLE_TOP hasta el pie de página,
+  // menos un colchón fijo de seguridad (misma lógica que antes tenía el
+  // "+120000" aplicado una sola vez al final, ahora reservado por página).
+  const PAGE_BUDGET=FOOTER_SAFE_Y-TABLE_TOP-120000;
+  const pages=_pxPaginateRows(sections,totalsRows,PAGE_BUDGET);
 
-  const oldTotalXfrm='<a:off x="433686" y="2685179"/><a:ext cx="6314873" cy="276999"/>';
-  const newTotalXfrm='<a:off x="433686" y="'+Math.round(totalTextY)+'"/><a:ext cx="6314873" cy="276999"/>';
-  if(!s3.includes(oldTotalXfrm)) throw new Error('No se encontró la posición del texto de total en la plantilla');
-  s3=s3.replace(oldTotalXfrm,newTotalXfrm);
+  const letras=montoALetrasMXN(total);
+  const idx=letras.lastIndexOf('/100');
+  const part1=letras.slice(0,idx), part2=letras.slice(idx);
 
-  if(maxImageH<IMAGE_MIN_H){
-    s3=s3.replace(/<p:pic>[\s\S]*?<\/p:pic>/,'');
-  } else {
-    const imageH=Math.min(IMAGE_MAX_H,maxImageH);
-    const imageW=imageH;
-    const imageX=Math.round(TABLE_X+(TABLE_CX-imageW)/2);
-    const oldImgXfrm='<a:off x="1462284" y="3311851"/><a:ext cx="4257675" cy="4257675"/>';
-    const newImgXfrm='<a:off x="'+imageX+'" y="'+Math.round(imageY)+'"/><a:ext cx="'+Math.round(imageW)+'" cy="'+Math.round(imageH)+'"/>';
-    if(!s3.includes(oldImgXfrm)) throw new Error('No se encontró la posición de la foto en la plantilla');
-    s3=s3.replace(oldImgXfrm,newImgXfrm);
+  function buildTableSlideXml(pristineXml,page){
+    let sX=pristineXml;
+    // Tabla original: 5 columnas. Se reemplaza el tblGrid por uno de 7
+    // columnas (agrega DESCUENTO y TOTAL) manteniendo el mismo ancho total.
+    const oldGridRe=/<a:tblGrid>[\s\S]*?<\/a:tblGrid>/;
+    if(!oldGridRe.test(sX)) throw new Error('No se encontró el tblGrid de la tabla en la plantilla');
+    sX=sX.replace(oldGridRe, PX_TBL_GRID_7COL);
+    const gridRe=/(<\/a:tblGrid>)([\s\S]*?)(<\/a:tbl>)/;
+    const gm=sX.match(gridRe);
+    if(!gm) throw new Error('No se encontró la tabla en la plantilla');
+    sX=sX.slice(0,gm.index+gm[1].length)+page.xml+sX.slice(gm.index+gm[1].length+gm[2].length);
+
+    if(!page.isLastPage){
+      // Páginas de continuación: sin totales todavía, así que se quita el
+      // cuadro de texto "TOTAL A PAGAR: ..." y la foto de producto por
+      // completo (solo van en la última página con contenido).
+      sX=sX.replace(/<p:sp><p:nvSpPr><p:cNvPr id="11" name="CuadroTexto 10">[\s\S]*?<\/p:sp>/,'');
+      sX=sX.replace(/<p:pic>[\s\S]*?<\/p:pic>/,'');
+      return sX;
+    }
+
+    const totalRe=/(<a:t>TOTAL A PAGAR: <\/a:t><\/a:r><a:r>[\s\S]*?<a:t>)([\s\S]*?)(<\/a:t><\/a:r><a:r>[\s\S]*?<a:t>)([\s\S]*?)(<\/a:t>)/;
+    const tm=sX.match(totalRe);
+    if(!tm) throw new Error('No se encontró el texto "TOTAL A PAGAR" en la plantilla');
+    sX=sX.slice(0,tm.index+tm[1].length)+_pxEsc(part1)
+       +sX.slice(tm.index+tm[1].length+tm[2].length, tm.index+tm[1].length+tm[2].length+tm[3].length)
+       +_pxEsc(part2)
+       +sX.slice(tm.index+tm[1].length+tm[2].length+tm[3].length+tm[4].length);
+
+    // Reposicionamiento del texto en letras + foto según el alto real de
+    // ESTA página (ya no el de toda la cotización) — cada página empieza
+    // su tabla desde TABLE_TOP, así que el cálculo es igual de simple que
+    // antes, solo que ahora usa page.h en vez del estH acumulado de todo.
+    const tableBottom=TABLE_TOP+page.h;
+    const totalTextY=Math.min(tableBottom+GAP1, MAX_TOTAL_TEXT_Y);
+    const imageY=totalTextY+TOTAL_TEXT_H+GAP2;
+    const maxImageH=FOOTER_SAFE_Y-imageY;
+
+    const oldTotalXfrm='<a:off x="433686" y="2685179"/><a:ext cx="6314873" cy="276999"/>';
+    const newTotalXfrm='<a:off x="433686" y="'+Math.round(totalTextY)+'"/><a:ext cx="6314873" cy="276999"/>';
+    if(!sX.includes(oldTotalXfrm)) throw new Error('No se encontró la posición del texto de total en la plantilla');
+    sX=sX.replace(oldTotalXfrm,newTotalXfrm);
+
+    if(maxImageH<IMAGE_MIN_H){
+      sX=sX.replace(/<p:pic>[\s\S]*?<\/p:pic>/,'');
+    } else {
+      const imageH=Math.min(IMAGE_MAX_H,maxImageH);
+      const imageW=imageH;
+      const imageX=Math.round(TABLE_X+(TABLE_CX-imageW)/2);
+      const oldImgXfrm='<a:off x="1462284" y="3311851"/><a:ext cx="4257675" cy="4257675"/>';
+      const newImgXfrm='<a:off x="'+imageX+'" y="'+Math.round(imageY)+'"/><a:ext cx="'+Math.round(imageW)+'" cy="'+Math.round(imageH)+'"/>';
+      if(!sX.includes(oldImgXfrm)) throw new Error('No se encontró la posición de la foto en la plantilla');
+      sX=sX.replace(oldImgXfrm,newImgXfrm);
+    }
+    return sX;
   }
-  zip.file('ppt/slides/slide3.xml',s3);
+
+  // Página 0 reemplaza directamente la diapositiva 3 original; las páginas
+  // adicionales (si las hay) se insertan como diapositivas nuevas justo
+  // después, en orden, encadenando cada inserción tras la anterior.
+  zip.file('ppt/slides/slide3.xml', buildTableSlideXml(s3Pristine,pages[0]));
+  let _afterRid='rId4'; // rId de slide3.xml en presentation.xml.rels
+  for(let i=1;i<pages.length;i++){
+    const partName='ppt/slides/slide3ext'+i+'.xml';
+    const pageXml=buildTableSlideXml(s3Pristine,pages[i]);
+    _afterRid=await _pxInsertSlideAfter(zip,_afterRid,partName,pageXml);
+  }
 
   if(quote.productImageBytes){
     zip.file('ppt/media/image3.jpeg',quote.productImageBytes,{binary:true});
