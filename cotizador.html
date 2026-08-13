@@ -3139,7 +3139,7 @@ async function exportExcel(){
   }
 
   function addHeaderRow(){
-    const row=addRow(['PARTIDA','VOLUMEN','UD.','PVP','SUBTOTAL','DESCUENTO','PVP CON DESCUENTO','TOTAL']);
+    const row=addRow(['PARTIDA','VOLUMEN','UD.','PVP','SUBTOTAL','DESC.%','PVP C/DESC.','TOTAL']);
     [1,2,3,4,5,6,7,8].forEach(col=>{
       const cell=row.getCell(col);
       cell.fill=BLACK_FILL; cell.font=WHITE_FONT;
@@ -3589,34 +3589,26 @@ function _px7ColFinal(){
     .replace('<a:extLst>', fillerCell+fillerCell+fillerCell+'<a:extLst>');
 
   // 2) Encabezados de columna: PVP se queda igual, clona SUBTOTAL para las 3
-  // columnas nuevas (DESCUENTO, PVP CON DESCUENTO, TOTAL). DESCUENTO y PVP
-  // CON DESCUENTO llevan una fuente más chica (7pt en vez de 10pt) porque
-  // son las etiquetas más largas y, si no, "DESCUENTO" no cabe en una línea
-  // y se corta a la mitad de la palabra.
+  // columnas nuevas (DESC.%, PVP C/DESC., TOTAL). Se usan las mismas
+  // abreviaturas que ya existen en la pantalla del cotizador (tabla
+  // Suministro/Mano de obra en pantalla), para no duplicar texto largo y
+  // dejarle más espacio a PARTIDA.
   const headerCells=ROW_COLUMN_HEADERS_TPL.match(/<a:tc>[\s\S]*?<\/a:tc>/g);
   const lastHeaderCell=headerCells[headerCells.length-1];
-  let descHeaderCell=lastHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>DESCUENTO</a:t>');
-  let pvpDescHeaderCell=lastHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>PVP CON DESCUENTO</a:t>');
+  const descHeaderCell=lastHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>DESC.%</a:t>');
+  const pvpDescHeaderCell=lastHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>PVP C/DESC.</a:t>');
   const totalHeaderCell=lastHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>TOTAL</a:t>');
-  descHeaderCell=descHeaderCell.replace('sz="1100" b="1"','sz="700" b="1"');
-  pvpDescHeaderCell=pvpDescHeaderCell.replace('sz="1100" b="1"','sz="700" b="1"');
   let headersTpl=ROW_COLUMN_HEADERS_TPL.replace('<a:extLst>', descHeaderCell+pvpDescHeaderCell+totalHeaderCell+'<a:extLst>');
 
-  // 3) Fila de partida: clona la celda PVP (normal) para DESCUENTO y para
-  // PVP CON DESCUENTO, y la celda SUBTOTAL (negrita) para TOTAL. La celda
-  // PARTIDA (descripción) baja de 11pt a 9pt: su columna se angostó para
-  // dar espacio a DESCUENTO/PVP CON DESCUENTO y a 11pt el texto largo
-  // generaba demasiadas líneas (filas gigantes, sin espacio para la foto).
+  // 3) Fila de partida: clona la celda PVP (normal) para DESC.% y para
+  // PVP C/DESC., y la celda SUBTOTAL (negrita) para TOTAL.
   const itemCells=ROW_ITEM_TPL.match(/<a:tc>[\s\S]*?<\/a:tc>/g);
-  const descCell=itemCells[0];
   const pvpCell=itemCells[3];
   const subtotalCell=itemCells[4];
-  const descCellSmaller=descCell.replace('sz="1100" b="0"','sz="900" b="0"');
   const descPctItemCell=pvpCell.replace('__PVP__','__DESCPCT__');
   const pvpDescItemCell=pvpCell.replace('__PVP__','__PVPDESC__');
   const totalItemCell=subtotalCell.replace('__SUBTOTAL__','__TOTAL__');
-  let itemTpl=ROW_ITEM_TPL.replace(descCell, descCellSmaller);
-  itemTpl=itemTpl.replace('<a:extLst>', descPctItemCell+pvpDescItemCell+totalItemCell+'<a:extLst>');
+  let itemTpl=ROW_ITEM_TPL.replace('<a:extLst>', descPctItemCell+pvpDescItemCell+totalItemCell+'<a:extLst>');
 
   // 4) Fila de totales: resumen compacto pegado a la derecha. Con 8 columnas
   // la etiqueta sigue fusionando 3 columnas (E-G: Subtotal/Descuento/PVP con
@@ -3643,11 +3635,11 @@ function _px7ColFinal(){
   return {sectionTpl,headersTpl,itemTpl,totalRowTpl:totalRowTplSized};
 }
 const _PX7=_px7ColFinal();
-// Ancho total sin cambios (6034020 EMU). DESCUENTO y PVP CON DESCUENTO
-// necesitan más ancho que las demás (son las etiquetas más largas, incluso
-// con la fuente reducida a 7pt); ese espacio se toma de VOLUMEN (un poco) y
-// de PARTIDA, que es la columna flexible que absorbe el resto.
-const PX_TBL_GRID_7COL='<a:tblGrid><a:gridCol w="684020"/><a:gridCol w="730000"/><a:gridCol w="420000"/><a:gridCol w="780000"/><a:gridCol w="920000"/><a:gridCol w="730000"/><a:gridCol w="850000"/><a:gridCol w="920000"/></a:tblGrid>';
+// Ancho total sin cambios (6034020 EMU). Con las etiquetas cortas (DESC.%,
+// PVP C/DESC., iguales a las de la pantalla del cotizador) esas 2 columnas
+// nuevas caben en poco espacio, dejando bastante más ancho libre para
+// PARTIDA (columna flexible) que con las etiquetas largas.
+const PX_TBL_GRID_7COL='<a:tblGrid><a:gridCol w="834020"/><a:gridCol w="730000"/><a:gridCol w="420000"/><a:gridCol w="780000"/><a:gridCol w="920000"/><a:gridCol w="650000"/><a:gridCol w="780000"/><a:gridCol w="920000"/></a:tblGrid>';
 
 function _pxBuildItemRow(desc,vol,unit,pvp,subtotal,descPct,pvpDesc,total){
   let x=_PX7.itemTpl;
@@ -3677,7 +3669,7 @@ function _pxBuildTotalRow(label,value){
 }
 function _pxRound2(n){ return Math.round((n+1e-9)*100)/100; }
 
-const _PX_DESC_CHARS_PER_LINE=10; // columna PARTIDA ahora es 684020 EMU a 9pt (antes 1484020 EMU a 11pt): se redujo el ancho para dar espacio a DESCUENTO/PVP CON DESCUENTO, y se compensó bajando la fuente de 11 a 9pt
+const _PX_DESC_CHARS_PER_LINE=10; // columna PARTIDA ahora es 834020 EMU (antes 1484020 EMU), misma fuente 11pt; se redujo para dar espacio a DESC.%/PVP C/DESC., restauradas a petición del usuario
 const _PX_TOTAL_LABEL_CHARS_PER_LINE=17; // etiqueta ahora ocupa E-F (mas angosto que antes)
 const _PX_TOTAL_VALUE_CHARS_PER_LINE=11; // columna TOTAL (G)
 const _PX_EMU_SECTION_ROW=130000;
