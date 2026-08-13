@@ -3041,7 +3041,7 @@ async function renderDatabaseView(resetPage){
           const checked=_dbMatchedStudiosSelected.has(idStr);
           return `<tr>
             <td><input type="checkbox" class="sel-cb" data-dbms-id="${idStr}" ${checked?'checked':''} onchange="dbToggleMatchedStudioSel('${idStr.replace(/'/g,"\\'")}',this.checked)"></td>
-            <td>${esc(s.name||'—')}</td>
+            <td><span onclick="dbOpenStudio('${idStr.replace(/'/g,"\\'")}')" style="cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px">${esc(s.name||'—')}</span></td>
             <td>${esc(s.city||'—')}</td>
             <td>${esc(s.state||'—')}</td>
             <td>${esc(s.phone||'—')}</td>
@@ -3354,6 +3354,19 @@ function dbOpenContact(idStr){
     D.contacts.push(local);
   }
   openContactModal(null,local.id);
+}
+
+// Abre la ficha de edición de un estudio encontrado en Base de datos (tabla "Estudios que coinciden")
+function dbOpenStudio(idStr){
+  if(!ME||ME.role!=='admin') return;
+  const row=(_dbMatchedStudios||[]).find(s=>String(s.id)===idStr);
+  if(!row){toast('Estudio no encontrado en esta búsqueda','⚠️');return;}
+  let local=D.studios.find(x=>String(x.id)===idStr);
+  if(!local){
+    local={...row};
+    D.studios.push(local);
+  }
+  openStudioModal(local.id);
 }
 
 // ── Buscador de duplicados sobre TODA la base (no solo lo cargado en la página actual) ──
