@@ -47,10 +47,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
 .q-row{display:flex;align-items:center;gap:5px;padding:3px 8px 3px 22px;border-radius:4px;cursor:pointer;margin-bottom:1px;}
 .q-row:hover{background:var(--surface2);}
 .q-row.active{background:var(--greenDim);}
+.q-row.last-saved{background:var(--accentDim);}
 .q-row-num{font-size:11px;font-family:var(--mono);color:var(--text2);}
 .q-row.active .q-row-num{color:var(--green);font-weight:600;}
+.q-row.last-saved .q-row-num{color:var(--accent);font-weight:600;}
 .q-row-name{font-size:11px;color:var(--text3);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .q-row.active .q-row-name{color:var(--green);}
+.q-row.last-saved .q-row-name{color:var(--accent);}
 .badge-ant{font-size:9px;color:var(--text3);background:var(--surface3);border-radius:99px;padding:1px 5px;border:1px solid var(--border);}
 .quote-num{font-size:10px;font-weight:700;color:var(--accent);font-family:var(--mono);}
 .quote-client{font-size:13px;font-weight:600;}
@@ -2372,9 +2375,9 @@ function _closeEditorNow(){
   document.getElementById('no-quote').style.display='';
   document.getElementById('quote-editor').style.display='none';
   setText('topbar-num',''); setText('topbar-client','');
-  document.querySelectorAll('.q-row').forEach(function(el){ el.classList.remove('active'); });
   if(document.getElementById('btn-close-quote')) document.getElementById('btn-close-quote').style.display='none';
   if(document.getElementById('btn-reopen-quote')) document.getElementById('btn-reopen-quote').style.display='none';
+  renderQuoteList(); // ya no hay cotización activa; refleja el último guardado en rojo
 }
 
 function selectQuote(id){
@@ -2396,6 +2399,7 @@ function selectQuote(id){
   document.querySelectorAll('.tab-btn').forEach((t,i)=>t.classList.toggle('active',i===0));
   loadQuoteToForm(); renderQuoteTables(); recalcAll(); updateTopbar();
   const el=document.getElementById('save-ind'); el.textContent=''; el.className='save-ind';
+  renderQuoteList(); // refleja de inmediato cuál es la cotización activa (verde), sin esperar a guardar
 }
 function loadQuoteToForm(){
   const q=CURRENT_Q;
@@ -2479,6 +2483,9 @@ let _collapsedGroups=new Set(), _collapsedProjects=new Set();
 function renderQuoteList(){
   const srch=(document.getElementById('q-search').value||'').toLowerCase();
   let list=srch?QUOTES.filter(x=>((x.client||'')+(x.num||'')+(x.project||'')).toLowerCase().includes(srch)):QUOTES;
+  // Última cotización guardada (por _updatedAt más reciente), para marcarla en rojo cuando no coincide con la activa
+  let _lastSavedId=null, _lastSavedTs=-Infinity;
+  QUOTES.forEach(function(q){ if(q._updatedAt&&q._updatedAt>_lastSavedTs){ _lastSavedTs=q._updatedAt; _lastSavedId=q.id; } });
   const groups=[
     {key:'active',label:'En curso',icon:'🟡'},
     {key:'won',label:'Ganados',icon:'🟢'},
@@ -2522,7 +2529,9 @@ function renderQuoteList(){
             const isActive=qi===0;
             const cn=q.cotNum||parseQuoteNum(q.num).c||q.num||'—';
             const projName=q.project||'';
-            const activeClass=CURRENT_Q&&CURRENT_Q.id===q.id?' active':'';
+            const isCurrentActive=CURRENT_Q&&CURRENT_Q.id===q.id;
+            const isLastSaved=!isCurrentActive&&_lastSavedId&&_lastSavedId===q.id;
+            const activeClass=isCurrentActive?' active':(isLastSaved?' last-saved':'');
             const qid=q.id;
             html+='<div class="q-row'+activeClass+'" data-id="'+qid+'" onclick="selectQuote(&quot;'+qid+'&quot;)">';
             html+='<span style="font-size:10px">📄</span>';
