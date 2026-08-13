@@ -600,10 +600,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
               <div class="tot-lbl">Subtotal suministro</div><div></div><div class="tot-val" id="gt-sup-raw">$0.00</div>
               <div class="tot-lbl">Subtotal instalación</div><div></div><div class="tot-val" id="gt-lab-raw">$0.00</div>
               <div class="tot-lbl" style="color:var(--orange)">− Desc. por volumen</div><div></div><div class="tot-val" style="color:var(--orange)" id="gt-dv-amt">$0.00</div>
-              <div class="tot-lbl" style="color:var(--orange)">− Desc. pronto pago</div>
+              <div class="tot-lbl">Subtotal bruto</div><div></div><div class="tot-val" id="gt-sub-bruto">$0.00</div>
+              <div class="tot-lbl" style="color:var(--orange)">− Desc. pago de contado</div>
               <div style="font-size:10px;color:var(--orange);text-align:right" id="gt-dp-pct">0%</div>
               <div class="tot-val" style="color:var(--orange)" id="gt-dp-amt">$0.00</div>
-              <div class="tot-lbl" style="font-weight:700;color:var(--text)">Subtotal proyecto</div><div></div><div class="tot-val" style="font-weight:700;color:var(--text)" id="gt-sub-proyecto">$0.00</div>
+              <div class="tot-lbl" style="font-weight:700;color:var(--text)">Subtotal neto</div><div></div><div class="tot-val" style="font-weight:700;color:var(--text)" id="gt-sub-proyecto">$0.00</div>
               <div class="tot-lbl">IVA (16%)</div><div></div><div class="tot-val" id="gt-iva">$0.00</div>
               <div class="tot-lbl" style="font-size:15px;font-weight:800;color:var(--text)">TOTAL PROYECTO</div><div></div>
               <div class="tot-val" style="font-size:17px;font-weight:800;color:var(--accent)" id="gt-total">$0.00</div>
@@ -2744,6 +2745,7 @@ function recalcAll(skipExtraCostsRender){
   setText('gt-sup-raw',mxn(supRawMXN));
   setText('gt-lab-raw',mxn(labRawMXN));
   setText('gt-dv-amt',discVolAmt?'−'+mxn(discVolAmt):'$0.00');
+  setText('gt-sub-bruto',mxn(baseAfterVol));
   setText('gt-dp-pct',(discPP*100).toFixed(1)+'%');
   setText('gt-dp-amt',dPPAmt?'−'+mxn(dPPAmt):'$0.00');
   setText('gt-sub-proyecto',mxn(subtotalProyecto));
@@ -3192,9 +3194,12 @@ async function exportExcel(){
 
   // El descuento por partida ya se ve en cada renglón (columnas DESCUENTO /
   // PVP/UD CON DESCUENTO) — aquí solo bajamos un subtotal, el descuento por
-  // pronto pago (si aplica) y el total.
-  addTotalRow('SUBTOTAL PROYECTO', baseAfterVolE);
-  if(dp>0) addTotalRow('DESCUENTO PRONTO PAGO ('+(dp*100).toFixed(0)+'%)', -round(baseAfterVolE*dp,2));
+  // pago de contado (si aplica), el subtotal neto resultante y el total.
+  addTotalRow('SUBTOTAL BRUTO', baseAfterVolE);
+  if(dp>0){
+    addTotalRow('DESCUENTO POR PAGO DE CONTADO ('+(dp*100).toFixed(0)+'%)', -round(baseAfterVolE*dp,2));
+    addTotalRow('SUBTOTAL NETO', supNetMXN);
+  }
 
   const subtotalFinal=supNetMXN;
   addTotalRow('IVA (16%)', subtotalFinal*0.16);
@@ -3700,10 +3705,14 @@ function _pxBuildRowsStructured(supply,labor,discPPpct){
     totalsRows.push({xml:_pxBuildTotalRow(label,value),h:_pxRowH(_pxEstimateTotalRowH(label,_pxMxn(value)))});
   }
   // El descuento por partida ya se ve en cada renglón (columnas DESCUENTO /
-  // PVP C/DESC.) — aquí solo bajamos un subtotal, el descuento por pronto
-  // pago (si aplica, es distinto del descuento por partida) y el total.
-  addTotal('SUBTOTAL PROYECTO',baseAfterVol);
-  if(dp>0) addTotal('DESCUENTO PRONTO PAGO ('+Math.round(dp*100)+'%)',-_pxRound2(baseAfterVol*dp));
+  // PVP C/DESC.) — aquí solo bajamos un subtotal, el descuento por pago de
+  // contado (si aplica, es distinto del descuento por partida), el subtotal
+  // neto resultante y el total.
+  addTotal('SUBTOTAL BRUTO',baseAfterVol);
+  if(dp>0){
+    addTotal('DESCUENTO POR PAGO DE CONTADO ('+Math.round(dp*100)+'%)',-_pxRound2(baseAfterVol*dp));
+    addTotal('SUBTOTAL NETO',subtotalFinal);
+  }
   const iva=_pxRound2(subtotalFinal*0.16);
   const total=_pxRound2(subtotalFinal*1.16);
   addTotal('IVA (16%)',iva);
@@ -3849,14 +3858,19 @@ async function generateQuotePPTX(quote){
   const zip=await JSZip.loadAsync(_pxB64ToUint8(PPTX_TEMPLATE_B64));
 
   // ---- slide1: FECHA / NUMERO / PROYECTO ----
+  // Las 3 líneas van en negrita, y PROYECTO sigue el mismo patrón que
+  // FECHA/NUMERO: separador "/" (no "–") pasado por _pxSpaceOut (un espacio
+  // entre caracteres, dos entre palabras — igual que el resto del bloque).
   let s1=await zip.file('ppt/slides/slide1.xml').async('string');
-  s1=s1.replace('<a:t>F E C H A : 0 5 / 0 8 / 2 0 2 6</a:t>',
-    '<a:t>'+_pxEsc('F E C H A : '+_pxSpaceOut(quote.date))+'</a:t>');
+  const _pxRunPrefix='<a:rPr lang="pt-BR" dirty="0"><a:latin typeface="Franklin Gothic Book" panose="020B0503020102020204" pitchFamily="34" charset="0"/></a:rPr>';
+  const _pxRunPrefixBold='<a:rPr lang="pt-BR" b="1" dirty="0"><a:latin typeface="Franklin Gothic Book" panose="020B0503020102020204" pitchFamily="34" charset="0"/></a:rPr>';
+  s1=s1.replace(_pxRunPrefix+'<a:t>F E C H A : 0 5 / 0 8 / 2 0 2 6</a:t>',
+    _pxRunPrefixBold+'<a:t>'+_pxEsc('F E C H A : '+_pxSpaceOut(quote.date))+'</a:t>');
   const _pxNumeroLine=[quote.projectNum||'',quote.cotNum||'',quote.materialCotizado||''].filter(Boolean).join('/');
-  s1=s1.replace('<a:t>N U M E R O : P 0 9 6 / C 0 0 1 / 2 0 2 6</a:t>',
-    '<a:t>'+_pxEsc('N U M E R O : '+_pxSpaceOut(_pxNumeroLine))+'</a:t>');
-  s1=s1.replace('<a:t>P R O Y E C T O : P 0 9 6 – W O W  D E S I G N</a:t>',
-    '<a:t>'+_pxEsc('P R O Y E C T O : '+_pxSpaceOut(quote.projectNum+' – '+quote.project.toUpperCase()))+'</a:t>');
+  s1=s1.replace(_pxRunPrefix+'<a:t>N U M E R O : P 0 9 6 / C 0 0 1 / 2 0 2 6</a:t>',
+    _pxRunPrefixBold+'<a:t>'+_pxEsc('N U M E R O : '+_pxSpaceOut(_pxNumeroLine))+'</a:t>');
+  s1=s1.replace(_pxRunPrefix+'<a:t>P R O Y E C T O : P 0 9 6 – W O W  D E S I G N</a:t>',
+    _pxRunPrefixBold+'<a:t>'+_pxEsc('P R O Y E C T O : '+_pxSpaceOut(quote.projectNum+'/'+quote.project.toUpperCase()))+'</a:t>');
   zip.file('ppt/slides/slide1.xml',s1);
 
   // ---- slide2: greeting + pitch body ----
