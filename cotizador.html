@@ -3780,7 +3780,15 @@ function _pxPaginateRows(sections,totalsRows,pageBudget){
     // Sección vacía (no debería pasar, ya se filtran antes, pero por
     // seguridad no generamos encabezado sin renglones debajo).
     if(!section.items.length) return;
+    // Tope de seguridad contra bucles infinitos: como mucho puede haber
+    // 1 página nueva por renglón restante (peor caso, 1 renglón por
+    // página) más unas cuantas de margen. Si algo hace que idx nunca
+    // avance, es preferible fallar con un error claro que colgar el
+    // navegador generando páginas para siempre (esto es justo lo que le
+    // pasaba al usuario: se quedaba "Generando PPTX..." congelado).
+    let _guard=section.items.length*2+20;
     while(idx<section.items.length){
+      if(--_guard<0) throw new Error('Paginación de PPTX no converge (posible bucle infinito) en la sección "'+section.title+'"');
       const headerH=_pxRowH(_PX_EMU_SECTION_ROW)+_pxRowH(_PX_EMU_COLHEADER_ROW);
       // Si ni el encabezado + el primer renglón caben en lo que queda de
       // página, empezamos una página nueva (evita dejar un encabezado
@@ -3792,7 +3800,18 @@ function _pxPaginateRows(sections,totalsRows,pageBudget){
       push(_pxBuildSectionRow(title),_pxRowH(_PX_EMU_SECTION_ROW));
       push(_PX7.headersTpl,_pxRowH(_PX_EMU_COLHEADER_ROW));
       first=false;
+      const blocksBefore=cur.blocks.length;
       while(idx<section.items.length && fits(section.items[idx].h)){
+        push(section.items[idx].xml,section.items[idx].h);
+        idx++;
+      }
+      // Salvaguarda real: un renglón puede ser, por sí solo, más alto que
+      // el presupuesto ENTERO de una página (descripción muy larga). En
+      // ese caso nunca va a "caber" sin importar cuántas páginas nuevas
+      // abramos, y el bucle de arriba se repetiría para siempre. Se coloca
+      // en esta página aunque sobresalga del pie — es preferible una
+      // diapositiva con overflow a un cuelgue total del generador.
+      if(idx<section.items.length && cur.blocks.length===blocksBefore){
         push(section.items[idx].xml,section.items[idx].h);
         idx++;
       }
