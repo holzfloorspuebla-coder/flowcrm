@@ -565,7 +565,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           </div>
           <div style="overflow-x:auto">
             <table class="qt-table">
-              <thead><tr><th style="min-width:280px">Partida</th><th>Volumen</th><th>Ud.</th><th>PVP</th><th style="width:52px">Desc.%</th><th>PVP c/desc.</th><th>Subtotal</th><th style="width:28px"></th></tr></thead>
+              <thead><tr><th style="min-width:280px">Partida</th><th>Volumen</th><th>Ud.</th><th>PVP</th><th>Subtotal</th><th style="width:52px">Desc.%</th><th>PVP c/desc.</th><th>Total</th><th style="width:28px"></th></tr></thead>
               <tbody id="supply-tbody"></tbody>
             </table>
           </div>
@@ -586,7 +586,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           </div>
           <div style="overflow-x:auto">
             <table class="qt-table">
-              <thead><tr><th style="min-width:280px">Partida</th><th>Volumen</th><th>Ud.</th><th>PVP</th><th style="width:52px">Desc.%</th><th>PVP c/desc.</th><th>Subtotal</th><th style="width:28px"></th></tr></thead>
+              <thead><tr><th style="min-width:280px">Partida</th><th>Volumen</th><th>Ud.</th><th>PVP</th><th>Subtotal</th><th style="width:52px">Desc.%</th><th>PVP c/desc.</th><th>Total</th><th style="width:28px"></th></tr></thead>
               <tbody id="labor-tbody"></tbody>
             </table>
           </div>
@@ -2563,13 +2563,14 @@ function renderQuoteTables(){
 function renderQTable(tbodyId,items,table){
   const tbody=document.getElementById(tbodyId);
   if(!items.length){
-    tbody.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:16px;font-size:12px">Sin partidas</td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:16px;font-size:12px">Sin partidas</td></tr>`;
     return;
   }
   tbody.innerHTML=items.map((x,i)=>{
     const disc=(parseFloat(x.disc)||0)/100;
     const sub=round(x.vol*x.pvp,2); // subtotal bruto sin descuento
     const pvpDesc=round(x.pvp*(1-disc),2); // precio unitario con descuento aplicado
+    const total=round(sub-round(sub*disc,2),2); // total con descuento aplicado (mismo cálculo que PPTX/Excel)
     return `
     <tr>
       <td><textarea class="desc-inp" rows="2" onchange="CURRENT_Q['${table}'][${i}].desc=this.value;markDirty()">${esc(x.desc)}</textarea></td>
@@ -2591,9 +2592,10 @@ function renderQTable(tbodyId,items,table){
         <input class="mini-inp" type="number" value="${x.pvp}" style="width:72px" onchange="CURRENT_Q['${table}'][${i}].pvp=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()">
         ${x.currency==='USD'?'<span style="font-size:9px;font-weight:700;background:#2563eb22;color:#60a5fa;border-radius:3px;padding:1px 4px;margin-left:2px">USD</span>':''}
       </td>
+      <td class="num">${x.currency==='USD'?'<span style="color:#60a5fa">USD '+fmtUSD(sub)+'</span>':mxn(sub)}</td>
       <td><input class="mini-inp" type="number" value="${x.disc||0}" min="0" max="100" style="width:46px;text-align:center" onchange="CURRENT_Q['${table}'][${i}].disc=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()"></td>
       <td class="num">${x.currency==='USD'?'<span style="color:#60a5fa">USD '+fmtUSD(pvpDesc)+'</span>':mxn(pvpDesc)}</td>
-      <td class="num">${x.currency==='USD'?'<span style="color:#60a5fa">USD '+fmtUSD(sub)+'</span>':mxn(sub)}</td>
+      <td class="num" style="font-weight:600">${x.currency==='USD'?'<span style="color:#60a5fa">USD '+fmtUSD(total)+'</span>':mxn(total)}</td>
       <td style="display:flex;gap:2px;align-items:center">
         <button class="btn-icon" title="Subir" onclick="moveItem('${table}',${i},-1)" style="font-size:10px;line-height:1${i===0?';opacity:0.3;pointer-events:none':''}">▲</button>
         <button class="btn-icon" title="Bajar" onclick="moveItem('${table}',${i},1)" style="font-size:10px;line-height:1${i===items.length-1?';opacity:0.3;pointer-events:none':''}">▼</button>
