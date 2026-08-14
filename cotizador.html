@@ -2748,9 +2748,12 @@ function recalcAll(skipExtraCostsRender){
   const dPPAmt=round(baseAfterVol*discPP,2);
   const subtotalProyecto=round(baseAfterVol-dPPAmt,2);
 
-  // Secciones individuales
-  setText('sup-sub',mxn(supRawMXN));
-  setText('lab-sub',mxn(labRawMXN));
+  // Secciones individuales (con descuento por partida ya aplicado, para
+  // que coincida con la suma de la columna TOTAL de cada tabla)
+  const supDiscMXN=round(supMXN.reduce((s,x)=>{const sub=x.vol*x.pvp;const d=(parseFloat(x.disc)||0)/100;return s+(sub-round(sub*d,2));},0),2);
+  const labDiscMXN=round(labMXN.reduce((s,x)=>{const sub=x.vol*x.pvp;const d=(parseFloat(x.disc)||0)/100;return s+(sub-round(sub*d,2));},0),2);
+  setText('sup-sub',mxn(supDiscMXN));
+  setText('lab-sub',mxn(labDiscMXN));
 
   // Grand total
   setText('gt-sup-raw',mxn(supRawMXN));
@@ -3202,9 +3205,15 @@ async function exportExcel(){
     }
   }
 
-  // El descuento por partida ya se ve en cada renglón (columnas DESCUENTO /
-  // PVP/UD CON DESCUENTO) — aquí solo bajamos un subtotal, el descuento por
-  // pago de contado (si aplica), el subtotal neto resultante y el total.
+  // Mismo desglose que el panel de totales en pantalla: subtotales brutos
+  // por sección (sin descuento por partida), el descuento por volumen
+  // acumulado de todas las partidas, subtotal bruto, descuento por pago de
+  // contado (si aplica), subtotal neto y total. Cada renglón nuevo solo
+  // aparece si es distinto de cero, igual que ya pasaba con pago de
+  // contado/subtotal neto.
+  if(round(supRawMXN,2)) addTotalRow('SUBTOTAL SUMINISTRO', supRawMXN);
+  if(round(labRawMXN,2)) addTotalRow('SUBTOTAL INSTALACIÓN', labRawMXN);
+  if(discVolAmtE) addTotalRow('DESCUENTO POR VOLUMEN', -discVolAmtE);
   addTotalRow('SUBTOTAL BRUTO', baseAfterVolE);
   if(dp>0){
     addTotalRow('DESCUENTO POR PAGO DE CONTADO ('+(dp*100).toFixed(0)+'%)', -round(baseAfterVolE*dp,2));
@@ -3731,6 +3740,8 @@ function _pxBuildRowsStructured(supply,labor,discPPpct){
   if(supply.length) sections.push({title:'SUMINISTRO DE MATERIALES',items:buildItems(supply)});
   if(labor.length) sections.push({title:'MANO DE OBRA',items:buildItems(labor)});
 
+  const rawSupply=supply.reduce((s,x)=>s+mxnAmount(x),0);
+  const rawLabor=labor.reduce((s,x)=>s+mxnAmount(x),0);
   const allItems=[...supply,...labor];
   const rawTotal=allItems.reduce((s,x)=>s+mxnAmount(x),0);
   const discVolAmt=allItems.reduce((s,x)=>s+mxnAmount(x)*((parseFloat(x.disc)||0)/100),0);
@@ -3742,10 +3753,16 @@ function _pxBuildRowsStructured(supply,labor,discPPpct){
   function addTotal(label,value){
     totalsRows.push({xml:_pxBuildTotalRow(label,value),h:_pxRowH(_pxEstimateTotalRowH(label,_pxMxn(value)))});
   }
-  // El descuento por partida ya se ve en cada renglón (columnas DESCUENTO /
-  // PVP C/DESC.) — aquí solo bajamos un subtotal, el descuento por pago de
-  // contado (si aplica, es distinto del descuento por partida), el subtotal
-  // neto resultante y el total.
+  // Mismo desglose que el panel de totales en pantalla: subtotales brutos
+  // por sección (sin descuento por partida), el descuento por volumen
+  // acumulado de todas las partidas, subtotal bruto, descuento por pago de
+  // contado (si aplica), subtotal neto, IVA y total. Cada renglón nuevo
+  // (subtotal suministro / instalación / descuento por volumen) solo
+  // aparece si es distinto de cero, igual que ya pasaba con pago de
+  // contado/subtotal neto.
+  if(rawSupply) addTotal('SUBTOTAL SUMINISTRO',rawSupply);
+  if(rawLabor) addTotal('SUBTOTAL INSTALACIÓN',rawLabor);
+  if(discVolAmt) addTotal('DESCUENTO POR VOLUMEN',-_pxRound2(discVolAmt));
   addTotal('SUBTOTAL BRUTO',baseAfterVol);
   if(dp>0){
     addTotal('DESCUENTO POR PAGO DE CONTADO ('+Math.round(dp*100)+'%)',-_pxRound2(baseAfterVol*dp));
