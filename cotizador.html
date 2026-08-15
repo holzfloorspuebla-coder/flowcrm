@@ -3724,7 +3724,7 @@ function _pxBuildResumenTitleRow(){
 }
 function _pxRound2(n){ return Math.round((n+1e-9)*100)/100; }
 
-const _PX_DESC_CHARS_PER_LINE=31; // columna PARTIDA ahora es 3020000 EMU (antes 834020 EMU), misma fuente 11pt; numero conservador para no subestimar el alto de fila
+const _PX_DESC_CHARS_PER_LINE=36; // columna PARTIDA ahora es 3020000 EMU (antes 834020 EMU), misma fuente 11pt; medido contra el render real (~36-40 caracteres por linea) -- el valor anterior (31) era demasiado conservador y sobreestimaba el alto de cada renglon, cortando la pagina antes de tiempo y dejando espacio en blanco debajo de la tabla // columna PARTIDA ahora es 3020000 EMU (antes 834020 EMU), misma fuente 11pt; medido contra el render real (~36-40 caracteres por linea) -- el valor anterior (31) era demasiado conservador y sobreestimaba el alto de cada renglon, cortando la pagina antes de tiempo y dejando espacio en blanco debajo de la tabla
 const _PX_TOTAL_LABEL_CHARS_PER_LINE=30; // etiqueta ahora ocupa solo columna A (PARTIDA, ~3020000 EMU)
 const _PX_TOTAL_VALUE_CHARS_PER_LINE=28; // columna de valor ahora B-G (~3014020 EMU), mucho mas ancha que antes para que quepan totales grandes sin envolver
 const _PX_EMU_SECTION_ROW=130000;
@@ -3883,11 +3883,18 @@ function _pxPaginateRows(sections,totalsRows,pageBudget){
     }
   });
 
+  // Los totales ya NO se agregan como filas de esta misma tabla -- van en
+  // una tabla aparte (RESUMEN DEL PROYECTO, ver generateQuotePPTX), asi que
+  // aqui solo se decide si hace falta empezar pagina nueva para que quepan
+  // (mismo criterio de siempre) y se devuelven por separado (totalsXml/
+  // totalsH), sin sumarlos a `cur.h` -- este debe reflejar SOLO el alto de
+  // las filas de partida, que es lo que ocupa la tabla de partidas.
   const totalsH=totalsRows.reduce((s,t)=>s+t.h,0);
   if(!fits(totalsH) && cur.blocks.length) startPage();
-  totalsRows.forEach(t=>push(t.xml,t.h));
+  cur.totalsXml=totalsRows.map(t=>t.xml).join('');
+  cur.totalsH=totalsH;
 
-  return pages.map((p,i)=>({xml:p.blocks.join(''),h:p.h,isLastPage:i===pages.length-1}));
+  return pages.map((p,i)=>({xml:p.blocks.join(''),h:p.h,totalsXml:p.totalsXml||'',totalsH:p.totalsH||0,isLastPage:i===pages.length-1}));
 }
 
 // ---- HTML (from the "Propuesta" contenteditable) -> plain paragraph lines ----
@@ -4041,6 +4048,9 @@ async function generateQuotePPTX(quote){
   // media diapositiva incluso cuando sobra espacio).
   const FOOTER_SAFE_Y=8100000, IMAGE_MIN_H=500000, IMAGE_MAX_H=2800000;
   const TABLE_CX=6034020, TABLE_X=411989;
+  // Espacio visual entre la tabla de partidas y la tabla de RESUMEN DEL
+  // PROYECTO (ahora es una tabla aparte, no filas pegadas a la misma tabla).
+  const GAP_TOTALS=150000;
   const MAX_TOTAL_TEXT_Y=FOOTER_SAFE_Y-TOTAL_TEXT_H;
   // Presupuesto de alto por página: de TABLE_TOP hasta el pie de página,
   // menos un colchón fijo de seguridad (misma lógica que antes tenía el
@@ -4051,6 +4061,16 @@ async function generateQuotePPTX(quote){
   const letras=montoALetrasMXN(total);
   const idx=letras.lastIndexOf('/100');
   const part1=letras.slice(0,idx), part2=letras.slice(idx);
+
+  // Tabla de RESUMEN DEL PROYECTO como graphicFrame independiente: mismo
+  // tblGrid de 7 columnas (para que los gridSpan de resumenTitleTpl/
+  // totalRowTpl sigan cuadrando), mismo X/ancho que la tabla de partidas
+  // (queda centrada en la página igual que ella), posicionada en el Y que
+  // se le pase (justo debajo de la tabla de partidas de esa página, con
+  // GAP_TOTALS de por medio).
+  function _pxBuildTotalsGraphicFrame(y,h,rowsXml){
+    return '<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="99" name="Tabla Resumen"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x="'+TABLE_X+'" y="'+Math.round(y)+'"/><a:ext cx="'+TABLE_CX+'" cy="'+Math.round(h)+'"/></p:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr/>'+PX_TBL_GRID_7COL+rowsXml+'</a:tbl></a:graphicData></a:graphic></p:graphicFrame>';
+  }
 
   function buildTableSlideXml(pristineXml,page){
     let sX=pristineXml;
@@ -4063,6 +4083,22 @@ async function generateQuotePPTX(quote){
     const gm=sX.match(gridRe);
     if(!gm) throw new Error('No se encontró la tabla en la plantilla');
     sX=sX.slice(0,gm.index+gm[1].length)+page.xml+sX.slice(gm.index+gm[1].length+gm[2].length);
+
+    // La tabla de partidas termina en TABLE_TOP+page.h (page.h ya NO
+    // incluye los totales, ver _pxPaginateRows). Si esta página trae
+    // totales (RESUMEN DEL PROYECTO), se inserta como una tabla aparte,
+    // independiente de la tabla de partidas, justo después de su
+    // graphicFrame en el árbol de formas de la diapositiva.
+    const itemsBottom=TABLE_TOP+page.h;
+    let contentBottom=itemsBottom;
+    if(page.totalsXml){
+      const totalsY=itemsBottom+GAP_TOTALS;
+      const totalsFrame=_pxBuildTotalsGraphicFrame(totalsY,page.totalsH,page.totalsXml);
+      const closeNeedle='</a:tbl></a:graphicData></a:graphic></p:graphicFrame>';
+      if(!sX.includes(closeNeedle)) throw new Error('No se encontró el cierre de la tabla de partidas en la plantilla');
+      sX=sX.replace(closeNeedle, closeNeedle+totalsFrame);
+      contentBottom=totalsY+page.totalsH;
+    }
 
     if(!page.isLastPage){
       // Páginas de continuación: sin totales todavía, así que se quita el
@@ -4084,8 +4120,10 @@ async function generateQuotePPTX(quote){
     // Reposicionamiento del texto en letras + foto según el alto real de
     // ESTA página (ya no el de toda la cotización) — cada página empieza
     // su tabla desde TABLE_TOP, así que el cálculo es igual de simple que
-    // antes, solo que ahora usa page.h en vez del estH acumulado de todo.
-    const tableBottom=TABLE_TOP+page.h;
+    // antes, solo que ahora usa contentBottom (fin de la tabla de totales,
+    // si la hay, o si no de la tabla de partidas) en vez del alto acumulado
+    // de una sola tabla combinada.
+    const tableBottom=contentBottom;
     const totalTextY=Math.min(tableBottom+GAP1, MAX_TOTAL_TEXT_Y);
     const imageY=totalTextY+TOTAL_TEXT_H+GAP2;
     const maxImageH=FOOTER_SAFE_Y-imageY;
