@@ -3724,23 +3724,91 @@ function _pxBuildResumenTitleRow(){
 }
 function _pxRound2(n){ return Math.round((n+1e-9)*100)/100; }
 
-const _PX_DESC_CHARS_PER_LINE=36; // columna PARTIDA ahora es 3020000 EMU (antes 834020 EMU), misma fuente 11pt; medido contra el render real (~36-40 caracteres por linea) -- el valor anterior (31) era demasiado conservador y sobreestimaba el alto de cada renglon, cortando la pagina antes de tiempo y dejando espacio en blanco debajo de la tabla // columna PARTIDA ahora es 3020000 EMU (antes 834020 EMU), misma fuente 11pt; medido contra el render real (~36-40 caracteres por linea) -- el valor anterior (31) era demasiado conservador y sobreestimaba el alto de cada renglon, cortando la pagina antes de tiempo y dejando espacio en blanco debajo de la tabla
-const _PX_TOTAL_LABEL_CHARS_PER_LINE=30; // etiqueta ahora ocupa solo columna A (PARTIDA, ~3020000 EMU)
-const _PX_TOTAL_VALUE_CHARS_PER_LINE=28; // columna de valor ahora B-G (~3014020 EMU), mucho mas ancha que antes para que quepan totales grandes sin envolver
+// ---- Estimacion de saltos de linea por metricas de fuente ----
+// Un promedio fijo de "caracteres por linea" nunca es preciso: una
+// palabra con muchas "m/M/w/W" ocupa mucho mas que una con puras
+// "i/l/t", y por eso el mismo promedio se quedaba corto para unas
+// descripciones y sobraba para otras (esto fue justo lo que causaba el
+// espacio en blanco de sobra debajo de la tabla — con algunas
+// descripciones el promedio sobreestimaba el numero de lineas). En vez
+// de eso, se simula el ajuste de linea (word-wrap) real sumando el ancho
+// aproximado de cada caracter (tabla de anchos relativos, escala de
+// 1000 unidades por em, como las que usan la mayoria de las fuentes
+// proporcionales tipo Helvetica/Arial) contra el ancho disponible real
+// de la columna en EMU, palabra por palabra — igual que lo hace
+// PowerPoint/LibreOffice internamente.
+const _PX_CHAR_W={' ':278,'!':278,'"':355,'#':556,'$':556,'%':889,'&':667,"'":191,'(':333,')':333,'*':389,'+':584,',':278,'-':333,'.':278,'/':278,
+  '0':556,'1':556,'2':556,'3':556,'4':556,'5':556,'6':556,'7':556,'8':556,'9':556,
+  ':':278,';':278,'<':584,'=':584,'>':584,'?':556,'@':1015,
+  'A':667,'B':667,'C':722,'D':722,'E':667,'F':611,'G':778,'H':722,'I':278,'J':500,'K':667,'L':556,'M':833,'N':722,'O':778,'P':667,'Q':778,'R':722,'S':667,'T':611,'U':722,'V':667,'W':944,'X':667,'Y':667,'Z':611,
+  '[':278,'\\':278,']':278,'^':469,'_':556,'`':333,
+  'a':556,'b':556,'c':500,'d':556,'e':556,'f':278,'g':556,'h':556,'i':222,'j':222,'k':500,'l':222,'m':833,'n':556,'o':556,'p':556,'q':556,'r':333,'s':500,'t':278,'u':556,'v':500,'w':722,'x':500,'y':500,'z':500,
+  '{':334,'|':260,'}':334,'~':584,
+  'á':556,'é':556,'í':222,'ó':556,'ú':556,'ñ':556,'Á':667,'É':667,'Í':278,'Ó':778,'Ú':722,'Ñ':722,'ü':556,'Ü':722};
+const _PX_CHAR_W_DEFAULT=556;
+function _pxCharW(ch){ const w=_PX_CHAR_W[ch]; return w!==undefined?w:_PX_CHAR_W_DEFAULT; }
+function _pxWordW(word){ let w=0; for(const ch of word) w+=_pxCharW(ch); return w; }
+// Cuenta cuantas lineas necesita `text` para caber en `widthEMU` con
+// fuente `fontSizePt`, simulando ajuste de linea por palabras (igual que
+// un renderizador de texto real: acumula palabras separadas por espacio
+// hasta que la siguiente ya no cabe, y ahi corta a la siguiente linea).
+// Factor de seguridad (10%) sobre el ancho disponible: la fuente real de
+// la plantilla (Pragmatica) no es exactamente la tabla de anchos usada
+// aqui (basada en metricas tipo Helvetica) y ademas LibreOffice sustituye
+// esa fuente al renderizar, asi que puede haber variacion. Medido contra
+// el render real (varias descripciones reales, ver probe_lines*.js): sin
+// este factor, 2 de 5 casos de prueba SUBestimaban el numero de lineas
+// (peligroso: fila mas alta de lo estimado); con 1.1x, cero casos
+// subestiman y la mayoria da el numero exacto de lineas.
+const _PX_TEXT_WIDTH_SAFETY=1.1;
+function _pxEstimateTextLines(text,widthEMU,fontSizePt){
+  const maxW=(widthEMU/(fontSizePt*12700))*1000/_PX_TEXT_WIDTH_SAFETY;
+  const words=String(text).split(' ').filter(w=>w.length);
+  if(!words.length) return 1;
+  let lines=1,curW=0;
+  const spaceW=_pxCharW(' ');
+  for(let i=0;i<words.length;i++){
+    const w=_pxWordW(words[i]);
+    if(curW===0){
+      curW=w;
+    } else if(curW+spaceW+w<=maxW){
+      curW+=spaceW+w;
+    } else {
+      lines++;
+      curW=w;
+    }
+  }
+  return Math.max(1,lines);
+}
+// Anchos de columna reales usados para estimar renglones (deben coincidir
+// con PX_TBL_GRID_7COL / el reparto de la fila de totales en _px7ColFinal).
+const _PX_PARTIDA_WIDTH_EMU=3020000; // columna A, fuente 11pt
+const _PX_TOTAL_LABEL_WIDTH_EMU=3020000; // etiqueta de totales: solo columna A, fuente 10pt
+const _PX_TOTAL_VALUE_WIDTH_EMU=3014020; // valor de totales: columnas B-G, fuente 10pt
 const _PX_EMU_SECTION_ROW=130000;
 const _PX_EMU_COLHEADER_ROW=320000; // columnas recalibradas para que los encabezados quepan en 1 linea
 const _PX_EMU_TOTAL_ROW=125000;
 const _PX_EMU_TOTAL_LINE=130000;
-const _PX_EMU_ITEM_LINE=155000;
-const _PX_EMU_ITEM_BASE=210000;
+// Recalibrado midiendo renglones reales (pdftotext -bbox contra el PPTX
+// renderizado, ver historial): con el numero de lineas ya calculado
+// correctamente (word-wrap real, arriba), estas 2 constantes SEGUIAN
+// siendo las de una calibracion vieja (mucho mas conservadora, de cuando
+// PARTIDA era mas angosta) y sumaban de mas en CADA renglon -- eso era
+// lo que seguia dejando espacio de sobra debajo de la tabla incluso
+// despues de corregir el conteo de lineas. Medido: 2 lineas=27.8pt,
+// 3 lineas=40.0pt, 4 lineas=53.3pt (dos veces, consistente) -> ~12.75pt
+// por linea + ~2pt base fijo. Se deja un pequeno margen de seguridad
+// sobre eso (13pt/linea, ~2.4pt base) antes de convertir a EMU.
+const _PX_EMU_ITEM_LINE=165000; // ~13pt por linea (12700 EMU/pt)
+const _PX_EMU_ITEM_BASE=30000; // ~2.4pt fijo por renglon (antes 210000 = ~16.5pt, muy por encima de lo real)
 
 function _pxEstimateItemRowH(desc){
-  const lines=Math.max(1,Math.ceil(String(desc).length/_PX_DESC_CHARS_PER_LINE));
+  const lines=_pxEstimateTextLines(desc,_PX_PARTIDA_WIDTH_EMU,11);
   return Math.max(353059,_PX_EMU_ITEM_BASE+lines*_PX_EMU_ITEM_LINE);
 }
 function _pxEstimateTotalRowH(label,valueStr){
-  const labelLines=Math.max(1,Math.ceil(String(label).length/_PX_TOTAL_LABEL_CHARS_PER_LINE));
-  const valueLines=Math.max(1,Math.ceil(String(valueStr||'').length/_PX_TOTAL_VALUE_CHARS_PER_LINE));
+  const labelLines=_pxEstimateTextLines(label,_PX_TOTAL_LABEL_WIDTH_EMU,10);
+  const valueLines=_pxEstimateTextLines(valueStr||'',_PX_TOTAL_VALUE_WIDTH_EMU,10);
   const lines=Math.max(labelLines,valueLines);
   return _PX_EMU_TOTAL_ROW+(lines-1)*_PX_EMU_TOTAL_LINE;
 }
