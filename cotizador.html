@@ -3587,70 +3587,111 @@ function _pxBuildProyectoLine(projectNum,project){
 // Se clonan celdas existentes (mismo estilo/bordes/fuente) en vez de escribir
 // XML desde cero, para no perder ninguna propiedad visual del diseño original.
 function _px7ColFinal(){
-  // Deriva plantillas de 8 columnas (PARTIDA/VOLUMEN/UD./PVP/SUBTOTAL/
-  // DESCUENTO/PVP CON DESCUENTO/TOTAL) a partir de las 5 columnas originales
-  // de la plantilla PPTX real, clonando celdas existentes. DESCUENTO muestra
-  // el % de descuento de la partida por separado del precio ya descontado
-  // (PVP CON DESCUENTO), tal como se manejaba originalmente.
+  // Deriva plantillas de 7 columnas VISIBLES para el PPTX de salida
+  // (PARTIDA/VOLUMEN/UD./PVP/DESC.%/PVP C/DESC./TOTAL) a partir de las 5
+  // columnas originales de la plantilla PPTX real, clonando celdas
+  // existentes. A petición del usuario, SUBTOTAL ya no se muestra en el
+  // PPTX de salida (sigue viéndose en pantalla y en el Excel, ahí no se
+  // tocó nada) y PARTIDA se ensancha a un mínimo del 50% del ancho total
+  // de la tabla, quitándole ese espacio a las demás columnas.
 
-  // 1) Encabezado de sección: gridSpan 5->8, agrega 3 celdas hMerge de relleno
+  // 1) Encabezado de sección: gridSpan 5->7 (7 columnas visibles), agrega
+  // 2 celdas hMerge de relleno (antes eran 3 para 8 columnas).
   const fillerCell=ROW_SECTION_HEADER_TPL.match(/<a:tc hMerge="1">[\s\S]*?<\/a:tc>/)[0];
   const sectionTpl=ROW_SECTION_HEADER_TPL
-    .replace('gridSpan="5"','gridSpan="8"')
-    .replace('<a:extLst>', fillerCell+fillerCell+fillerCell+'<a:extLst>');
+    .replace('gridSpan="5"','gridSpan="7"')
+    .replace('<a:extLst>', fillerCell+fillerCell+'<a:extLst>');
 
-  // 2) Encabezados de columna: PVP se queda igual, clona SUBTOTAL para las 3
-  // columnas nuevas (DESC.%, PVP C/DESC., TOTAL). Se usan las mismas
-  // abreviaturas que ya existen en la pantalla del cotizador (tabla
-  // Suministro/Mano de obra en pantalla), para no duplicar texto largo y
-  // dejarle más espacio a PARTIDA.
+  // 2) Encabezados de columna: se quita SUBTOTAL (ya no se muestra) y se
+  // clona esa misma celda (mismo estilo/bordes) para las 3 columnas nuevas
+  // (DESC.%, PVP C/DESC., TOTAL). Abreviaturas iguales a las de pantalla.
   const headerCells=ROW_COLUMN_HEADERS_TPL.match(/<a:tc>[\s\S]*?<\/a:tc>/g);
-  const lastHeaderCell=headerCells[headerCells.length-1];
-  const descHeaderCell=lastHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>DESC.%</a:t>');
-  const pvpDescHeaderCell=lastHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>PVP C/DESC.</a:t>');
-  const totalHeaderCell=lastHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>TOTAL</a:t>');
-  let headersTpl=ROW_COLUMN_HEADERS_TPL.replace('<a:extLst>', descHeaderCell+pvpDescHeaderCell+totalHeaderCell+'<a:extLst>');
+  const subtotalHeaderCell=headerCells[headerCells.length-1];
+  const descHeaderCell=subtotalHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>DESC.%</a:t>');
+  const pvpDescHeaderCell=subtotalHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>PVP C/DESC.</a:t>');
+  const totalHeaderCell=subtotalHeaderCell.replace('<a:t>SUBTOTAL</a:t>','<a:t>TOTAL</a:t>');
+  let headersTpl=ROW_COLUMN_HEADERS_TPL.replace(subtotalHeaderCell, descHeaderCell+pvpDescHeaderCell+totalHeaderCell);
 
-  // 3) Fila de partida: clona la celda PVP (normal) para DESC.% y para
-  // PVP C/DESC., y la celda SUBTOTAL (negrita) para TOTAL.
+  // 3) Fila de partida: se quita la celda SUBTOTAL (ya no se muestra) y se
+  // clona la celda PVP (normal) para DESC.% y PVP C/DESC., y la celda
+  // SUBTOTAL (negrita, se usa solo como plantilla de estilo) para TOTAL.
   const itemCells=ROW_ITEM_TPL.match(/<a:tc>[\s\S]*?<\/a:tc>/g);
   const pvpCell=itemCells[3];
   const subtotalCell=itemCells[4];
   const descPctItemCell=pvpCell.replace('__PVP__','__DESCPCT__');
   const pvpDescItemCell=pvpCell.replace('__PVP__','__PVPDESC__');
   const totalItemCell=subtotalCell.replace('__SUBTOTAL__','__TOTAL__');
-  let itemTpl=ROW_ITEM_TPL.replace('<a:extLst>', descPctItemCell+pvpDescItemCell+totalItemCell+'<a:extLst>');
+  let itemTpl=ROW_ITEM_TPL.replace(subtotalCell, descPctItemCell+pvpDescItemCell+totalItemCell);
 
-  // 4) Fila de totales: resumen compacto pegado a la derecha. Con 8 columnas
-  // la etiqueta sigue fusionando 3 columnas (E-G: Subtotal/Descuento/PVP con
-  // desc.), igual que en la plantilla original de 5 columnas (gridSpan="3"
-  // con 2 celdas hMerge de continuación no cambia), dejando la columna TOTAL
-  // (H) para el valor, y A-D en blanco (sin bordes, para que no se vean
-  // líneas de cuadrícula donde no hay nada). Solo se multiplica la celda en
-  // blanco de 1 (A) a 4 (A-D), ya que ahora hay 3 columnas más antes de la
-  // etiqueta (VOLUMEN, UD, PVP siguen en B-D).
-  const blankCell=ROW_TOTAL_TPL.match(/<a:tc>[\s\S]*?<\/a:tc>/)[0];
-  const blankCellNoBorder=blankCell.replace(/<a:lnR[\s\S]*?<\/a:lnR>/,'<a:lnR><a:noFill/></a:lnR>');
+  // 4) Fila de totales: LibreOffice no calcula bien el ancho de una celda
+  // gridSpan cuando NO es la primera celda de la fila y coexiste con otra
+  // celda gridSpan antes que ella (se detectó con un valor real: "Etiqueta
+  // gridSpan=3 + Valor gridSpan=4" hacía que el Valor se envolviera como si
+  // solo tuviera el ancho de UNA columna, con el azul de la tabla
+  // asomando por el sobrante — mismo síntoma visual que el bug del cuadro
+  // "RESUMEN DEL PROYECTO" de antes, pero con otra causa). La forma que sí
+  // renderiza bien (visto en el diseño anterior, que sí funcionaba) es
+  // que la PRIMERA celda de la fila sea una celda simple SIN gridSpan.
+  // Columna A (PARTIDA) por sí sola (3,020,000 EMU) ya sobra para
+  // cualquier etiqueta, así que Etiqueta = solo columna A (gridSpan="1",
+  // celda simple) y Valor = B-G fusionadas (gridSpan 1->6, ~3,014,020
+  // EMU) — de paso, con casi 50/50, la caja queda más centrada que antes.
+  const hMergeCellOrig=ROW_TOTAL_TPL.match(/<a:tc hMerge="1">[\s\S]*?<\/a:tc>/)[0];
+  const bareCellsOrig=ROW_TOTAL_TPL.match(/<a:tc>[\s\S]*?<\/a:tc>/g);
+  const blankCellOrig=bareCellsOrig[0];
+  const valueCellOrig=bareCellsOrig[1];
+  const labelCellOrig=ROW_TOTAL_TPL.match(/<a:tc gridSpan="3">[\s\S]*?<\/a:tc>/)[0];
+  const oldCellBlock=blankCellOrig+labelCellOrig+hMergeCellOrig+hMergeCellOrig+valueCellOrig;
+  const labelCellSingle=labelCellOrig.replace('gridSpan="3"','gridSpan="1"');
+  const valueCellSpan6=valueCellOrig.replace('<a:tc>','<a:tc gridSpan="6">');
+  const newCellBlock=labelCellSingle+valueCellSpan6+hMergeCellOrig+hMergeCellOrig+hMergeCellOrig+hMergeCellOrig+hMergeCellOrig;
   const totalRowTpl=ROW_TOTAL_TPL
-    .replace(blankCell, blankCellNoBorder+blankCellNoBorder+blankCellNoBorder+blankCellNoBorder)
+    .replace(oldCellBlock, newCellBlock)
     .replace('algn="l" fontAlgn="ctr"','algn="r" fontAlgn="ctr"');
 
-  // 5) Reduce el tamano de fuente (11pt->10pt) en encabezados y celdas en
-  // negrita (subtotal/total) para que quepan sin partir palabras/numeros a
-  // la mitad, dejando el ancho de columna en su maximo natural. Las celdas
-  // normales (no negritas: descripcion, volumen, unidad, pvp) conservan 11pt.
-  headersTpl=headersTpl.replace(/sz="1100" b="1"/g,'sz="1000" b="1"');
-  itemTpl=itemTpl.replace(/sz="1100" b="1"/g,'sz="1000" b="1"');
-  const totalRowTplSized=totalRowTpl.replace(/sz="1100" b="1"/g,'sz="1000" b="1"');
+  // 4b) Fila de título "RESUMEN DEL PROYECTO": la misma caja (A-G, ancho
+  // completo) fusionada en una sola celda con texto centrado en negro,
+  // sin columna de valor aparte — se arma a partir de totalRowTpl ya con
+  // las columnas A + B-G fusionadas en una sola de A a G. La etiqueta
+  // (columna A) tiene gridSpan="1" explícito, así que se busca por ese
+  // valor para fusionarlo a "7".
+  const bareCellsFinal=totalRowTpl.match(/<a:tc[^>]*>[\s\S]*?<\/a:tc>/g).filter(c=>c.includes('__VALUE__'));
+  const valueCellFinal=bareCellsFinal[0];
+  const resumenTitleTpl=totalRowTpl
+    .replace('gridSpan="1"','gridSpan="7"')
+    .replace(valueCellFinal, hMergeCellOrig)
+    .replace('__LABEL__','RESUMEN DEL PROYECTO')
+    .replace('algn="r" fontAlgn="ctr"','algn="ctr" fontAlgn="ctr"');
 
-  return {sectionTpl,headersTpl,itemTpl,totalRowTpl:totalRowTplSized};
+  // 5) Tamaños de fuente: con columnas VOLUMEN/UD/PVP/DESC.%/PVP C/DESC./
+  // TOTAL bastante más angostas que antes (le cedieron espacio a PARTIDA
+  // para llegar al 50% pedido), los encabezados bajan a 8pt (igual para
+  // todos) y las celdas de dato no negritas (lang="en-US": volumen,
+  // unidad, pvp, desc.%, pvp c/desc.) también a 8pt; la celda TOTAL
+  // (negrita) baja un paso más, a 7.5pt, porque además de angosta lleva
+  // el monto más largo. PARTIDA (lang="es-ES") conserva 11pt: con ~50%
+  // del ancho de tabla le sobra espacio de sobra.
+  headersTpl=headersTpl.replace(/sz="1100" b="1"/g,'sz="800" b="1"');
+  itemTpl=itemTpl.replace(/sz="1100" b="1"/g,'sz="800" b="1"');
+  itemTpl=itemTpl.replace(/lang="en-US" sz="1100" b="0"/g,'lang="en-US" sz="800" b="0"');
+  itemTpl=itemTpl.replace('sz="800" b="1"','sz="750" b="1"');
+  const totalRowTplSized=totalRowTpl.replace(/sz="1100" b="1"/g,'sz="1000" b="1"');
+  const resumenTitleTplSized=resumenTitleTpl.replace(/sz="1100" b="1"/g,'sz="1000" b="1"');
+
+  return {sectionTpl,headersTpl,itemTpl,totalRowTpl:totalRowTplSized,resumenTitleTpl:resumenTitleTplSized};
 }
 const _PX7=_px7ColFinal();
 // Ancho total sin cambios (6034020 EMU). Con las etiquetas cortas (DESC.%,
 // PVP C/DESC., iguales a las de la pantalla del cotizador) esas 2 columnas
 // nuevas caben en poco espacio, dejando bastante más ancho libre para
 // PARTIDA (columna flexible) que con las etiquetas largas.
-const PX_TBL_GRID_7COL='<a:tblGrid><a:gridCol w="834020"/><a:gridCol w="730000"/><a:gridCol w="420000"/><a:gridCol w="780000"/><a:gridCol w="920000"/><a:gridCol w="650000"/><a:gridCol w="780000"/><a:gridCol w="920000"/></a:tblGrid>';
+// 7 columnas visibles en el PPTX (SUBTOTAL ya no se muestra ahi). PARTIDA
+// = 3020000 EMU = 50.05% de 6034020 (minimo 50% pedido). El resto
+// (3014020 EMU) se reparte dandole prioridad a VOLUMEN/UD (para que sus
+// encabezados/valores quepan en 1 linea) y a los 3 montos en dinero
+// (PVP/PVP C/DESC./TOTAL, con fuente reducida en el paso 5 de
+// _px7ColFinal para que quepan).
+const PX_TBL_GRID_7COL='<a:tblGrid><a:gridCol w="3020000"/><a:gridCol w="600000"/><a:gridCol w="300000"/><a:gridCol w="560000"/><a:gridCol w="280000"/><a:gridCol w="550000"/><a:gridCol w="724020"/></a:tblGrid>';
 
 function _pxBuildItemRow(desc,vol,unit,pvp,subtotal,descPct,pvpDesc,total){
   let x=_PX7.itemTpl;
@@ -3678,11 +3719,14 @@ function _pxBuildTotalRow(label,value){
   x=x.replace('__VALUE__',_pxEsc(_pxMxn(value)));
   return x;
 }
+function _pxBuildResumenTitleRow(){
+  return _PX7.resumenTitleTpl;
+}
 function _pxRound2(n){ return Math.round((n+1e-9)*100)/100; }
 
-const _PX_DESC_CHARS_PER_LINE=10; // columna PARTIDA ahora es 834020 EMU (antes 1484020 EMU), misma fuente 11pt; se redujo para dar espacio a DESC.%/PVP C/DESC., restauradas a petición del usuario
-const _PX_TOTAL_LABEL_CHARS_PER_LINE=17; // etiqueta ahora ocupa E-F (mas angosto que antes)
-const _PX_TOTAL_VALUE_CHARS_PER_LINE=11; // columna TOTAL (G)
+const _PX_DESC_CHARS_PER_LINE=31; // columna PARTIDA ahora es 3020000 EMU (antes 834020 EMU), misma fuente 11pt; numero conservador para no subestimar el alto de fila
+const _PX_TOTAL_LABEL_CHARS_PER_LINE=30; // etiqueta ahora ocupa solo columna A (PARTIDA, ~3020000 EMU)
+const _PX_TOTAL_VALUE_CHARS_PER_LINE=28; // columna de valor ahora B-G (~3014020 EMU), mucho mas ancha que antes para que quepan totales grandes sin envolver
 const _PX_EMU_SECTION_ROW=130000;
 const _PX_EMU_COLHEADER_ROW=320000; // columnas recalibradas para que los encabezados quepan en 1 linea
 const _PX_EMU_TOTAL_ROW=125000;
@@ -3753,6 +3797,9 @@ function _pxBuildRowsStructured(supply,labor,discPPpct){
   function addTotal(label,value){
     totalsRows.push({xml:_pxBuildTotalRow(label,value),h:_pxRowH(_pxEstimateTotalRowH(label,_pxMxn(value)))});
   }
+  // Título "RESUMEN DEL PROYECTO" arriba de la caja de totales (misma caja
+  // centrada B-G, fusionada en una sola celda con texto centrado).
+  totalsRows.push({xml:_pxBuildResumenTitleRow(),h:_pxRowH(_PX_EMU_SECTION_ROW)});
   // Mismo desglose que el panel de totales en pantalla: subtotales brutos
   // por sección (sin descuento por partida), el descuento por volumen
   // acumulado de todas las partidas, subtotal bruto, descuento por pago de
@@ -3936,15 +3983,24 @@ async function generateQuotePPTX(quote){
   // FECHA/NUMERO: separador "/" (no "–") pasado por _pxSpaceOut (un espacio
   // entre caracteres, dos entre palabras — igual que el resto del bloque).
   let s1=await zip.file('ppt/slides/slide1.xml').async('string');
+  // Solo la etiqueta (FECHA/NUMERO/PROYECTO + " : ") va en negrita; el valor
+  // que sigue (fecha, numero de proyecto, nombre del proyecto) va en peso
+  // normal. Antes toda la linea (etiqueta+valor) estaba en un unico <a:r> en
+  // negrita, asi que se divide en 2 <a:r> separados dentro del mismo <a:r>
+  // original de la plantilla: uno en negrita para la etiqueta y otro normal
+  // para el valor.
   const _pxRunPrefix='<a:rPr lang="pt-BR" dirty="0"><a:latin typeface="Franklin Gothic Book" panose="020B0503020102020204" pitchFamily="34" charset="0"/></a:rPr>';
   const _pxRunPrefixBold='<a:rPr lang="pt-BR" b="1" dirty="0"><a:latin typeface="Franklin Gothic Book" panose="020B0503020102020204" pitchFamily="34" charset="0"/></a:rPr>';
+  function _pxLabelValueRuns(label,value){
+    return _pxRunPrefixBold+'<a:t>'+_pxEsc(label)+'</a:t></a:r><a:r>'+_pxRunPrefix+'<a:t>'+_pxEsc(value)+'</a:t>';
+  }
   s1=s1.replace(_pxRunPrefix+'<a:t>F E C H A : 0 5 / 0 8 / 2 0 2 6</a:t>',
-    _pxRunPrefixBold+'<a:t>'+_pxEsc('F E C H A : '+_pxSpaceOut(quote.date))+'</a:t>');
+    _pxLabelValueRuns('F E C H A : ',_pxSpaceOut(quote.date)));
   const _pxNumeroLine=[quote.projectNum||'',quote.cotNum||'',quote.materialCotizado||''].filter(Boolean).join('/');
   s1=s1.replace(_pxRunPrefix+'<a:t>N U M E R O : P 0 9 6 / C 0 0 1 / 2 0 2 6</a:t>',
-    _pxRunPrefixBold+'<a:t>'+_pxEsc('N U M E R O : '+_pxSpaceOut(_pxNumeroLine))+'</a:t>');
+    _pxLabelValueRuns('N U M E R O : ',_pxSpaceOut(_pxNumeroLine)));
   s1=s1.replace(_pxRunPrefix+'<a:t>P R O Y E C T O : P 0 9 6 – W O W  D E S I G N</a:t>',
-    _pxRunPrefixBold+'<a:t>'+_pxEsc('P R O Y E C T O : '+_pxSpaceOut(_pxBuildProyectoLine(quote.projectNum,quote.project).toUpperCase()))+'</a:t>');
+    _pxLabelValueRuns('P R O Y E C T O : ',_pxSpaceOut(_pxBuildProyectoLine(quote.projectNum,quote.project).toUpperCase())));
   zip.file('ppt/slides/slide1.xml',s1);
 
   // ---- slide2: greeting + pitch body ----
