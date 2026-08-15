@@ -4080,7 +4080,9 @@ async function generateQuotePPTX(quote){
 
   // ---- slide2: greeting + pitch body ----
   let s2=await zip.file('ppt/slides/slide2.xml').async('string');
-  const _pxGreetName=(quote.clientMailingName||quote.client||'').toUpperCase();
+  // Solo el primer nombre del contacto (ej. "Daphne Matanzo" -> "Daphne"),
+  // a peticion del usuario.
+  const _pxGreetName=((quote.clientMailingName||quote.client||'').trim().split(/\s+/)[0]||'').toUpperCase();
   const greeting='HOLA '+_pxGreetName+',';
   const greetSz=pxFitGreetingSize(greeting);
   const oldRun='<a:rPr lang="es-ES" sz="2800" b="1" dirty="0"><a:solidFill><a:srgbClr val="000000"/></a:solidFill><a:latin typeface="Franklin Gothic Book" panose="020B0503020102020204" pitchFamily="34" charset="0"/><a:ea typeface="Pragmatica Bold"/><a:cs typeface="Pragmatica Bold"/><a:sym typeface="Pragmatica Bold"/></a:rPr><a:t>HOLA DENISSE,</a:t>';
@@ -4104,7 +4106,21 @@ async function generateQuotePPTX(quote){
   // diapositivas adicionales justo después, repitiendo encabezados de
   // sección con "(continuación)". Totales + texto en letras + foto solo van
   // en la última página con contenido.
-  const s3Pristine=await zip.file('ppt/slides/slide3.xml').async('string');
+  let s3Pristine=await zip.file('ppt/slides/slide3.xml').async('string');
+  // Titulo "PROPUESTA ECONOMICA" (28pt) envolvia a 2 lineas porque el
+  // cuadro de texto (3941717 EMU) se quedaba corto para el texto a ese
+  // tamano -- se ensancha a 4700000 EMU (suficiente para 1 sola linea) y
+  // la linea roja de abajo (que antes tenia el mismo ancho que el cuadro)
+  // se ensancha igual, para que quede alineada con el texto en 1 linea.
+  const oldTitleXfrm='<a:off x="839288" y="192853"/><a:ext cx="3941717" cy="523220"/>';
+  const newTitleXfrm='<a:off x="839288" y="192853"/><a:ext cx="5800000" cy="523220"/>';
+  if(!s3Pristine.includes(oldTitleXfrm)) throw new Error('No se encontró la posición del título "PROPUESTA ECONÓMICA" en la plantilla');
+  s3Pristine=s3Pristine.replace(oldTitleXfrm,newTitleXfrm);
+  const oldLineXfrm='<a:off x="839288" y="736600"/><a:ext cx="3941717" cy="0"/>';
+  const newLineXfrm='<a:off x="839288" y="736600"/><a:ext cx="5800000" cy="0"/>';
+  if(!s3Pristine.includes(oldLineXfrm)) throw new Error('No se encontró la línea roja bajo el título en la plantilla');
+  s3Pristine=s3Pristine.replace(oldLineXfrm,newLineXfrm);
+
   const {sections,totalsRows,total}=_pxBuildRowsStructured(quote.supply,quote.labor,quote.discPP);
 
   const TABLE_TOP=930895, GAP1=250000, TOTAL_TEXT_H=276999, GAP2=120000;
