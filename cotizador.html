@@ -3675,23 +3675,24 @@ function _px7ColFinal(){
   // cerrar <a:tcPr>, después del borde inferior <a:lnB> — los <a:solidFill>
   // DENTRO de <a:lnL>/<a:lnR>/<a:lnT>/<a:lnB> son el color de los bordes y
   // no se tocan, para conservar las líneas divisorias) pasa de negro a
-  // "sin relleno", y el color del texto pasa de blanco a negro.
-  // Fondo "blanco" explícito (no noFill/sin especificar): la tabla no
-  // tiene un estilo de tabla propio (<a:tblPr/> vacío), así que una celda
-  // sin relleno explícito hereda el estilo de tabla por default del tema,
-  // que en esta plantilla pinta un azul claro — el mismo síntoma que ya
-  // se había visto antes con el bug de gridSpan (un color inesperado
-  // "asomando" donde no debería haber ningún relleno). Blanco explícito
-  // evita el problema y visualmente equivale a "sin fondo" sobre el fondo
-  // claro de la diapositiva. Orden importante: primero el color de TEXTO
-  // (blanco->negro, con el patrón simple — en este punto de la plantilla
-  // el único "FFFFFF" que existe es el de texto, así que no hay ambigüedad
-  // posible), y DESPUÉS el fondo de celda (negro->blanco, con el patrón
-  // anclado a </a:lnB>...</a:tcPr> para no tocar ningún otro FFFFFF/000000
-  // — en particular, no el de texto que se acaba de fijar).
+  // "sin relleno", y el color del texto pasa de blanco a negro. Un primer
+  // intento usó blanco sólido explícito en vez de noFill (por miedo a que
+  // noFill dejara pasar el estilo de tabla por default del tema, azul,
+  // como pasaba antes con la tabla de partidas vacía en páginas de solo
+  // totales) — pero el usuario pidió "sin fondo" de verdad, no blanco
+  // (se nota la diferencia contra el fondo crema de la diapositiva). Ya
+  // que el otro origen del azul (la tabla de partidas con 0 filas) se
+  // arregló por separado quitando ese graphicFrame por completo, noFill
+  // aquí ya no debería disparar el mismo problema — confirmado por
+  // render. Orden importante: primero el color de TEXTO (blanco->negro,
+  // con el patrón simple — en este punto de la plantilla el único
+  // "FFFFFF" que existe es el de texto, así que no hay ambigüedad
+  // posible), y DESPUÉS el fondo de celda (negro->sin relleno, con el
+  // patrón anclado a </a:lnB>...</a:tcPr> para no tocar ningún otro
+  // FFFFFF/000000 — en particular, no el de texto que se acaba de fijar).
   const totalRowTplPlain=totalRowTpl
     .replace(/<a:solidFill><a:srgbClr val="FFFFFF"\/><\/a:solidFill>/g,'<a:solidFill><a:srgbClr val="000000"/></a:solidFill>')
-    .replace(/<\/a:lnB><a:solidFill><a:srgbClr val="000000"\/><\/a:solidFill><\/a:tcPr>/g,'</a:lnB><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:tcPr>');
+    .replace(/<\/a:lnB><a:solidFill><a:srgbClr val="000000"\/><\/a:solidFill><\/a:tcPr>/g,'</a:lnB><a:noFill/></a:tcPr>');
 
   // 5) Tamaños de fuente: con columnas VOLUMEN/UD/PVP/DESC.%/PVP C/DESC./
   // TOTAL bastante más angostas que antes (le cedieron espacio a PARTIDA
@@ -4130,9 +4131,27 @@ async function generateQuotePPTX(quote){
   // simétricos chicos) para que quepa en una sola línea sin achicar la
   // fuente.
   const oldCotizXfrm='<a:off x="1018903" y="770997"/><a:ext cx="4820194" cy="3966214"/>';
-  const newCotizXfrm='<a:off x="150000" y="770997"/><a:ext cx="6558000" cy="3966214"/>';
+  // El cuadro original estaba pensado para 2 líneas (96pt), con mucho aire
+  // por debajo antes de llegar a la línea roja. Ahora que el título va en
+  // 1 sola línea, se baja el cuadro para que el texto quede pegado justo
+  // arriba de la línea roja (y=4737211): cy chico (una sola línea a 70pt
+  // sobra con 1,200,000 EMU) y el borde inferior del cuadro ~40,000 EMU
+  // arriba de la línea.
+  const newCotizXfrm='<a:off x="150000" y="3287211"/><a:ext cx="6558000" cy="1200000"/>';
   if(!s1.includes(oldCotizXfrm)) throw new Error('No se encontró el cuadro de texto "COTIZACIÓN" en la plantilla');
   s1=s1.replace(oldCotizXfrm,newCotizXfrm);
+  // Con 1 sola línea ya no hace falta el interlineado fijo de 160.35pt que
+  // traía la plantilla (pensado para separar 2 líneas de 96pt) — se quita
+  // para que el texto no quede corrido dentro de un renglón mucho más alto
+  // que la propia letra, y se ancla el texto al fondo del cuadro (anchor
+  // "b") para que se pegue a la línea roja en vez de flotar arriba.
+  const oldCotizLnSpc='<a:lnSpc><a:spcPts val="16035"/></a:lnSpc>';
+  if(!s1.includes(oldCotizLnSpc)) throw new Error('No se encontró el interlineado del título "COTIZACIÓN" en la plantilla');
+  s1=s1.replace(oldCotizLnSpc,'');
+  const oldCotizBodyPr='<a:bodyPr wrap="square"><a:spAutoFit/></a:bodyPr>';
+  const newCotizBodyPr='<a:bodyPr wrap="square" anchor="b"><a:spAutoFit/></a:bodyPr>';
+  if(!s1.includes(oldCotizBodyPr)) throw new Error('No se encontró el bodyPr del título "COTIZACIÓN" en la plantilla');
+  s1=s1.replace(oldCotizBodyPr,newCotizBodyPr);
   // Incluso con el cuadro casi a todo el ancho de la diapositiva,
   // "COTIZACIÓN" a 96pt no entra en una sola línea (la palabra sola mide
   // más que el ancho disponible) y se parte a media palabra
@@ -4143,16 +4162,14 @@ async function generateQuotePPTX(quote){
   const newCotizSz='<a:rPr lang="en-US" sz="7000" b="1" spc="-150" dirty="0">';
   if(!s1.includes(oldCotizSz)) throw new Error('No se encontró el tamaño de fuente del título "COTIZACIÓN" en la plantilla');
   s1=s1.replace(oldCotizSz,newCotizSz);
-  // Bloque FECHA/NUMERO/PROYECTO: antes angosto y alineado a la derecha;
-  // ahora ocupa el ancho total de la diapositiva (mismos márgenes chicos
-  // que el título) y el texto queda alineado a la izquierda.
+  // Bloque FECHA/NUMERO/PROYECTO: ocupa el ancho total de la diapositiva
+  // (mismos márgenes chicos que el título) pero el texto se queda alineado
+  // a la derecha (como en la plantilla original) — a pedido del usuario,
+  // que pidió izquierda primero y luego pidió volver a derecha.
   const oldSubtitleXfrm='<a:off x="2225040" y="6918961"/><a:ext cx="4411794" cy="1165495"/>';
   const newSubtitleXfrm='<a:off x="433686" y="6918961"/><a:ext cx="5990628" cy="1165495"/>';
   if(!s1.includes(oldSubtitleXfrm)) throw new Error('No se encontró el cuadro FECHA/NUMERO/PROYECTO en la plantilla');
   s1=s1.replace(oldSubtitleXfrm,newSubtitleXfrm);
-  const _pxSubtitleAlgnCount=(s1.match(/<a:pPr algn="r"\/>/g)||[]).length;
-  if(_pxSubtitleAlgnCount!==3) throw new Error('Se esperaban 3 párrafos alineados a la derecha en FECHA/NUMERO/PROYECTO, se encontraron '+_pxSubtitleAlgnCount);
-  s1=s1.replace(/<a:pPr algn="r"\/>/g,'<a:pPr algn="l"/>');
   // Solo la etiqueta (FECHA/NUMERO/PROYECTO + " : ") va en negrita; el valor
   // que sigue (fecha, numero de proyecto, nombre del proyecto) va en peso
   // normal. Antes toda la linea (etiqueta+valor) estaba en un unico <a:r> en
@@ -4381,6 +4398,15 @@ async function generateQuotePPTX(quote){
     s5=s5.replace('<a:t>Contra entrega: 20%</a:t>',
       '<a:t>Previo al envío de los materiales a obra: 20%</a:t>');
   }
+  // El punto 10 "Forma y condiciones de pago" ya existía en esta
+  // diapositiva (no en la de "CONDICIONES COMERCIALES" del slide4, que
+  // solo llega hasta el punto 9) — el usuario solo pidió ajustar una
+  // línea, agregando "con tarjeta y/o" antes de "desde el extranjero" y
+  // un punto final.
+  const oldPagosLine='<a:t>Pagos desde el extranjero: comisiones a cargo del cliente</a:t>';
+  const newPagosLine='<a:t>Pagos con tarjeta y/o desde el extranjero: comisiones a cargo del cliente.</a:t>';
+  if(!s5.includes(oldPagosLine)) throw new Error('No se encontró la línea de pagos desde el extranjero en el punto 10 de condiciones comerciales');
+  s5=s5.replace(oldPagosLine,newPagosLine);
   zip.file('ppt/slides/slide5.xml',s5);
 
   return await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.presentationml.presentation'});
