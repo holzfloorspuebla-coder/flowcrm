@@ -3646,8 +3646,11 @@ function _px7ColFinal(){
   const valueCellSpan6=valueCellOrig.replace('<a:tc>','<a:tc gridSpan="6">');
   const newCellBlock=labelCellSingle+valueCellSpan6+hMergeCellOrig+hMergeCellOrig+hMergeCellOrig+hMergeCellOrig+hMergeCellOrig;
   const totalRowTpl=ROW_TOTAL_TPL
-    .replace(oldCellBlock, newCellBlock)
-    .replace('algn="l" fontAlgn="ctr"','algn="r" fontAlgn="ctr"');
+    .replace(oldCellBlock, newCellBlock);
+  // Columna 1 (etiqueta) queda alineada a la izquierda (algn="l", el valor
+  // original de la plantilla) y columna 2 (valor) centrada (algn="ctr",
+  // también el original) — a pedido del usuario, ninguna de las dos se
+  // toca respecto a ROW_TOTAL_TPL.
 
   // 4b) Fila de título "RESUMEN DEL PROYECTO": la misma caja (A-G, ancho
   // completo) fusionada en una sola celda con texto centrado en negro,
@@ -3661,7 +3664,34 @@ function _px7ColFinal(){
     .replace('gridSpan="1"','gridSpan="7"')
     .replace(valueCellFinal, hMergeCellOrig)
     .replace('__LABEL__','RESUMEN DEL PROYECTO')
-    .replace('algn="r" fontAlgn="ctr"','algn="ctr" fontAlgn="ctr"');
+    .replace('algn="l" fontAlgn="ctr"','algn="ctr" fontAlgn="ctr"');
+
+  // 4c) Variante "plana" de la fila de totales (sin relleno negro, texto
+  // negro): se usa para todos los renglones del resumen excepto los 3
+  // últimos (subtotal neto, IVA, total a pagar), que conservan la franja
+  // negra/texto blanco para resaltar las cifras finales. Se parte de
+  // totalRowTpl y solo se tocan 2 cosas por celda (label y valor): el
+  // relleno de fondo de la celda (el <a:solidFill> que va justo antes de
+  // cerrar <a:tcPr>, después del borde inferior <a:lnB> — los <a:solidFill>
+  // DENTRO de <a:lnL>/<a:lnR>/<a:lnT>/<a:lnB> son el color de los bordes y
+  // no se tocan, para conservar las líneas divisorias) pasa de negro a
+  // "sin relleno", y el color del texto pasa de blanco a negro.
+  // Fondo "blanco" explícito (no noFill/sin especificar): la tabla no
+  // tiene un estilo de tabla propio (<a:tblPr/> vacío), así que una celda
+  // sin relleno explícito hereda el estilo de tabla por default del tema,
+  // que en esta plantilla pinta un azul claro — el mismo síntoma que ya
+  // se había visto antes con el bug de gridSpan (un color inesperado
+  // "asomando" donde no debería haber ningún relleno). Blanco explícito
+  // evita el problema y visualmente equivale a "sin fondo" sobre el fondo
+  // claro de la diapositiva. Orden importante: primero el color de TEXTO
+  // (blanco->negro, con el patrón simple — en este punto de la plantilla
+  // el único "FFFFFF" que existe es el de texto, así que no hay ambigüedad
+  // posible), y DESPUÉS el fondo de celda (negro->blanco, con el patrón
+  // anclado a </a:lnB>...</a:tcPr> para no tocar ningún otro FFFFFF/000000
+  // — en particular, no el de texto que se acaba de fijar).
+  const totalRowTplPlain=totalRowTpl
+    .replace(/<a:solidFill><a:srgbClr val="FFFFFF"\/><\/a:solidFill>/g,'<a:solidFill><a:srgbClr val="000000"/></a:solidFill>')
+    .replace(/<\/a:lnB><a:solidFill><a:srgbClr val="000000"\/><\/a:solidFill><\/a:tcPr>/g,'</a:lnB><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:tcPr>');
 
   // 5) Tamaños de fuente: con columnas VOLUMEN/UD/PVP/DESC.%/PVP C/DESC./
   // TOTAL bastante más angostas que antes (le cedieron espacio a PARTIDA
@@ -3676,9 +3706,11 @@ function _px7ColFinal(){
   itemTpl=itemTpl.replace(/lang="en-US" sz="1100" b="0"/g,'lang="en-US" sz="800" b="0"');
   itemTpl=itemTpl.replace('sz="800" b="1"','sz="750" b="1"');
   const totalRowTplSized=totalRowTpl.replace(/sz="1100" b="1"/g,'sz="1000" b="1"');
-  const resumenTitleTplSized=resumenTitleTpl.replace(/sz="1100" b="1"/g,'sz="1000" b="1"');
+  const totalRowTplPlainSized=totalRowTplPlain.replace(/sz="1100" b="1"/g,'sz="1000" b="1"');
+  // Fila de título "RESUMEN DEL PROYECTO": 18pt, a pedido del usuario.
+  const resumenTitleTplSized=resumenTitleTpl.replace(/sz="1100" b="1"/g,'sz="1800" b="1"');
 
-  return {sectionTpl,headersTpl,itemTpl,totalRowTpl:totalRowTplSized,resumenTitleTpl:resumenTitleTplSized};
+  return {sectionTpl,headersTpl,itemTpl,totalRowTpl:totalRowTplSized,totalRowTplPlain:totalRowTplPlainSized,resumenTitleTpl:resumenTitleTplSized};
 }
 const _PX7=_px7ColFinal();
 // Ancho total sin cambios (6034020 EMU). Con las etiquetas cortas (DESC.%,
@@ -3713,8 +3745,8 @@ function _pxPct(n){
 function _pxBuildSectionRow(title){
   return _PX7.sectionTpl.replace('__TITLE__',_pxEsc(title));
 }
-function _pxBuildTotalRow(label,value){
-  let x=_PX7.totalRowTpl;
+function _pxBuildTotalRow(label,value,filled){
+  let x=filled?_PX7.totalRowTpl:_PX7.totalRowTplPlain;
   x=x.replace('__LABEL__',_pxEsc(label));
   x=x.replace('__VALUE__',_pxEsc(_pxMxn(value)));
   return x;
@@ -3789,6 +3821,11 @@ const _PX_EMU_SECTION_ROW=130000;
 const _PX_EMU_COLHEADER_ROW=320000; // columnas recalibradas para que los encabezados quepan en 1 linea
 const _PX_EMU_TOTAL_ROW=125000;
 const _PX_EMU_TOTAL_LINE=130000;
+// Fila de título "RESUMEN DEL PROYECTO" (18pt, ver _px7ColFinal): usa una
+// letra bastante más grande que el resto de los renglones de totales
+// (10pt), así que necesita más alto de renglón. Mismo _PX_EMU_TOTAL_ROW
+// (125000 EMU) escalado proporcionalmente de 10pt a 18pt.
+const _PX_EMU_RESUMEN_TITLE_ROW=Math.round(_PX_EMU_TOTAL_ROW*18/10);
 // Recalibrado midiendo renglones reales (pdftotext -bbox contra el PPTX
 // renderizado, ver historial): con el numero de lineas ya calculado
 // correctamente (word-wrap real, arriba), estas 2 constantes SEGUIAN
@@ -3815,12 +3852,16 @@ function _pxEstimateTotalRowH(label,valueStr){
 
 // Margen de seguridad: las estimaciones de alto por renglón son aproximadas
 // (dependen de cómo PowerPoint hace el wrap real del texto), así que cada
-// renglón se infla un 18% al calcularlo — así el empaquetado por página
+// renglón se infla un poco al calcularlo — así el empaquetado por página
 // (_pxPaginateRows) nunca deja pasar de largo más contenido del que en
 // realidad cabe. Antes este margen se aplicaba UNA sola vez al final sobre
 // la suma total, lo cual funcionaba con una sola diapositiva pero no sirve
-// para decidir, renglón a renglón, dónde cortar la página.
-function _pxRowH(rawH){ return Math.round(rawH*1.18); }
+// para decidir, renglón a renglón, dónde cortar la página. Se bajó de 18%
+// a 5%: el 18% (sumado al margen que YA trae cada constante de línea/base
+// calibrada con medición real vía pdftotext -bbox, y al 10% de seguridad
+// del estimador de líneas) era un triple margen que dejaba mucho espacio
+// sin usar al final de cada página sin necesidad real.
+function _pxRowH(rawH){ return Math.round(rawH*1.05); }
 
 // Arma los datos de la tabla (secciones + renglones de totales) sin unirlos
 // todavía en un solo bloque de XML — cada renglón se queda con su alto
@@ -3862,12 +3903,15 @@ function _pxBuildRowsStructured(supply,labor,discPPpct){
   const subtotalFinal=_pxRound2(baseAfterVol*(1-dp));
 
   const totalsRows=[];
-  function addTotal(label,value){
-    totalsRows.push({xml:_pxBuildTotalRow(label,value),h:_pxRowH(_pxEstimateTotalRowH(label,_pxMxn(value)))});
+  // Solo los ultimos renglones "de cierre" (subtotal neto si aplica, IVA y
+  // total a pagar) llevan la franja negra/texto blanco; el resto del
+  // desglose va sin relleno y con texto negro (a pedido del usuario).
+  function addTotal(label,value,filled){
+    totalsRows.push({xml:_pxBuildTotalRow(label,value,!!filled),h:_pxRowH(_pxEstimateTotalRowH(label,_pxMxn(value)))});
   }
   // Título "RESUMEN DEL PROYECTO" arriba de la caja de totales (misma caja
   // centrada B-G, fusionada en una sola celda con texto centrado).
-  totalsRows.push({xml:_pxBuildResumenTitleRow(),h:_pxRowH(_PX_EMU_SECTION_ROW)});
+  totalsRows.push({xml:_pxBuildResumenTitleRow(),h:_pxRowH(_PX_EMU_RESUMEN_TITLE_ROW)});
   // Mismo desglose que el panel de totales en pantalla: subtotales brutos
   // por sección (sin descuento por partida), el descuento por volumen
   // acumulado de todas las partidas, subtotal bruto, descuento por pago de
@@ -3881,12 +3925,12 @@ function _pxBuildRowsStructured(supply,labor,discPPpct){
   addTotal('SUBTOTAL BRUTO',baseAfterVol);
   if(dp>0){
     addTotal('DESCUENTO POR PAGO DE CONTADO ('+Math.round(dp*100)+'%)',-_pxRound2(baseAfterVol*dp));
-    addTotal('SUBTOTAL NETO',subtotalFinal);
+    addTotal('SUBTOTAL NETO',subtotalFinal,true);
   }
   const iva=_pxRound2(subtotalFinal*0.16);
   const total=_pxRound2(subtotalFinal*1.16);
-  addTotal('IVA (16%)',iva);
-  addTotal('TOTAL A PAGAR',total);
+  addTotal('IVA (16%)',iva,true);
+  addTotal('TOTAL A PAGAR',total,true);
 
   return {sections,totalsRows,total};
 }
@@ -3898,7 +3942,9 @@ function _pxBuildRowsStructured(supply,labor,discPPpct){
 // su encabezado (con "(continuación)") al inicio de la siguiente. Los
 // renglones de totales se intentan meter al final de la última página con
 // contenido; si no caben, se agregan en una página adicional solo para ellos.
-function _pxPaginateRows(sections,totalsRows,pageBudget){
+function _pxPaginateRows(sections,totalsRows,pageBudget,gapTotals,trailerH){
+  gapTotals=gapTotals||0;
+  trailerH=trailerH||0;
   const pages=[];
   let cur=null;
   function startPage(){ cur={blocks:[],h:0}; pages.push(cur); }
@@ -3957,8 +4003,27 @@ function _pxPaginateRows(sections,totalsRows,pageBudget){
   // (mismo criterio de siempre) y se devuelven por separado (totalsXml/
   // totalsH), sin sumarlos a `cur.h` -- este debe reflejar SOLO el alto de
   // las filas de partida, que es lo que ocupa la tabla de partidas.
+  // OJO: entre la tabla de partidas y la de totales va un espacio visual
+  // fijo (GAP_TOTALS, ver generateQuotePPTX) que se suma DESPUÉS de esta
+  // función al calcular dónde arranca la tabla de totales. Si no se incluye
+  // ese hueco aquí al decidir si los totales caben en lo que queda de
+  // página, un caso límite (renglones que "caben" justo al ras del
+  // presupuesto) puede terminar con la tabla de totales empezando más
+  // abajo de lo previsto y saliéndose por el pie de la diapositiva.
+  //
+  // Ademas, cuando los totales SI entran en la pagina, esa pagina se
+  // vuelve "la ultima" y ademas de la tabla de totales le siguen, siempre,
+  // el texto "TOTAL A PAGAR: ... m.n." en letras (alto fijo TOTAL_TEXT_H,
+  // con un espacio GAP1 antes) — ver buildTableSlideXml en
+  // generateQuotePPTX, donde totalTextY = min(tableBottom+GAP1,
+  // MAX_TOTAL_TEXT_Y). Si aqui solo se valida que la tabla de totales
+  // quepa (sin reservar tambien el lugar del texto en letras que va
+  // pegado debajo), ese Math.min() puede terminar recortando/empalmando
+  // el texto en letras ENCIMA de la propia tabla de totales cuando esta
+  // termina muy cerca del pie de pagina — por eso trailerH (GAP1 +
+  // TOTAL_TEXT_H, pasado desde generateQuotePPTX) se suma tambien aqui.
   const totalsH=totalsRows.reduce((s,t)=>s+t.h,0);
-  if(!fits(totalsH) && cur.blocks.length) startPage();
+  if(!fits(totalsH+gapTotals+trailerH) && cur.blocks.length) startPage();
   cur.totalsXml=totalsRows.map(t=>t.xml).join('');
   cur.totalsH=totalsH;
 
@@ -4058,6 +4123,36 @@ async function generateQuotePPTX(quote){
   // FECHA/NUMERO: separador "/" (no "–") pasado por _pxSpaceOut (un espacio
   // entre caracteres, dos entre palabras — igual que el resto del bloque).
   let s1=await zip.file('ppt/slides/slide1.xml').async('string');
+  // Título "COTIZACIÓN": a 96pt en el ancho original (4,820,194 EMU) la
+  // palabra no cabe en una sola línea y PowerPoint/LibreOffice la parten a
+  // media palabra ("COTIZACI"/"ÓN"), que se ve mal. Se ensancha el cuadro
+  // de texto (casi al ancho completo de la diapositiva, con márgenes
+  // simétricos chicos) para que quepa en una sola línea sin achicar la
+  // fuente.
+  const oldCotizXfrm='<a:off x="1018903" y="770997"/><a:ext cx="4820194" cy="3966214"/>';
+  const newCotizXfrm='<a:off x="150000" y="770997"/><a:ext cx="6558000" cy="3966214"/>';
+  if(!s1.includes(oldCotizXfrm)) throw new Error('No se encontró el cuadro de texto "COTIZACIÓN" en la plantilla');
+  s1=s1.replace(oldCotizXfrm,newCotizXfrm);
+  // Incluso con el cuadro casi a todo el ancho de la diapositiva,
+  // "COTIZACIÓN" a 96pt no entra en una sola línea (la palabra sola mide
+  // más que el ancho disponible) y se parte a media palabra
+  // ("COTIZACI"/"ÓN"), que se ve mal. Se baja el tamaño a 76pt — sigue
+  // siendo un título grande y en negrita, pero ahora sí cabe en 1 línea
+  // dentro del cuadro ensanchado (validado por render).
+  const oldCotizSz='<a:rPr lang="en-US" sz="9600" b="1" spc="-150" dirty="0">';
+  const newCotizSz='<a:rPr lang="en-US" sz="7000" b="1" spc="-150" dirty="0">';
+  if(!s1.includes(oldCotizSz)) throw new Error('No se encontró el tamaño de fuente del título "COTIZACIÓN" en la plantilla');
+  s1=s1.replace(oldCotizSz,newCotizSz);
+  // Bloque FECHA/NUMERO/PROYECTO: antes angosto y alineado a la derecha;
+  // ahora ocupa el ancho total de la diapositiva (mismos márgenes chicos
+  // que el título) y el texto queda alineado a la izquierda.
+  const oldSubtitleXfrm='<a:off x="2225040" y="6918961"/><a:ext cx="4411794" cy="1165495"/>';
+  const newSubtitleXfrm='<a:off x="433686" y="6918961"/><a:ext cx="5990628" cy="1165495"/>';
+  if(!s1.includes(oldSubtitleXfrm)) throw new Error('No se encontró el cuadro FECHA/NUMERO/PROYECTO en la plantilla');
+  s1=s1.replace(oldSubtitleXfrm,newSubtitleXfrm);
+  const _pxSubtitleAlgnCount=(s1.match(/<a:pPr algn="r"\/>/g)||[]).length;
+  if(_pxSubtitleAlgnCount!==3) throw new Error('Se esperaban 3 párrafos alineados a la derecha en FECHA/NUMERO/PROYECTO, se encontraron '+_pxSubtitleAlgnCount);
+  s1=s1.replace(/<a:pPr algn="r"\/>/g,'<a:pPr algn="l"/>');
   // Solo la etiqueta (FECHA/NUMERO/PROYECTO + " : ") va en negrita; el valor
   // que sigue (fecha, numero de proyecto, nombre del proyecto) va en peso
   // normal. Antes toda la linea (etiqueta+valor) estaba en un unico <a:r> en
@@ -4140,7 +4235,7 @@ async function generateQuotePPTX(quote){
   // menos un colchón fijo de seguridad (misma lógica que antes tenía el
   // "+120000" aplicado una sola vez al final, ahora reservado por página).
   const PAGE_BUDGET=FOOTER_SAFE_Y-TABLE_TOP-120000;
-  const pages=_pxPaginateRows(sections,totalsRows,PAGE_BUDGET);
+  const pages=_pxPaginateRows(sections,totalsRows,PAGE_BUDGET,GAP_TOTALS,GAP1+TOTAL_TEXT_H);
 
   const letras=montoALetrasMXN(total);
   const idx=letras.lastIndexOf('/100');
@@ -4158,30 +4253,53 @@ async function generateQuotePPTX(quote){
 
   function buildTableSlideXml(pristineXml,page){
     let sX=pristineXml;
-    // Tabla original: 5 columnas. Se reemplaza el tblGrid por uno de 7
-    // columnas (agrega DESCUENTO y TOTAL) manteniendo el mismo ancho total.
-    const oldGridRe=/<a:tblGrid>[\s\S]*?<\/a:tblGrid>/;
-    if(!oldGridRe.test(sX)) throw new Error('No se encontró el tblGrid de la tabla en la plantilla');
-    sX=sX.replace(oldGridRe, PX_TBL_GRID_7COL);
-    const gridRe=/(<\/a:tblGrid>)([\s\S]*?)(<\/a:tbl>)/;
-    const gm=sX.match(gridRe);
-    if(!gm) throw new Error('No se encontró la tabla en la plantilla');
-    sX=sX.slice(0,gm.index+gm[1].length)+page.xml+sX.slice(gm.index+gm[1].length+gm[2].length);
-
-    // La tabla de partidas termina en TABLE_TOP+page.h (page.h ya NO
-    // incluye los totales, ver _pxPaginateRows). Si esta página trae
-    // totales (RESUMEN DEL PROYECTO), se inserta como una tabla aparte,
-    // independiente de la tabla de partidas, justo después de su
-    // graphicFrame en el árbol de formas de la diapositiva.
     const itemsBottom=TABLE_TOP+page.h;
     let contentBottom=itemsBottom;
-    if(page.totalsXml){
-      const totalsY=itemsBottom+GAP_TOTALS;
-      const totalsFrame=_pxBuildTotalsGraphicFrame(totalsY,page.totalsH,page.totalsXml);
-      const closeNeedle='</a:tbl></a:graphicData></a:graphic></p:graphicFrame>';
-      if(!sX.includes(closeNeedle)) throw new Error('No se encontró el cierre de la tabla de partidas en la plantilla');
-      sX=sX.replace(closeNeedle, closeNeedle+totalsFrame);
-      contentBottom=totalsY+page.totalsH;
+    if(page.h===0){
+      // Página de solo totales (sin renglones de partida, p.ej. cuando los
+      // totales no cupieron en la última página con renglones y se
+      // mandaron a una página aparte): no tiene caso dejar la tabla de
+      // partidas con 0 filas en el XML -- ademas de inutil, una <a:tbl>
+      // sin ningun <a:tr> hace que LibreOffice dibuje un remanente del
+      // estilo de tabla por defecto del tema (una franja celeste/azul
+      // delgada) donde debería haber contenido. Se quita el graphicFrame
+      // de la tabla de partidas por completo y la tabla de totales toma
+      // su lugar.
+      const itemFrameRe=/<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="2" name="Tabla 1">[\s\S]*?<\/a:tbl><\/a:graphicData><\/a:graphic><\/p:graphicFrame>/;
+      if(!itemFrameRe.test(sX)) throw new Error('No se encontró el graphicFrame de la tabla de partidas en la plantilla');
+      if(page.totalsXml){
+        const totalsY=itemsBottom+GAP_TOTALS;
+        const totalsFrame=_pxBuildTotalsGraphicFrame(totalsY,page.totalsH,page.totalsXml);
+        sX=sX.replace(itemFrameRe,totalsFrame);
+        contentBottom=totalsY+page.totalsH;
+      } else {
+        sX=sX.replace(itemFrameRe,'');
+      }
+    } else {
+      // Tabla original: 5 columnas. Se reemplaza el tblGrid por uno de 7
+      // columnas (agrega DESCUENTO y TOTAL) manteniendo el mismo ancho
+      // total.
+      const oldGridRe=/<a:tblGrid>[\s\S]*?<\/a:tblGrid>/;
+      if(!oldGridRe.test(sX)) throw new Error('No se encontró el tblGrid de la tabla en la plantilla');
+      sX=sX.replace(oldGridRe, PX_TBL_GRID_7COL);
+      const gridRe=/(<\/a:tblGrid>)([\s\S]*?)(<\/a:tbl>)/;
+      const gm=sX.match(gridRe);
+      if(!gm) throw new Error('No se encontró la tabla en la plantilla');
+      sX=sX.slice(0,gm.index+gm[1].length)+page.xml+sX.slice(gm.index+gm[1].length+gm[2].length);
+
+      // La tabla de partidas termina en TABLE_TOP+page.h (page.h ya NO
+      // incluye los totales, ver _pxPaginateRows). Si esta página trae
+      // totales (RESUMEN DEL PROYECTO), se inserta como una tabla aparte,
+      // independiente de la tabla de partidas, justo después de su
+      // graphicFrame en el árbol de formas de la diapositiva.
+      if(page.totalsXml){
+        const totalsY=itemsBottom+GAP_TOTALS;
+        const totalsFrame=_pxBuildTotalsGraphicFrame(totalsY,page.totalsH,page.totalsXml);
+        const closeNeedle='</a:tbl></a:graphicData></a:graphic></p:graphicFrame>';
+        if(!sX.includes(closeNeedle)) throw new Error('No se encontró el cierre de la tabla de partidas en la plantilla');
+        sX=sX.replace(closeNeedle, closeNeedle+totalsFrame);
+        contentBottom=totalsY+page.totalsH;
+      }
     }
 
     if(!page.isLastPage){
