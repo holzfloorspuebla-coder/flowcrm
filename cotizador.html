@@ -3726,8 +3726,14 @@ const _PX7=_px7ColFinal();
 // _px7ColFinal para que quepan).
 const PX_TBL_GRID_7COL='<a:tblGrid><a:gridCol w="3020000"/><a:gridCol w="600000"/><a:gridCol w="300000"/><a:gridCol w="560000"/><a:gridCol w="280000"/><a:gridCol w="550000"/><a:gridCol w="724020"/></a:tblGrid>';
 
-function _pxBuildItemRow(desc,vol,unit,pvp,subtotal,descPct,pvpDesc,total){
+function _pxBuildItemRow(desc,vol,unit,pvp,subtotal,descPct,pvpDesc,total,fontSizePt){
   let x=_PX7.itemTpl;
+  if(fontSizePt&&fontSizePt!==_PX_ITEM_FONT_DEFAULT){
+    // La celda PARTIDA (lang="es-ES") es la única que se reduce -- las
+    // columnas numéricas (lang="en-US") ya van más chicas de por sí (8pt/
+    // 7.5pt, ver _px7ColFinal) y no cambian con esto.
+    x=x.replace('<a:rPr lang="es-ES" sz="1100"','<a:rPr lang="es-ES" sz="'+Math.round(fontSizePt*100)+'"');
+  }
   x=x.replace('__DESC__',_pxEsc(desc));
   x=x.replace('__VOL__',_pxEsc(vol));
   x=x.replace('__UNIT__',_pxEsc(unit));
@@ -3840,9 +3846,12 @@ const _PX_EMU_RESUMEN_TITLE_ROW=Math.round(_PX_EMU_TOTAL_ROW*18/10);
 const _PX_EMU_ITEM_LINE=165000; // ~13pt por linea (12700 EMU/pt)
 const _PX_EMU_ITEM_BASE=30000; // ~2.4pt fijo por renglon (antes 210000 = ~16.5pt, muy por encima de lo real)
 
-function _pxEstimateItemRowH(desc){
-  const lines=_pxEstimateTextLines(desc,_PX_PARTIDA_WIDTH_EMU,11);
-  return Math.max(353059,_PX_EMU_ITEM_BASE+lines*_PX_EMU_ITEM_LINE);
+const _PX_ITEM_FONT_DEFAULT=11;
+function _pxEstimateItemRowH(desc,fontSizePt){
+  fontSizePt=fontSizePt||_PX_ITEM_FONT_DEFAULT;
+  const scale=fontSizePt/_PX_ITEM_FONT_DEFAULT;
+  const lines=_pxEstimateTextLines(desc,_PX_PARTIDA_WIDTH_EMU,fontSizePt);
+  return Math.max(Math.round(353059*scale),Math.round(_PX_EMU_ITEM_BASE*scale)+lines*Math.round(_PX_EMU_ITEM_LINE*scale));
 }
 function _pxEstimateTotalRowH(label,valueStr){
   const labelLines=_pxEstimateTextLines(label,_PX_TOTAL_LABEL_WIDTH_EMU,10);
@@ -3868,8 +3877,9 @@ function _pxRowH(rawH){ return Math.round(rawH*1.05); }
 // todavía en un solo bloque de XML — cada renglón se queda con su alto
 // estimado individual para que _pxPaginateRows pueda repartirlos entre
 // varias diapositivas cuando la cotización es muy larga para caber en una.
-function _pxBuildRowsStructured(supply,labor,discPPpct){
+function _pxBuildRowsStructured(supply,labor,discPPpct,itemFontPt){
   supply=supply||[]; labor=labor||[];
+  itemFontPt=itemFontPt||_PX_ITEM_FONT_DEFAULT;
   function mxnAmount(x){
     let pvp=x.pvp;
     if(x.currency==='USD') pvp=pvp*(x.tcRef||17.5);
@@ -3885,8 +3895,8 @@ function _pxBuildRowsStructured(supply,labor,discPPpct){
       const totalAmt=_pxRound2(amt-discAmt);
       const pvpDesc=_pxRound2(pvpUnit*(1-discPct));
       return {
-        xml:_pxBuildItemRow(x.desc,x.vol,x.unit,pvpUnit,amt,discPctRaw,pvpDesc,totalAmt),
-        h:_pxRowH(_pxEstimateItemRowH(x.desc))
+        xml:_pxBuildItemRow(x.desc,x.vol,x.unit,pvpUnit,amt,discPctRaw,pvpDesc,totalAmt,itemFontPt),
+        h:_pxRowH(_pxEstimateItemRowH(x.desc,itemFontPt))
       };
     });
   }
@@ -3925,7 +3935,7 @@ function _pxBuildRowsStructured(supply,labor,discPPpct){
   if(discVolAmt) addTotal('DESCUENTO POR VOLUMEN',-_pxRound2(discVolAmt));
   addTotal('SUBTOTAL BRUTO',baseAfterVol);
   if(dp>0){
-    addTotal('DESCUENTO POR PAGO DE CONTADO ('+Math.round(dp*100)+'%)',-_pxRound2(baseAfterVol*dp));
+    addTotal('DESCUENTO POR PAGO DE CONTADO',-_pxRound2(baseAfterVol*dp));
     addTotal('SUBTOTAL NETO',subtotalFinal,true);
   }
   const iva=_pxRound2(subtotalFinal*0.16);
@@ -4233,8 +4243,6 @@ async function generateQuotePPTX(quote){
   if(!s3Pristine.includes(oldLineXfrm)) throw new Error('No se encontró la línea roja bajo el título en la plantilla');
   s3Pristine=s3Pristine.replace(oldLineXfrm,newLineXfrm);
 
-  const {sections,totalsRows,total}=_pxBuildRowsStructured(quote.supply,quote.labor,quote.discPP);
-
   const TABLE_TOP=930895, GAP1=250000, TOTAL_TEXT_H=276999, GAP2=120000;
   // El logo "hølzfloors" del pie de página vive en la plantilla en
   // y=8456431 (encontrado inspeccionando el PPTX original) — antes
@@ -4252,7 +4260,37 @@ async function generateQuotePPTX(quote){
   // menos un colchón fijo de seguridad (misma lógica que antes tenía el
   // "+120000" aplicado una sola vez al final, ahora reservado por página).
   const PAGE_BUDGET=FOOTER_SAFE_Y-TABLE_TOP-120000;
-  const pages=_pxPaginateRows(sections,totalsRows,PAGE_BUDGET,GAP_TOTALS,GAP1+TOTAL_TEXT_H);
+
+  // Partidas + resumen en 1 sola página cuando sea posible: si a 11pt (el
+  // tamaño normal de PARTIDA) la tabla de partidas por sí sola ya cabe en
+  // 1 página pero el resumen no alcanza a entrar detrás, se reduce el
+  // tamaño de letra SOLO de la columna PARTIDA (la que domina el alto de
+  // cada renglón) en pasos chicos hasta que ambas tablas quepan juntas, o
+  // hasta un piso de legibilidad (8pt, igual a los encabezados). Si ni así
+  // caben (cotización realmente muy larga), se deja el comportamiento de
+  // siempre: el resumen pasa a una página aparte, en vez de encimarse.
+  const _PX_ITEM_FONT_MIN=8, _PX_ITEM_FONT_STEP=0.25;
+  let itemFontPt=_PX_ITEM_FONT_DEFAULT;
+  let built=_pxBuildRowsStructured(quote.supply,quote.labor,quote.discPP,itemFontPt);
+  let pages=_pxPaginateRows(built.sections,built.totalsRows,PAGE_BUDGET,GAP_TOTALS,GAP1+TOTAL_TEXT_H);
+  if(pages.length>1){
+    // Solo vale la pena intentar si las partidas SOLAS (sin resumen) ya
+    // caben en 1 página a 11pt -- si ni eso cabe, es una cotización
+    // genuinamente grande y no hay tamaño de letra razonable que la
+    // convierta en 1 sola diapositiva; ahí se deja la paginación normal.
+    const itemsOnlyPages=_pxPaginateRows(built.sections,[],PAGE_BUDGET,0,0);
+    if(itemsOnlyPages.length===1){
+      for(let f=_PX_ITEM_FONT_DEFAULT-_PX_ITEM_FONT_STEP;f>=_PX_ITEM_FONT_MIN-1e-9;f-=_PX_ITEM_FONT_STEP){
+        const tryBuilt=_pxBuildRowsStructured(quote.supply,quote.labor,quote.discPP,f);
+        const tryPages=_pxPaginateRows(tryBuilt.sections,tryBuilt.totalsRows,PAGE_BUDGET,GAP_TOTALS,GAP1+TOTAL_TEXT_H);
+        if(tryPages.length===1){
+          itemFontPt=f; built=tryBuilt; pages=tryPages;
+          break;
+        }
+      }
+    }
+  }
+  const {sections,totalsRows,total}=built;
 
   const letras=montoALetrasMXN(total);
   const idx=letras.lastIndexOf('/100');
