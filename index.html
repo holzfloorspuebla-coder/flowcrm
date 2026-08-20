@@ -642,6 +642,7 @@ select.inp{cursor:pointer;}
       <div class="tabs" style="padding:10px 22px 0">
         <div class="tab active" id="db-tab-contacts" onclick="dbSwitchTab('contacts')">👥 Contactos</div>
         <div class="tab" id="db-tab-studios" onclick="dbSwitchTab('studios')">🏛️ Estudios</div>
+        <div class="tab hidden" id="db-tab-providers" onclick="dbSwitchTab('providers')">🏭 Proveedores</div>
       </div>
 
       <!-- CONTACTOS -->
@@ -689,6 +690,18 @@ select.inp{cursor:pointer;}
           </div>
         </div>
         <div class="table-wrap" id="database-studios-list" style="padding:14px 22px 22px"></div>
+      </div>
+
+      <!-- PROVEEDORES (solo Luis) -->
+      <div id="db-panel-providers" style="display:none;flex-direction:column;overflow:hidden;min-height:0;flex:1">
+        <div class="toolbar" style="padding:10px 22px 0">
+          <input class="inp" id="dbp-search-inp" placeholder="🔍 Buscar por nombre, ciudad, RFC, email, teléfono..." style="flex:1;max-width:460px" oninput="dbpSearchInput()">
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <span style="font-size:13px;color:var(--text2)" id="dbp-count-label">—</span>
+          </div>
+        </div>
+        <div style="padding:10px 22px 0;display:flex;gap:6px;flex-wrap:wrap" id="dbp-sub-chips"></div>
+        <div class="table-wrap" id="database-providers-list" style="padding:14px 22px 22px"></div>
       </div>
     </div>
 
@@ -1217,6 +1230,28 @@ select.inp{cursor:pointer;}
     <div class="modal-hd"><h2 id="ms-title">🏛️ Nuevo Estudio</h2><button class="modal-close" onclick="closeM('modal-studio')">✕</button></div>
     <div class="modal-body">
 
+      <!-- Tipo de organización -->
+      <div class="fg">
+        <label class="lbl">Tipo de organización</label>
+        <select class="inp" id="s-orgtype" onchange="toggleOrgTypeFields()">
+          <option value="">🏛️ Estudio / Arquitecto</option>
+          <option value="proveedor">🏭 Proveedor</option>
+          <option value="otro">🔹 Otro</option>
+        </select>
+      </div>
+
+      <!-- Subcategoría de proveedor -->
+      <div class="fg hidden" id="s-provsub-wrap">
+        <label class="lbl">Tipo de proveedor</label>
+        <select class="inp" id="s-provsub">
+          <option value="">— Sin especificar —</option>
+          <option value="fabricante">Fabricante</option>
+          <option value="dealer">Dealer</option>
+          <option value="instalador">Instalador</option>
+          <option value="importador">Importador</option>
+        </select>
+      </div>
+
       <!-- Nombre único -->
       <div class="fg">
         <label class="lbl">Nombre del estudio * <span style="color:var(--text3);font-weight:400;font-size:10px">clave única</span></label>
@@ -1268,6 +1303,28 @@ select.inp{cursor:pointer;}
       <div class="r2">
         <div class="fg"><label class="lbl">Instagram</label><input class="inp" id="s-instagram" placeholder="@estudio_mx"></div>
         <div class="fg"><label class="lbl">LinkedIn</label><input class="inp" id="s-linkedin" placeholder="linkedin.com/company/estudio"></div>
+      </div>
+
+      <!-- Datos de proveedor -->
+      <div class="hidden" id="s-prov-fields" style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;display:grid;gap:10px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--text3)">Datos de proveedor</div>
+        <div class="r2">
+          <div class="fg"><label class="lbl">RFC</label><input class="inp" id="s-rfc" placeholder="GCP850101XXX" style="font-family:var(--mono);text-transform:uppercase" oninput="this.value=this.value.toUpperCase()"></div>
+          <div class="fg"><label class="lbl">Banco</label><input class="inp" id="s-bank" placeholder="BBVA"></div>
+        </div>
+        <div class="r2">
+          <div class="fg"><label class="lbl">CLABE</label><input class="inp" id="s-clabe" style="font-family:var(--mono)"></div>
+          <div class="fg"><label class="lbl">N° Cuenta</label><input class="inp" id="s-account" style="font-family:var(--mono)"></div>
+        </div>
+        <div class="fg"><label class="lbl">¿Con quién trabajan actualmente? / Competencia</label><input class="inp" id="s-workswith" placeholder="Ej: actualmente distribuye para..."></div>
+        <div class="r2">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2)"><input type="checkbox" id="s-purchased"> Ya le hemos comprado</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text2)"><input type="checkbox" id="s-contacted"> Ya lo hemos contactado</label>
+        </div>
+        <div class="fg hidden" id="s-provstage-wrap">
+          <label class="lbl">Etapa de seguimiento <span style="color:var(--text3);font-weight:400;font-size:10px">solo visible para ti</span></label>
+          <select class="inp" id="s-provstage"></select>
+        </div>
       </div>
 
       <div class="fg"><label class="lbl">Notas</label><textarea class="inp" id="s-notes" rows="2" placeholder="Contexto del estudio..."></textarea></div>
@@ -1529,6 +1586,16 @@ const C_STAGES=[
   {id:'c-nopriority', name:'No prioritario',              color:'#8b93ad', final:true},
   {id:'c-descartado', name:'Descartado',                  color:'#ff5c5c', final:true},
 ];
+// Pipeline de relación con Proveedores (Fabricantes/Dealers/Instaladores/Importadores) — solo Luis
+const PV_STAGES=[
+  {id:'pv-no-contactado',  name:'No contactado',                  color:'#8a8f98'},
+  {id:'pv-contactado',     name:'Contactado',                     color:'#5ce4ff'},
+  {id:'pv-evaluacion',     name:'En evaluación / negociando',     color:'#f5c842'},
+  {id:'pv-activo',         name:'Proveedor activo',                color:'#3ecf8e'},
+  {id:'pv-descartado',     name:'Descartado',                      color:'#ff5c5c'},
+];
+function isLuis(){ return !!(ME && (ME.username==='luis' || ME.id===1)); }
+
 const P_STAGES=[
   {id:'p-contacto',name:'Contacto inicial',color:'#5ce4ff'},
   {id:'p-especificacion',name:'Especificación',color:'#4f7cff'},
@@ -1556,8 +1623,8 @@ function hashPw(pw){ // simple deterministic hash (not cryptographic, but suffic
 
 const DEFAULT_USERS=[
   {id:1,name:'Luis',username:'luis',passwordHash:hashPw('admin123'),role:'admin',color:COLORS[0]},
-  {id:2,name:'Ana López',username:'ana',passwordHash:hashPw('ana123'),role:'seller',color:COLORS[1]},
-  {id:3,name:'Carlos R.',username:'carlos',passwordHash:hashPw('carlos123'),role:'seller',color:COLORS[2]},
+  {id:2,name:'Abril',username:'abril',passwordHash:hashPw('abril123'),role:'seller',color:COLORS[1]},
+  {id:3,name:'Karina',username:'karina',passwordHash:hashPw('karina123'),role:'seller',color:COLORS[2]},
 ];
 const DEFAULT_DATA={
   studios:[
@@ -1872,12 +1939,18 @@ async function sbFetchAll(table, select='*', filter=''){
 }
 
 async function fetchFromDrive(url){
-  // Lee directamente de Supabase para evitar timeout del Worker con 8000+ registros
-  // Solo carga contactos que tienen stage asignado (los que están en pipeline)
-  const [contacts, studios, projects, pending, metaRows] = await Promise.all([
+  // Lee directamente de Supabase para evitar timeout del Worker con 8000+ registros.
+  // Solo carga contactos y proyectos con stage asignado (activos en el
+  // pipeline), y estudios vinculados a esos contactos. Antes estudios y
+  // proyectos se traían COMPLETOS de Supabase y el filtro se aplicaba ya
+  // en el navegador -- eso no ahorra nada de tráfico, el dato ya viajó
+  // completo. Ahora el filtro va en la propia consulta: a proyectos se le
+  // aplica el mismo filtro que ya usan los contactos (data->>stage no
+  // nulo), y a estudios se les pide por id directamente a Supabase, una
+  // vez que ya se sabe cuáles hacen falta (los de los contactos activos).
+  const [contacts, projects, pending, metaRows] = await Promise.all([
     sbFetchAll('crm_contacts', '*', 'data->>stage=not.is.null'),
-    sbFetchAll('crm_studios'),
-    sbFetchAll('crm_projects'),
+    sbFetchAll('crm_projects', '*', 'data->>stage=not.is.null'),
     sbFetchAll('crm_pending'),
     sbFetchAll('crm_meta'),
   ]);
@@ -1886,14 +1959,24 @@ async function fetchFromDrive(url){
 
   // Solo contactos con stage asignado (en pipeline)
   const allContacts = contacts.map(r=>r.data).filter(c=>c.stage&&c.stage!=='');
-  // Solo estudios asociados a esos contactos
-  const studioIds = new Set(allContacts.map(c=>String(c.studioId)).filter(Boolean));
-  const allStudios = studios.map(r=>r.data).filter(s=>studioIds.has(String(s.id)));
+  // Estudios: solo los vinculados a esos contactos, pedidos por id en
+  // tandas (por si la lista de ids crece mucho y la URL se vuelve muy
+  // larga) -- el filtro real pasa por Supabase, no por el navegador.
+  const studioIds=[...new Set(allContacts.map(c=>String(c.studioId)).filter(Boolean))];
+  let studiosRows=[];
+  const SB_ID_CHUNK=150;
+  for(let i=0;i<studioIds.length;i+=SB_ID_CHUNK){
+    const chunk=studioIds.slice(i,i+SB_ID_CHUNK);
+    const rows=await sbFetchAll('crm_studios','*',`id=in.(${chunk.join(',')})`);
+    studiosRows=studiosRows.concat(rows);
+  }
+  const allStudios = studiosRows.map(r=>r.data);
+  const allProjects = projects.map(r=>r.data).filter(p=>p.stage&&p.stage!=='');
 
   const data={
     contacts:  allContacts,
     studios:   allStudios,
-    projects:  projects.map(r=>r.data),
+    projects:  allProjects,
     pending:   pending.map(r=>r.data),
     users:           meta.users           || [],
     tags:            meta.tags            || [],
@@ -2169,21 +2252,39 @@ function updateLastSyncLabel(status='ok'){
   wrap.title=(status==='ok'?'Sync OK':'Error sync')+' '+t;
 }
 
-// ── Polling cada 30s: descarga solo si Sheets es más reciente ──
+// ── Polling cada 10min: descarga solo si Sheets es más reciente ──
 const POLL_INTERVAL=600000;
 let _pollTimer=null;
+let _lastPollAt=0;
+async function _pollTick(){
+  if(_syncTimer||_isSyncing) return;
+  if(document.querySelector('.overlay:not(.hidden)')) return;
+  // Block polling for 15s after any local save to avoid race condition
+  if(Date.now()-_lastLocalEdit < 15000) return;
+  _lastPollAt=Date.now();
+  await loadFromDrive(true);
+}
 function startPolling(){
   if(!DRIVE_SYNC_URL) return;
   stopPolling();
-  _pollTimer=setInterval(async()=>{
-    if(_syncTimer||_isSyncing) return;
-    if(document.querySelector('.overlay:not(.hidden)')) return;
-    // Block polling for 15s after any local save to avoid race condition
-    if(Date.now()-_lastLocalEdit < 15000) return;
-    await loadFromDrive(true);
+  _pollTimer=setInterval(()=>{
+    // Con la pestaña en segundo plano no tiene caso seguir jalando toda
+    // la base cada 10 minutos si nadie la está viendo -- se retoma solo
+    // al volver (ver visibilitychange más abajo), así no se gasta tráfico
+    // de Supabase mientras la pestaña queda olvidada abierta todo el día.
+    if(document.hidden) return;
+    _pollTick();
   },POLL_INTERVAL);
 }
 function stopPolling(){if(_pollTimer){clearInterval(_pollTimer);_pollTimer=null;}}
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden) return;
+  if(!DRIVE_SYNC_URL || !_pollTimer) return;
+  // Al volver a la pestaña, si ya pasó el intervalo completo desde el
+  // último poll (p.ej. estuvo horas en segundo plano), se pone al día de
+  // inmediato en vez de esperar hasta el siguiente tick de los 10 min.
+  if(Date.now()-_lastPollAt >= POLL_INTERVAL) _pollTick();
+});
 
 let USERS=loadUsers();
 let D=loadData(); // localStorage como caché — Worker siempre tiene prioridad
@@ -2940,11 +3041,19 @@ function showDatabaseNav(){
 //  (reemplazo del botón "Enviar al CRM" del Gestor de Contactos)
 // ══════════════════════════════════════════════════════
 function dbSwitchTab(tab){
+  if(tab==='providers'&&!isLuis()) tab='contacts';
   $('db-tab-contacts').classList.toggle('active',tab==='contacts');
   $('db-tab-studios').classList.toggle('active',tab==='studios');
+  $('db-tab-providers').classList.toggle('active',tab==='providers');
   $('db-panel-contacts').style.display=tab==='contacts'?'flex':'none';
   $('db-panel-studios').style.display=tab==='studios'?'flex':'none';
+  $('db-panel-providers').style.display=tab==='providers'?'flex':'none';
   if(tab==='studios'&&!_dbSCurrentRows.length) renderDatabaseStudiosView(true);
+  if(tab==='providers') renderDatabaseProvidersView(true);
+}
+function updateDbProvidersTabVisibility(){
+  const tab=$('db-tab-providers');
+  if(tab) tab.classList.toggle('hidden',!isLuis());
 }
 
 // ── CONTACTOS ──
@@ -3578,6 +3687,111 @@ function dbMergeSelectedStudios(){
   if(rows.length<2){toast('Selecciona al menos 2 estudios','⚠️');return;}
   if(rows.length>5){toast('Máximo 5 estudios a la vez','⚠️');return;}
   openStudioMergeAny(rows);
+}
+
+// ── PROVEEDORES (dentro de Base de datos, solo Luis) ──
+const PROV_SUB_LABELS={fabricante:'Fabricante',dealer:'Dealer',instalador:'Instalador',importador:'Importador'};
+let _dbPCurrentRows=[];
+let _dbPPage=0, _dbPPageSize=50, _dbPSearch='', _dbPTotal=0, _dbPSearchTimer=null, _dbPSubFilter='';
+
+async function fetchDatabaseProvidersPage(){
+  const term=_dbSanitizeTerm(_dbPSearch);
+  let filter='&data->>orgType=eq.proveedor';
+  if(_dbPSubFilter) filter+=`&data->>providerCategory=eq.${_dbPSubFilter}`;
+  if(term){
+    const cols=['name','city','state','email','phone','rfc'];
+    const orExpr=cols.map(c=>`data->>${c}.ilike.*${term}*`).join(',');
+    filter+=`&or=(${orExpr})`;
+  }
+  const url=`${SUPABASE_URL}/rest/v1/crm_studios?select=data${filter}&order=data->>name.asc&limit=${_dbPPageSize}&offset=${_dbPPage*_dbPPageSize}`;
+  const res=await fetch(url,{headers:{...SB_HEADERS,'Prefer':'count=exact'}});
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const rows=await res.json();
+  const range=res.headers.get('content-range')||'';
+  const total=range.includes('/')?parseInt(range.split('/')[1])||0:rows.length;
+  return {rows:rows.map(r=>r.data),total};
+}
+
+function renderProvSubChips(){
+  const el=$('dbp-sub-chips');
+  if(!el) return;
+  const cats=['fabricante','dealer','instalador','importador'];
+  el.innerHTML=`<div class="chip ${!_dbPSubFilter?'active':''}" onclick="dbpSetSubFilter('')">Todos</div>`+
+    cats.map(c=>`<div class="chip ${_dbPSubFilter===c?'active':''}" onclick="dbpSetSubFilter('${c}')">${PROV_SUB_LABELS[c]}</div>`).join('')+
+    `<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="dbpNewProvider()">+ Nuevo proveedor</button>`;
+}
+
+async function renderDatabaseProvidersView(resetPage){
+  if(!isLuis()) return;
+  renderProvSubChips();
+  if(resetPage) _dbPPage=0;
+  const list=$('database-providers-list');
+  list.innerHTML='<div style="padding:20px;color:var(--text3);font-size:13px">Cargando...</div>';
+  try{
+    const {rows,total}=await fetchDatabaseProvidersPage();
+    _dbPTotal=total;
+    if(!rows.length){
+      list.innerHTML='<div class="empty"><div class="eico">🏭</div><p>Sin resultados'+(_dbPSearch?' para esta búsqueda':'')+'.</p></div>';
+    } else {
+      const stageMap={};PV_STAGES.forEach(s=>stageMap[s.id]=s);
+      list.innerHTML=`<table><thead><tr>
+        <th>Nombre</th><th>Tipo</th><th>Ciudad</th><th>RFC</th><th>Teléfono</th><th>Email</th>
+        <th>¿Comprado?</th><th>¿Contactado?</th><th>Etapa</th><th style="width:60px"></th>
+      </tr></thead><tbody>${rows.map(s=>{
+        const idStr=String(s.id);
+        const st=stageMap[s.providerStage]||PV_STAGES[0];
+        return `<tr>
+          <td><span onclick="dbpEditProvider('${idStr.replace(/'/g,"\\'")}')" style="cursor:pointer;color:var(--accent);text-decoration:underline;text-underline-offset:2px">${esc(s.name||'—')}</span></td>
+          <td>${esc(PROV_SUB_LABELS[s.providerCategory]||'—')}</td>
+          <td>${esc(s.city||'—')}</td>
+          <td style="font-family:var(--mono);font-size:11px">${esc(s.rfc||'—')}</td>
+          <td>${esc(s.phone||'—')}</td>
+          <td>${esc(s.email||'—')}</td>
+          <td>${s.alreadyPurchased?'✅':'—'}</td>
+          <td>${s.alreadyContacted?'✅':'—'}</td>
+          <td><span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:2px 7px;color:${esc(st.color)}">${esc(st.name)}</span></td>
+          <td><button class="btn btn-ghost btn-sm" onclick="dbpEditProvider('${idStr.replace(/'/g,"\\'")}')">✏️</button></td>
+        </tr>`;
+      }).join('')}</tbody></table>`;
+    }
+    _dbPCurrentRows=rows;
+  }catch(e){
+    list.innerHTML=`<div class="empty"><div class="eico">⚠️</div><p>Error cargando proveedores: ${esc(e.message)}</p></div>`;
+    _dbPCurrentRows=[];
+  }
+  const from=_dbPTotal?(_dbPPage*_dbPPageSize+1):0;
+  const to=Math.min(_dbPTotal,(_dbPPage+1)*_dbPPageSize);
+  const cel=$('dbp-count-label');
+  if(cel) cel.textContent=_dbPTotal?`${from}–${to} de ${_dbPTotal}`:'Sin resultados';
+}
+
+function dbpSetSubFilter(cat){ _dbPSubFilter=cat; renderDatabaseProvidersView(true); }
+
+function dbpSearchInput(){
+  clearTimeout(_dbPSearchTimer);
+  _dbPSearchTimer=setTimeout(()=>{
+    _dbPSearch=$('dbp-search-inp').value||'';
+    renderDatabaseProvidersView(true);
+  },250);
+}
+
+async function dbpEditProvider(id){
+  if(!isLuis()){toast('Solo Luis puede editar proveedores','⚠️');return;}
+  if(!D.studios)D.studios=[];
+  let s=D.studios.find(x=>String(x.id)===String(id));
+  if(!s){
+    // No está en la caché local del pipeline: traerlo directo de Supabase
+    const row=(_dbPCurrentRows||[]).find(x=>String(x.id)===String(id));
+    if(row){ s=row; D.studios.push(row); }
+  }
+  if(!s){toast('No se encontró el proveedor','⚠️');return;}
+  openStudioModal(s.id);
+}
+
+function dbpNewProvider(){
+  if(!isLuis()){toast('Solo Luis puede crear proveedores','⚠️');return;}
+  openStudioModal(null);
+  const t=$('s-orgtype'); if(t){t.value='proveedor';toggleOrgTypeFields();}
 }
 
 // ══════════════════════════════════════════════════════
@@ -4942,7 +5156,7 @@ function goView(id){
   if(id==='projects-view'){renderPKanban();renderPTable();}
   if(id==='kpi-view')renderKPIs();
   if(id==='providers-view')renderProviders();
-  if(id==='database-view')renderDatabaseView(true);
+  if(id==='database-view'){renderDatabaseView(true);updateDbProvidersTabVisibility();}
   if(id==='tareas-view'){renderTareas();const df=document.getElementById('nueva-tarea-fecha');if(df&&!df.value){const d=new Date();d.setDate(d.getDate()+1);df.value=d.toISOString().slice(0,10);}}
   if(id==='inbox-view')renderInbox();
   if(id==='settings-view')renderSettings();
@@ -7730,6 +7944,21 @@ function openStudioProfile(id){
   },0);
   goView('studio-profile-view');
 }
+function toggleOrgTypeFields(){
+  const t=$('s-orgtype')?.value||'';
+  const isProv=t==='proveedor';
+  $('s-provsub-wrap')?.classList.toggle('hidden',!isProv);
+  $('s-prov-fields')?.classList.toggle('hidden',!isProv);
+  $('s-provstage-wrap')?.classList.toggle('hidden',!(isProv&&isLuis()));
+  const title=$('ms-title');
+  if(title){
+    const editing=!!S.editStudioId;
+    if(isProv) title.textContent=editing?'✏️ Editar Proveedor':'🏭 Nuevo Proveedor';
+    else if(t==='otro') title.textContent=editing?'✏️ Editar':'🔹 Nuevo';
+    else title.textContent=editing?'✏️ Editar Estudio':'🏛️ Nuevo Estudio';
+  }
+}
+
 function openStudioModal(editId){
   S.editStudioId=editId||null;
   $('ms-title').textContent=editId?'✏️ Editar Estudio':'🏛️ Nuevo Estudio';
@@ -7737,9 +7966,10 @@ function openStudioModal(editId){
   $('s-agent').innerHTML=agentOpts.map(a=>`<option value="${a.id}" ${a.id===ME.id?'selected':''}>${a.name}</option>`).join('');
   const segs=D.segments||DEFAULT_SEGMENTS;
   $('s-segment').innerHTML=`<option value="">— Sin segmento —</option>`+segs.map(s=>`<option value="${s.id}">${s.icon} ${s.label}</option>`).join('');
+  $('s-provstage').innerHTML=PV_STAGES.map(st=>`<option value="${st.id}">${esc(st.name)}</option>`).join('');
   ['s-dup-warn','s-email-warn','s-phone-warn'].forEach(id=>$(id)?.classList.remove('show'));
   $('s-save-btn').disabled=false;$('s-save-btn').style.opacity='';
-  const fields=['s-name','s-email','s-email2','s-phone','s-whatsapp','s-city','s-state','s-web','s-pricelist','s-instagram','s-linkedin','s-notes'];
+  const fields=['s-name','s-email','s-email2','s-phone','s-whatsapp','s-city','s-state','s-web','s-pricelist','s-instagram','s-linkedin','s-notes','s-rfc','s-bank','s-clabe','s-account','s-workswith'];
   if(editId){
     const s=(D.studios||[]).find(x=>x.id===editId);if(!s)return;
     $('s-name').value=s.name||'';
@@ -7750,10 +7980,21 @@ function openStudioModal(editId){
     $('s-segment').value=s.segment||'';
     $('s-instagram').value=s.instagram||''; $('s-linkedin').value=s.linkedin||'';
     $('s-notes').value=s.notes||'';      $('s-agent').value=s.agent;
+    $('s-orgtype').value=s.orgType||'';  $('s-provsub').value=s.providerCategory||'';
+    $('s-rfc').value=s.rfc||'';          $('s-bank').value=s.bank||'';
+    $('s-clabe').value=s.clabe||'';      $('s-account').value=s.account||'';
+    $('s-workswith').value=s.worksWith||'';
+    $('s-purchased').checked=!!s.alreadyPurchased;
+    $('s-contacted').checked=!!s.alreadyContacted;
+    $('s-provstage').value=s.providerStage||'pv-no-contactado';
   }else{
     fields.forEach(id=>{if($(id))$(id).value='';});
     $('s-segment').value='';
+    $('s-orgtype').value='';$('s-provsub').value='';
+    $('s-purchased').checked=false;$('s-contacted').checked=false;
+    $('s-provstage').value='pv-no-contactado';
   }
+  toggleOrgTypeFields();
   $('modal-studio').classList.remove('hidden');
 }
 function checkStudioDuplicate(val){
@@ -7806,6 +8047,16 @@ function saveStudio(){
     linkedin:  $('s-linkedin').value.trim(),
     agent:     parseInt($('s-agent').value),
     notes:     $('s-notes').value.trim(),
+    orgType:          $('s-orgtype').value||'',
+    providerCategory: $('s-provsub').value||'',
+    rfc:              $('s-rfc').value.trim(),
+    bank:             $('s-bank').value.trim(),
+    clabe:            $('s-clabe').value.trim(),
+    account:          $('s-account').value.trim(),
+    worksWith:        $('s-workswith').value.trim(),
+    alreadyPurchased: !!$('s-purchased').checked,
+    alreadyContacted: !!$('s-contacted').checked,
+    providerStage:    $('s-provstage').value||'pv-no-contactado',
   };
 
   if(S.editStudioId){
