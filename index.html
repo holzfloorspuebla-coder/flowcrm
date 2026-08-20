@@ -1962,13 +1962,31 @@ async function fetchFromDrive(url){
   // Estudios: solo los vinculados a esos contactos, pedidos por id en
   // tandas (por si la lista de ids crece mucho y la URL se vuelve muy
   // larga) -- el filtro real pasa por Supabase, no por el navegador.
-  const studioIds=[...new Set(allContacts.map(c=>String(c.studioId)).filter(Boolean))];
+  // IMPORTANTE: filtrar valores nulos/indefinidos ANTES de convertir a
+  // texto. String(undefined)==="undefined" y String(null)==="null" son
+  // strings no vacíos, así que sobrevivían a un .filter(Boolean) posterior
+  // y se colaban como id inválido en la consulta -- Supabase respondía con
+  // 400 para ese lote completo, lo cual tiraba TODO fetchFromDrive
+  // (incluyendo contactos) por no estar en un try/catch propio.
+  const studioIds=[...new Set(
+    allContacts
+      .map(c=>c.studioId)
+      .filter(v=>v!==undefined && v!==null && v!=='')
+      .map(v=>String(v))
+  )];
   let studiosRows=[];
   const SB_ID_CHUNK=150;
-  for(let i=0;i<studioIds.length;i+=SB_ID_CHUNK){
-    const chunk=studioIds.slice(i,i+SB_ID_CHUNK);
-    const rows=await sbFetchAll('crm_studios','*',`id=in.(${chunk.join(',')})`);
-    studiosRows=studiosRows.concat(rows);
+  try{
+    for(let i=0;i<studioIds.length;i+=SB_ID_CHUNK){
+      const chunk=studioIds.slice(i,i+SB_ID_CHUNK);
+      const rows=await sbFetchAll('crm_studios','*',`id=in.(${chunk.join(',')})`);
+      studiosRows=studiosRows.concat(rows);
+    }
+  }catch(e){
+    // Si por lo que sea el fetch de estudios falla, no dejar que tumbe
+    // contactos/proyectos con él -- se sigue con los estudios que ya se
+    // hayan traído (o ninguno) y se loguea el error.
+    console.warn('fetchFromDrive: error cargando estudios, se continúa sin ellos:',e.message);
   }
   const allStudios = studiosRows.map(r=>r.data);
   const allProjects = projects.map(r=>r.data).filter(p=>p.stage&&p.stage!=='');
