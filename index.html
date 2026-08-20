@@ -2068,15 +2068,15 @@ async function loadFromDrive(silent=false){
               }
             }
           });
-          // Detectar contactos eliminados en remoto (por el gestor)
-          // Solo si remoto tiene un número similar de contactos (evita falsos positivos)
-          const remoteCount=remote.contacts.length;
-          const localCount=(D.contacts||[]).length;
-          if(remoteCount>0 && localCount>remoteCount){
-            const before=(D.contacts||[]).length;
-            D.contacts=(D.contacts||[]).filter(c=>remoteMap.has(c.id));
-            if(D.contacts.length<before) mergeChanged=true;
-          }
+          // NOTA: aquí solía haber una detección de "contactos eliminados en
+          // remoto" basada en comparar cuántos contactos trae el servidor vs.
+          // cuántos hay en local. Se quitó porque el fetch de contactos SOLO
+          // trae los que tienen stage asignado (ver fetchFromDrive) -- es un
+          // conteo parcial por diseño, no el total. Compararlo contra el
+          // total local causaba que, en cualquier fetch parcial o con error
+          // transitorio, se borraran de la vista contactos reales que sí
+          // seguían activos. La eliminación real de contactos se sigue
+          // propagando por la marca explícita _deleted, un poco más abajo.
           // Sincronizar estado de pendientes con el Worker
           if(D.pending && ME && ME.role!=='admin'){
             // Obtener pendientes del Worker para comparar estados
@@ -2108,16 +2108,11 @@ async function loadFromDrive(silent=false){
                 }
               }).catch(()=>{});
           }
-          // Eliminar del local contactos que ya no existen en el Worker
-          // Esto permite que fusiones y eliminaciones del gestor se propaguen correctamente
-          const localOnlyIds = [...localMap.keys()].filter(id => !remoteMap.has(id));
-          if(localOnlyIds.length > 0 && localOnlyIds.length < (D.contacts||[]).length * 0.1){
-            // Solo eliminar si son menos del 10% (protección contra truncado)
-            localOnlyIds.forEach(id => {
-              D.contacts = D.contacts.filter(c => c.id !== id);
-              mergeChanged = true;
-            });
-          }
+          // NOTA: por la misma razón de arriba, tampoco se borran del local
+          // los contactos que "ya no aparecen" en este fetch parcial -- un
+          // contacto sin stage sigue existiendo, solo no viene en esta
+          // consulta filtrada. Igual que arriba, la eliminación real se
+          // propaga solo vía la marca explícita _deleted.
           // También eliminar los marcados con _deleted
           remote.contacts.forEach(rc=>{if(rc._deleted&&localMap.has(rc.id)){D.contacts=D.contacts.filter(c=>c.id!==rc.id);mergeChanged=true;}});
         }
@@ -2149,14 +2144,13 @@ async function loadFromDrive(silent=false){
               if(rTs>lTs){Object.assign(ls,rs);mergeChanged=true;}
             }
           });
-          // Eliminar estudios locales que ya no existen en el remoto
-          const localOnlyStudios=(D.studios||[]).filter(s=>!remoteStudioMap.has(s.id));
-          if(localOnlyStudios.length>0 && localOnlyStudios.length<(D.studios||[]).length*0.2){
-            localOnlyStudios.forEach(s=>{
-              D.studios=D.studios.filter(x=>x.id!==s.id);
-              mergeChanged=true;
-            });
-          }
+          // NOTA: se quitó la eliminación de "estudios locales que ya no
+          // existen en el remoto". Desde el fix de polling/egress, el fetch
+          // de estudios también es parcial por diseño (solo trae los
+          // vinculados a los contactos activos del pipeline, ver
+          // fetchFromDrive) -- comparar contra el remoto para detectar
+          // borrados tiene el mismo problema que con contactos: un estudio
+          // que no viene en este fetch no significa que se haya borrado.
         }
         // Merge adminTasks (tareas) por id: gana el registro con _updatedAt (o doneAt/createdAt) mas reciente.
         // Antes, D.adminTasks nunca se actualizaba con lo que llegaba del servidor, asi que
