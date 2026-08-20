@@ -2476,6 +2476,12 @@ async function deleteQuote(id,e){
     document.getElementById('quote-editor').style.display='none';
   }
   renderQuoteList();
+  // Las cotizaciones ahora viven en su propia tabla en el Worker (crm_quotes),
+  // una fila por cotización -- basta con quitarla de QUOTES y guardar no
+  // alcanza para borrarla del servidor (persistAll solo manda altas/cambios
+  // recientes, no un aviso explícito de borrado). Se avisa al Worker
+  // directamente para que borre esa fila.
+  try{ await fetch(WORKER+'/quote/'+encodeURIComponent(id), {method:'DELETE'}); }catch(e){}
   await persistAll();
   toast('Cotización eliminada','🗑️');
 }
@@ -4172,6 +4178,19 @@ async function generateQuotePPTX(quote){
   const newCotizSz='<a:rPr lang="en-US" sz="7000" b="1" spc="-150" dirty="0">';
   if(!s1.includes(oldCotizSz)) throw new Error('No se encontró el tamaño de fuente del título "COTIZACIÓN" en la plantilla');
   s1=s1.replace(oldCotizSz,newCotizSz);
+  // Línea roja bajo "COTIZACIÓN": la plantilla la traía del ancho de la
+  // versión vieja (2 líneas a 96pt), mucho más ancha que el texto real a
+  // 70pt en 1 línea. Medido contra el render real (pdftotext -bbox sobre
+  // el PPTX generado): el texto "COTIZACIÓN" a 70pt/bold/spc=-150 ocupa de
+  // x=632679 a x=6616510 (5983831 EMU de ancho) -- la línea se ajusta a
+  // exactamente ese ancho y arranca en el mismo x, para quedar centrada
+  // bajo el texto (no bajo el centro geométrico de la diapositiva, que por
+  // el tracking negativo no coincide exactamente con el centro visual del
+  // texto).
+  const oldCotizLineXfrm='<a:off x="1249680" y="4737211"/><a:ext cx="4460965" cy="0"/>';
+  const newCotizLineXfrm='<a:off x="632679" y="4737211"/><a:ext cx="5983831" cy="0"/>';
+  if(!s1.includes(oldCotizLineXfrm)) throw new Error('No se encontró la línea roja bajo "COTIZACIÓN" en la plantilla');
+  s1=s1.replace(oldCotizLineXfrm,newCotizLineXfrm);
   // Bloque FECHA/NUMERO/PROYECTO: ocupa el ancho total de la diapositiva
   // (mismos márgenes chicos que el título) pero el texto se queda alineado
   // a la derecha (como en la plantilla original) — a pedido del usuario,
