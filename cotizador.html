@@ -554,6 +554,17 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
           </div>
         </div>
 
+        <!-- OPCIONES -->
+        <div class="sec">
+          <div class="sec-hd">
+            <div class="sec-title">Opciones de material</div>
+          </div>
+          <div style="padding:12px 16px">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Si el cliente está dudando entre materiales, agrega una opción por cada uno — cada una lleva sus propias partidas, descuento, total y foto en el PPTX (en páginas separadas).</div>
+            <div id="quote-options-tabs" style="display:flex;flex-wrap:wrap"></div>
+          </div>
+        </div>
+
         <!-- SUPPLY -->
         <div class="sec">
           <div class="sec-hd">
@@ -948,6 +959,11 @@ async function loadAllFromCloud(){
 
     // Quotes
     QUOTES = data.quotes || [];
+    // Migrar cada cotización al modelo de opciones y re-enlazar
+    // supply/labor como la MISMA referencia que options[activeIdx] --
+    // vienen de JSON recién parseado, así que sin esto quedarían como
+    // arrays independientes (ver ensureQuoteOptions).
+    QUOTES.forEach(ensureQuoteOptions);
 
     // Providers
     PROVIDERS = data.providers || [];
@@ -2343,6 +2359,15 @@ function _createQuoteForProject(projectId, projectName, clientName){
     materialCotizado:'',
     productImageDataUrl:null,coverImageDataUrl:null,
     _createdAt:Date.now()};
+  // Opciones: una cotización puede tener varias opciones de material entre
+  // las que el cliente elige (cada una con su propia lista de partidas,
+  // descuento, total y foto). Toda cotización nueva arranca con 1 sola
+  // opción -- las arrays supply/labor de arriba son la MISMA referencia que
+  // options[0].supply/labor, así que todo el código existente que edita
+  // CURRENT_Q.supply/labor sigue funcionando sin cambios (ver
+  // ensureQuoteOptions/switchQuoteOption más abajo).
+  q.options=[{id:uid(),name:'',supply:q.supply,labor:q.labor,discPP:0,productImageDataUrl:null}];
+  q._activeOptionIdx=0;
   QUOTES.unshift(q);
   renderQuoteList();
   selectQuote(q.id);
@@ -2403,6 +2428,8 @@ function selectQuote(id){
 }
 function loadQuoteToForm(){
   const q=CURRENT_Q;
+  ensureQuoteOptions(q);
+  renderOptionTabs();
   setValue('q-num',q.num); setValue('q-date',q.date);
   setValue('q-proj-num',q.projectNum||parseQuoteNum(q.num).p||'');
   setValue('q-cot-num',q.cotNum||parseQuoteNum(q.num).c||'');
@@ -2454,7 +2481,99 @@ function syncFormToCurrentQ(){
   q.instalacionText=val('q-instalacion')||'Instalación no incluida en la presente cotización';
   q.instalacionIncluida=val('q-instalacion-incluida')==='si';
   q.materialCotizado=val('q-material-cotizado')||'';
+  // Volcar discPP/nombre/foto a la opción activa -- supply/labor ya están
+  // sincronizados solos porque CURRENT_Q.supply/labor son la MISMA
+  // referencia que options[activeIdx].supply/labor (ver ensureQuoteOptions).
+  if(q.options && q.options[q._activeOptionIdx]){
+    const opt=q.options[q._activeOptionIdx];
+    opt.discPP=q.discPP;
+    opt.name=q.materialCotizado;
+    opt.productImageDataUrl=q.productImageDataUrl;
+  }
 }
+// ═══════════════════════════════════════════════════════════════
+//  OPCIONES DE COTIZACIÓN (materiales alternativos para el cliente)
+// ═══════════════════════════════════════════════════════════════
+// Cada opción es como una mini-cotización: su propia lista de partidas
+// (supply/labor), su descuento y su foto. CURRENT_Q.supply/labor/discPP/
+// materialCotizado/productImageDataUrl siempre reflejan la opción ACTIVA
+// -- de hecho supply/labor son la MISMA referencia de array que
+// options[activeIdx].supply/labor, así que todo el código que ya existía
+// para agregar/editar/borrar partidas (renderQTable, removeItem,
+// syncItemFromCatalog, etc.) sigue funcionando exactamente igual, sin
+// tocarlo, porque en el fondo está editando el array de la opción activa.
+function ensureQuoteOptions(q){
+  if(!q) return;
+  if(!q.options || !q.options.length){
+    // Migración: cotizaciones guardadas antes de que existieran las
+    // opciones se migran a "1 opción única" sin perder nada.
+    q.options=[{id:uid(), name:q.materialCotizado||'', supply:q.supply||[], labor:q.labor||[], discPP:q.discPP||0, productImageDataUrl:q.productImageDataUrl||null}];
+    q._activeOptionIdx=0;
+  }
+  if(q._activeOptionIdx==null || q._activeOptionIdx<0 || q._activeOptionIdx>=q.options.length) q._activeOptionIdx=0;
+  const opt=q.options[q._activeOptionIdx];
+  if(!opt.supply) opt.supply=[];
+  if(!opt.labor) opt.labor=[];
+  q.supply=opt.supply;
+  q.labor=opt.labor;
+  q.discPP=opt.discPP||0;
+  q.materialCotizado=opt.name||'';
+  q.productImageDataUrl=opt.productImageDataUrl||null;
+}
+function switchQuoteOption(idx){
+  if(!CURRENT_Q) return;
+  syncFormToCurrentQ(); // persiste discPP/nombre/foto de la opción que se deja
+  CURRENT_Q._activeOptionIdx=idx;
+  ensureQuoteOptions(CURRENT_Q);
+  loadQuoteToForm(); renderQuoteTables(); recalcAll();
+  markDirty();
+}
+function addQuoteOption(){
+  if(!CURRENT_Q) return;
+  syncFormToCurrentQ();
+  ensureQuoteOptions(CURRENT_Q);
+  const n=CURRENT_Q.options.length+1;
+  CURRENT_Q.options.push({id:uid(), name:'Opción '+n, supply:[], labor:[], discPP:0, productImageDataUrl:null});
+  switchQuoteOption(CURRENT_Q.options.length-1);
+}
+function renameQuoteOption(idx,event){
+  if(event) event.stopPropagation();
+  if(!CURRENT_Q) return;
+  const opt=CURRENT_Q.options[idx]; if(!opt) return;
+  const name=prompt('Nombre de la opción (ej. material cotizado):',opt.name||'');
+  if(name===null) return;
+  opt.name=name.trim();
+  if(idx===CURRENT_Q._activeOptionIdx){ CURRENT_Q.materialCotizado=opt.name; setValue('q-material-cotizado',opt.name); }
+  renderOptionTabs();
+  markDirty();
+}
+function deleteQuoteOption(idx,event){
+  if(event) event.stopPropagation();
+  if(!CURRENT_Q) return;
+  if(CURRENT_Q.options.length<=1){ toast('Debe existir al menos una opción','⚠️'); return; }
+  if(!confirm('¿Eliminar esta opción y todas sus partidas? No se puede deshacer.')) return;
+  CURRENT_Q.options.splice(idx,1);
+  if(CURRENT_Q._activeOptionIdx>=CURRENT_Q.options.length) CURRENT_Q._activeOptionIdx=CURRENT_Q.options.length-1;
+  ensureQuoteOptions(CURRENT_Q);
+  loadQuoteToForm(); renderQuoteTables(); recalcAll();
+  markDirty();
+}
+function renderOptionTabs(){
+  const el=document.getElementById('quote-options-tabs');
+  if(!el||!CURRENT_Q) return;
+  ensureQuoteOptions(CURRENT_Q);
+  const tabs=CURRENT_Q.options.map((o,i)=>{
+    const active=i===CURRENT_Q._activeOptionIdx;
+    const label=esc(o.name||('Opción '+(i+1)));
+    return `<div onclick="switchQuoteOption(${i})" style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;margin-right:6px;margin-bottom:6px;border:1px solid ${active?'var(--accent)':'var(--border)'};background:${active?'var(--accentDim,rgba(230,51,41,.1))':'transparent'};color:${active?'var(--accent)':'var(--text2)'}">
+      <span>${label}</span>
+      <span onclick="renameQuoteOption(${i},event)" title="Renombrar" style="opacity:.55;font-size:11px">✏️</span>
+      ${CURRENT_Q.options.length>1?`<span onclick="deleteQuoteOption(${i},event)" title="Eliminar opción" style="opacity:.55;font-size:11px">✕</span>`:''}
+    </div>`;
+  }).join('');
+  el.innerHTML = tabs + `<div onclick="addQuoteOption()" style="display:inline-flex;align-items:center;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:12px;margin-bottom:6px;border:1px dashed var(--text3);color:var(--text3)">+ Nueva opción</div>`;
+}
+
 async function saveQuote(){
   if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
   syncFormToCurrentQ();
@@ -2704,6 +2823,11 @@ function duplicateQuote(){
   const newNum=prompt('Número de la nueva cotización:',CURRENT_Q.num+' (copia)');
   if(newNum===null) return; // cancelado
   const copy=JSON.parse(JSON.stringify(CURRENT_Q));
+  // JSON.parse/stringify rompe el "mismo array" entre copy.supply/labor y
+  // copy.options[i].supply/labor (clona cada uno por separado) -- se
+  // vuelve a enlazar la opción activa para que ambos apunten al mismo
+  // array, igual que en una cotización nueva.
+  ensureQuoteOptions(copy);
   copy.id=uid();
   copy.num=newNum.trim()||CURRENT_Q.num+' (copia)';
   // Parse the new num to set split fields
@@ -3102,18 +3226,23 @@ async function generateText(){
 }
 
 // ── COPY TABLE ──
-async function exportExcel(){
-  if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
-  const dp=(parseFloat(val('q-disc-pp'))||0)/100;
+// Escribe 1 hoja de Excel para 1 opción de la cotización (supply/labor/discPP
+// propios de esa opción). Ya no lleva la columna SUBTOTAL (bruto, antes del
+// descuento por partida) -- a pedido del usuario, sobraba junto a PVP y
+// TOTAL. Quedan 7 columnas: PARTIDA, VOLUMEN, UD., PVP, DESC.%, PVP C/DESC.,
+// TOTAL.
+function _pxAddQuoteSheet(wb, sheetName, opt){
+  const supply=opt.supply||[], labor=opt.labor||[];
+  const dp=(opt.discPP||0)/100;
 
-  const supMXN=CURRENT_Q.supply.filter(x=>(x.currency||'MXN')==='MXN');
-  const supUSD=CURRENT_Q.supply.filter(x=>x.currency==='USD');
-  const labMXN=CURRENT_Q.labor.filter(x=>(x.currency||'MXN')==='MXN');
-  const labUSD=CURRENT_Q.labor.filter(x=>x.currency==='USD');
+  const supMXN=supply.filter(x=>(x.currency||'MXN')==='MXN');
+  const supUSD=supply.filter(x=>x.currency==='USD');
+  const labMXN=labor.filter(x=>(x.currency||'MXN')==='MXN');
+  const labUSD=labor.filter(x=>x.currency==='USD');
   const hasUSD=supUSD.length>0||labUSD.length>0;
   const supRawMXN=supMXN.reduce((s,x)=>s+x.vol*x.pvp,0);
   const labRawMXN=labMXN.reduce((s,x)=>s+x.vol*x.pvp,0);
-  const discVolAmtE=round([...CURRENT_Q.supply,...CURRENT_Q.labor].filter(x=>(x.currency||'MXN')==='MXN').reduce((s,x)=>s+x.vol*x.pvp*(parseFloat(x.disc)||0)/100,0),2);
+  const discVolAmtE=round([...supply,...labor].filter(x=>(x.currency||'MXN')==='MXN').reduce((s,x)=>s+x.vol*x.pvp*(parseFloat(x.disc)||0)/100,0),2);
   const baseAfterVolE=round(supRawMXN+labRawMXN-discVolAmtE,2);
   const supNetMXN=round(baseAfterVolE*(1-dp),2);
   const supRawUSD=supUSD.reduce((s,x)=>s+x.vol*x.pvp,0);
@@ -3121,8 +3250,6 @@ async function exportExcel(){
   const totalUSD=supRawUSD+labRawUSD;
   const tcItems=[...supUSD,...labUSD].map(x=>x.tcRef||_TC||17.5);
   const tcRef=tcItems.length?tcItems.reduce((a,b)=>a+b,0)/tcItems.length:(_TC||17.5);
-  const supRawUSDinMXN=round(supRawUSD*tcRef,2);
-  const labRawUSDinMXN=round(labRawUSD*tcRef,2);
 
   const FONT='Pragmatica', SIZE=11;
   const BLACK_FILL={type:'pattern',pattern:'solid',fgColor:{argb:'FF000000'}};
@@ -3133,16 +3260,15 @@ async function exportExcel(){
   const NUM_FMT='#,##0.00';
   const PCT_FMT='0.##"%"';
 
-  const wb=new ExcelJS.Workbook();
-  const ws=wb.addWorksheet('Cotización');
-  ws.columns=[{width:50},{width:11},{width:9},{width:14},{width:14},{width:11},{width:16},{width:14}];
+  const ws=wb.addWorksheet(sheetName);
+  ws.columns=[{width:50},{width:11},{width:9},{width:14},{width:11},{width:16},{width:14}];
 
   let r=0;
   function addRow(values){ r++; return ws.addRow(values); }
 
   function addSectionRow(title){
-    const row=addRow([title,'','','','','','','']);
-    ws.mergeCells(r,1,r,8);
+    const row=addRow([title,'','','','','','']);
+    ws.mergeCells(r,1,r,7);
     const mc=row.getCell(1);
     mc.fill=BLACK_FILL; mc.font=WHITE_FONT;
     mc.alignment={horizontal:'center',vertical:'middle'};
@@ -3150,8 +3276,8 @@ async function exportExcel(){
   }
 
   function addHeaderRow(){
-    const row=addRow(['PARTIDA','VOLUMEN','UD.','PVP','SUBTOTAL','DESC.%','PVP C/DESC.','TOTAL']);
-    [1,2,3,4,5,6,7,8].forEach(col=>{
+    const row=addRow(['PARTIDA','VOLUMEN','UD.','PVP','DESC.%','PVP C/DESC.','TOTAL']);
+    [1,2,3,4,5,6,7].forEach(col=>{
       const cell=row.getCell(col);
       cell.fill=BLACK_FILL; cell.font=WHITE_FONT;
       cell.alignment={horizontal:col===1?'left':'center',vertical:'middle',wrapText:true};
@@ -3166,27 +3292,26 @@ async function exportExcel(){
     const discAmt=round(sub*discPct,2);
     const total=round(sub-discAmt,2);
     const pvpDesc=round(x.pvp*(1-discPct),2);
-    const row=addRow([x.desc,x.vol,x.unit,x.pvp,sub,discPctRaw,pvpDesc,total]);
+    const row=addRow([x.desc,x.vol,x.unit,x.pvp,discPctRaw,pvpDesc,total]);
     row.getCell(1).font=NORMAL_FONT; row.getCell(1).alignment={wrapText:true,vertical:'top'};
     row.getCell(2).font=NORMAL_FONT; row.getCell(2).numFmt=NUM_FMT; row.getCell(2).alignment={horizontal:'center'};
     row.getCell(3).font=NORMAL_FONT; row.getCell(3).alignment={horizontal:'center'};
     row.getCell(4).font=NORMAL_FONT; row.getCell(4).numFmt=MONEY_FMT; row.getCell(4).alignment={horizontal:'right'};
-    row.getCell(5).font=NORMAL_FONT; row.getCell(5).numFmt=MONEY_FMT; row.getCell(5).alignment={horizontal:'right'};
-    row.getCell(6).font=NORMAL_FONT; row.getCell(6).numFmt=PCT_FMT; row.getCell(6).alignment={horizontal:'center'};
-    row.getCell(7).font=NORMAL_FONT; row.getCell(7).numFmt=MONEY_FMT; row.getCell(7).alignment={horizontal:'right'};
-    row.getCell(8).font=BOLD_FONT; row.getCell(8).numFmt=MONEY_FMT; row.getCell(8).alignment={horizontal:'right'};
+    row.getCell(5).font=NORMAL_FONT; row.getCell(5).numFmt=PCT_FMT; row.getCell(5).alignment={horizontal:'center'};
+    row.getCell(6).font=NORMAL_FONT; row.getCell(6).numFmt=MONEY_FMT; row.getCell(6).alignment={horizontal:'right'};
+    row.getCell(7).font=BOLD_FONT; row.getCell(7).numFmt=MONEY_FMT; row.getCell(7).alignment={horizontal:'right'};
   }
 
   function addTotalRow(label, value){
-    // Col 1 empty, cols 2-7 merged for label (left), col 8 for value (right)
-    const row=addRow(['','','','','','','',value]);
-    ws.mergeCells(r,2,r,7);
-    const labelCell=row.getCell(2); // master cell of merge B-G
+    // Col 1 empty, cols 2-6 merged para la etiqueta (izquierda), col 7 valor.
+    const row=addRow(['','','','','','',value]);
+    ws.mergeCells(r,2,r,6);
+    const labelCell=row.getCell(2); // master cell of merge B-F
     labelCell.value=label;
     labelCell.fill=BLACK_FILL; labelCell.font=WHITE_FONT;
     labelCell.alignment={horizontal:'left',vertical:'middle'};
-    row.getCell(1).fill=BLACK_FILL; // col A also black but empty
-    const valCell=row.getCell(8);
+    row.getCell(1).fill=BLACK_FILL; // col A también negra pero vacía
+    const valCell=row.getCell(7);
     valCell.fill=BLACK_FILL; valCell.font=WHITE_FONT;
     valCell.numFmt=MONEY_FMT; valCell.alignment={horizontal:'right',vertical:'middle'};
     row.height=16;
@@ -3233,6 +3358,33 @@ async function exportExcel(){
     addTotalRow('TOTAL EN USD (c/IVA)', totalUSD*1.16);
     addTotalRow('TOTAL USD Ref. MXN (TC $'+tcRef.toFixed(2)+')', totalUSD*1.16*tcRef);
   }
+}
+
+// Nombres de hoja válidos en Excel: máx 31 caracteres, sin \ / ? * [ ] : ni
+// nombres repetidos (2 opciones podrían tener el mismo nombre de material).
+function _pxSheetNameFor(opt, idx, usedNames){
+  let base=(opt.name||('Opción '+(idx+1))).trim();
+  base=base.replace(/[\\/?*\[\]:]/g,'-').slice(0,28)||('Opción '+(idx+1));
+  let name=base, n=2;
+  while(usedNames.has(name.toLowerCase())){ name=(base+' '+n).slice(0,31); n++; }
+  usedNames.add(name.toLowerCase());
+  return name;
+}
+
+async function exportExcel(){
+  if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
+  // Vuelca al modelo de opciones lo que esté en pantalla ahora mismo.
+  syncFormToCurrentQ();
+  ensureQuoteOptions(CURRENT_Q);
+
+  const wb=new ExcelJS.Workbook();
+  const usedNames=new Set();
+  // 1 hoja por opción (material alternativo) — cada una con su propia lista
+  // de partidas, descuento y totales, igual que en el PPTX.
+  CURRENT_Q.options.forEach((opt,idx)=>{
+    const sheetName=_pxSheetNameFor(opt,idx,usedNames);
+    _pxAddQuoteSheet(wb, sheetName, opt);
+  });
 
   const buffer=await wb.xlsx.writeBuffer();
   const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
@@ -4095,7 +4247,7 @@ function _pxB64ToUint8(b64){
 // archivo .rels (copia del de slide3, misma referencia a layout + imagen).
 // Devuelve el r:id de la diapositiva recién insertada, para poder encadenar
 // la siguiente inserción justo después de esta (mantiene el orden).
-async function _pxInsertSlideAfter(zip,afterRid,newPartPath,newSlideXml){
+async function _pxInsertSlideAfter(zip,afterRid,newPartPath,newSlideXml,relsOverrideXml){
   const fileName=newPartPath.split('/').pop();
 
   let ct=await zip.file('[Content_Types].xml').async('string');
@@ -4121,7 +4273,7 @@ async function _pxInsertSlideAfter(zip,afterRid,newPartPath,newSlideXml){
   pres=pres.slice(0,am.index+am[0].length)+newSldTag+pres.slice(am.index+am[0].length);
   zip.file('ppt/presentation.xml', pres);
 
-  const slide3Rels=await zip.file('ppt/slides/_rels/slide3.xml.rels').async('string');
+  const slide3Rels=relsOverrideXml||await zip.file('ppt/slides/_rels/slide3.xml.rels').async('string');
   zip.file('ppt/slides/_rels/'+fileName+'.rels', slide3Rels);
 
   zip.file(newPartPath, newSlideXml);
@@ -4212,7 +4364,12 @@ async function generateQuotePPTX(quote){
   }
   s1=s1.replace(_pxRunPrefix+'<a:t>F E C H A : 0 5 / 0 8 / 2 0 2 6</a:t>',
     _pxLabelValueRuns('F E C H A : ',_pxSpaceOut(quote.date)));
-  const _pxNumeroLine=[quote.projectNum||'',quote.cotNum||'',quote.materialCotizado||''].filter(Boolean).join('/');
+  // Con varias opciones (materiales alternativos), la línea NUMERO junta
+  // los nombres de todas las opciones con " / " (antes solo había un
+  // materialCotizado plano; ahora vive uno por opción).
+  const _pxOptionNamesForNumero=(quote.options||[]).map(o=>o.name).filter(Boolean);
+  const _pxMaterialLabel=_pxOptionNamesForNumero.join(' / ');
+  const _pxNumeroLine=[quote.projectNum||'',quote.cotNum||'',_pxMaterialLabel].filter(Boolean).join('/');
   s1=s1.replace(_pxRunPrefix+'<a:t>N U M E R O : P 0 9 6 / C 0 0 1 / 2 0 2 6</a:t>',
     _pxLabelValueRuns('N U M E R O : ',_pxSpaceOut(_pxNumeroLine)));
   s1=s1.replace(_pxRunPrefix+'<a:t>P R O Y E C T O : P 0 9 6 – W O W  D E S I G N</a:t>',
@@ -4289,154 +4446,200 @@ async function generateQuotePPTX(quote){
   // caben (cotización realmente muy larga), se deja el comportamiento de
   // siempre: el resumen pasa a una página aparte, en vez de encimarse.
   const _PX_ITEM_FONT_MIN=8, _PX_ITEM_FONT_STEP=0.25;
-  let itemFontPt=_PX_ITEM_FONT_DEFAULT;
-  let built=_pxBuildRowsStructured(quote.supply,quote.labor,quote.discPP,itemFontPt);
-  let pages=_pxPaginateRows(built.sections,built.totalsRows,PAGE_BUDGET,GAP_TOTALS,GAP1+TOTAL_TEXT_H);
-  if(pages.length>1){
-    // Solo vale la pena intentar si las partidas SOLAS (sin resumen) ya
-    // caben en 1 página a 11pt -- si ni eso cabe, es una cotización
-    // genuinamente grande y no hay tamaño de letra razonable que la
-    // convierta en 1 sola diapositiva; ahí se deja la paginación normal.
-    const itemsOnlyPages=_pxPaginateRows(built.sections,[],PAGE_BUDGET,0,0);
-    if(itemsOnlyPages.length===1){
-      for(let f=_PX_ITEM_FONT_DEFAULT-_PX_ITEM_FONT_STEP;f>=_PX_ITEM_FONT_MIN-1e-9;f-=_PX_ITEM_FONT_STEP){
-        const tryBuilt=_pxBuildRowsStructured(quote.supply,quote.labor,quote.discPP,f);
-        const tryPages=_pxPaginateRows(tryBuilt.sections,tryBuilt.totalsRows,PAGE_BUDGET,GAP_TOTALS,GAP1+TOTAL_TEXT_H);
-        if(tryPages.length===1){
-          itemFontPt=f; built=tryBuilt; pages=tryPages;
-          break;
-        }
-      }
-    }
-  }
-  const {sections,totalsRows,total}=built;
-
-  const letras=montoALetrasMXN(total);
-  const idx=letras.lastIndexOf('/100');
-  const part1=letras.slice(0,idx), part2=letras.slice(idx);
 
   // Tabla de RESUMEN DEL PROYECTO como graphicFrame independiente: mismo
   // tblGrid de 7 columnas (para que los gridSpan de resumenTitleTpl/
   // totalRowTpl sigan cuadrando), mismo X/ancho que la tabla de partidas
   // (queda centrada en la página igual que ella), posicionada en el Y que
   // se le pase (justo debajo de la tabla de partidas de esa página, con
-  // GAP_TOTALS de por medio).
+  // GAP_TOTALS de por medio). No depende de la opción, se define 1 sola vez.
   function _pxBuildTotalsGraphicFrame(y,h,rowsXml){
     return '<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="99" name="Tabla Resumen"/><p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr><p:xfrm><a:off x="'+TABLE_X+'" y="'+Math.round(y)+'"/><a:ext cx="'+TABLE_CX+'" cy="'+Math.round(h)+'"/></p:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr/>'+PX_TBL_GRID_7COL+rowsXml+'</a:tbl></a:graphicData></a:graphic></p:graphicFrame>';
   }
 
-  function buildTableSlideXml(pristineXml,page){
-    let sX=pristineXml;
-    const itemsBottom=TABLE_TOP+page.h;
-    let contentBottom=itemsBottom;
-    if(page.h===0){
-      // Página de solo totales (sin renglones de partida, p.ej. cuando los
-      // totales no cupieron en la última página con renglones y se
-      // mandaron a una página aparte): no tiene caso dejar la tabla de
-      // partidas con 0 filas en el XML -- ademas de inutil, una <a:tbl>
-      // sin ningun <a:tr> hace que LibreOffice dibuje un remanente del
-      // estilo de tabla por defecto del tema (una franja celeste/azul
-      // delgada) donde debería haber contenido. Se quita el graphicFrame
-      // de la tabla de partidas por completo y la tabla de totales toma
-      // su lugar.
-      const itemFrameRe=/<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="2" name="Tabla 1">[\s\S]*?<\/a:tbl><\/a:graphicData><\/a:graphic><\/p:graphicFrame>/;
-      if(!itemFrameRe.test(sX)) throw new Error('No se encontró el graphicFrame de la tabla de partidas en la plantilla');
-      if(page.totalsXml){
-        const totalsY=itemsBottom+GAP_TOTALS;
-        const totalsFrame=_pxBuildTotalsGraphicFrame(totalsY,page.totalsH,page.totalsXml);
-        sX=sX.replace(itemFrameRe,totalsFrame);
-        contentBottom=totalsY+page.totalsH;
-      } else {
-        sX=sX.replace(itemFrameRe,'');
-      }
-    } else {
-      // Tabla original: 5 columnas. Se reemplaza el tblGrid por uno de 7
-      // columnas (agrega DESCUENTO y TOTAL) manteniendo el mismo ancho
-      // total.
-      const oldGridRe=/<a:tblGrid>[\s\S]*?<\/a:tblGrid>/;
-      if(!oldGridRe.test(sX)) throw new Error('No se encontró el tblGrid de la tabla en la plantilla');
-      sX=sX.replace(oldGridRe, PX_TBL_GRID_7COL);
-      const gridRe=/(<\/a:tblGrid>)([\s\S]*?)(<\/a:tbl>)/;
-      const gm=sX.match(gridRe);
-      if(!gm) throw new Error('No se encontró la tabla en la plantilla');
-      sX=sX.slice(0,gm.index+gm[1].length)+page.xml+sX.slice(gm.index+gm[1].length+gm[2].length);
-
-      // La tabla de partidas termina en TABLE_TOP+page.h (page.h ya NO
-      // incluye los totales, ver _pxPaginateRows). Si esta página trae
-      // totales (RESUMEN DEL PROYECTO), se inserta como una tabla aparte,
-      // independiente de la tabla de partidas, justo después de su
-      // graphicFrame en el árbol de formas de la diapositiva.
-      if(page.totalsXml){
-        const totalsY=itemsBottom+GAP_TOTALS;
-        const totalsFrame=_pxBuildTotalsGraphicFrame(totalsY,page.totalsH,page.totalsXml);
-        const closeNeedle='</a:tbl></a:graphicData></a:graphic></p:graphicFrame>';
-        if(!sX.includes(closeNeedle)) throw new Error('No se encontró el cierre de la tabla de partidas en la plantilla');
-        sX=sX.replace(closeNeedle, closeNeedle+totalsFrame);
-        contentBottom=totalsY+page.totalsH;
-      }
-    }
-
-    if(!page.isLastPage){
-      // Páginas de continuación: sin totales todavía, así que se quita el
-      // cuadro de texto "TOTAL A PAGAR: ..." y la foto de producto por
-      // completo (solo van en la última página con contenido).
-      sX=sX.replace(/<p:sp><p:nvSpPr><p:cNvPr id="11" name="CuadroTexto 10">[\s\S]*?<\/p:sp>/,'');
-      sX=sX.replace(/<p:pic>[\s\S]*?<\/p:pic>/,'');
-      return sX;
-    }
-
-    const totalRe=/(<a:t>TOTAL A PAGAR: <\/a:t><\/a:r><a:r>[\s\S]*?<a:t>)([\s\S]*?)(<\/a:t><\/a:r><a:r>[\s\S]*?<a:t>)([\s\S]*?)(<\/a:t>)/;
-    const tm=sX.match(totalRe);
-    if(!tm) throw new Error('No se encontró el texto "TOTAL A PAGAR" en la plantilla');
-    sX=sX.slice(0,tm.index+tm[1].length)+_pxEsc(part1)
-       +sX.slice(tm.index+tm[1].length+tm[2].length, tm.index+tm[1].length+tm[2].length+tm[3].length)
-       +_pxEsc(part2)
-       +sX.slice(tm.index+tm[1].length+tm[2].length+tm[3].length+tm[4].length);
-
-    // Reposicionamiento del texto en letras + foto según el alto real de
-    // ESTA página (ya no el de toda la cotización) — cada página empieza
-    // su tabla desde TABLE_TOP, así que el cálculo es igual de simple que
-    // antes, solo que ahora usa contentBottom (fin de la tabla de totales,
-    // si la hay, o si no de la tabla de partidas) en vez del alto acumulado
-    // de una sola tabla combinada.
-    const tableBottom=contentBottom;
-    const totalTextY=Math.min(tableBottom+GAP1, MAX_TOTAL_TEXT_Y);
-    const imageY=totalTextY+TOTAL_TEXT_H+GAP2;
-    const maxImageH=FOOTER_SAFE_Y-imageY;
-
-    const oldTotalXfrm='<a:off x="433686" y="2685179"/><a:ext cx="6314873" cy="276999"/>';
-    const newTotalXfrm='<a:off x="433686" y="'+Math.round(totalTextY)+'"/><a:ext cx="6314873" cy="276999"/>';
-    if(!sX.includes(oldTotalXfrm)) throw new Error('No se encontró la posición del texto de total en la plantilla');
-    sX=sX.replace(oldTotalXfrm,newTotalXfrm);
-
-    if(maxImageH<IMAGE_MIN_H){
-      sX=sX.replace(/<p:pic>[\s\S]*?<\/p:pic>/,'');
-    } else {
-      const imageH=Math.min(IMAGE_MAX_H,maxImageH);
-      const imageW=imageH;
-      const imageX=Math.round(TABLE_X+(TABLE_CX-imageW)/2);
-      const oldImgXfrm='<a:off x="1462284" y="3311851"/><a:ext cx="4257675" cy="4257675"/>';
-      const newImgXfrm='<a:off x="'+imageX+'" y="'+Math.round(imageY)+'"/><a:ext cx="'+Math.round(imageW)+'" cy="'+Math.round(imageH)+'"/>';
-      if(!sX.includes(oldImgXfrm)) throw new Error('No se encontró la posición de la foto en la plantilla');
-      sX=sX.replace(oldImgXfrm,newImgXfrm);
-    }
-    return sX;
+  // Rels pristina de slide3 (foto de producto -> rId2 -> ../media/image3.jpeg).
+  // Cuando una opción (que no sea la primera) trae su propia foto, se le da
+  // un archivo de media único y se retarget-ea rId2 en la copia de rels de
+  // esa diapositiva -- así cada opción puede mostrar una foto distinta sin
+  // necesitar un nuevo id de relación.
+  const _PX_SLIDE3_RELS_PRISTINE='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image3.jpeg"/><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target="../slideLayouts/slideLayout1.xml"/></Relationships>';
+  function _pxSlide3RelsFor(mediaFileName){
+    return _PX_SLIDE3_RELS_PRISTINE.replace('../media/image3.jpeg','../media/'+mediaFileName);
   }
 
-  // Página 0 reemplaza directamente la diapositiva 3 original; las páginas
-  // adicionales (si las hay) se insertan como diapositivas nuevas justo
-  // después, en orden, encadenando cada inserción tras la anterior.
-  zip.file('ppt/slides/slide3.xml', buildTableSlideXml(s3Pristine,pages[0]));
+  // Cada cotización tiene 1+ opciones (materiales alternativos entre los
+  // que el cliente puede estar dudando); cada opción trae su propia lista
+  // de partidas, descuento y foto, y se imprime en su(s) propia(s)
+  // diapositiva(s) -- con su propio cuadro RESUMEN DEL PROYECTO, total en
+  // letra y foto al final de sus páginas.
+  const _pxOptions=(quote.options&&quote.options.length)?quote.options:[{name:'',supply:quote.supply||[],labor:quote.labor||[],discPP:quote.discPP||0,productImageBytes:quote.productImageBytes||null}];
+
   let _afterRid='rId4'; // rId de slide3.xml en presentation.xml.rels
-  for(let i=1;i<pages.length;i++){
-    const partName='ppt/slides/slide3ext'+i+'.xml';
-    const pageXml=buildTableSlideXml(s3Pristine,pages[i]);
-    _afterRid=await _pxInsertSlideAfter(zip,_afterRid,partName,pageXml);
+  let _isFirstPageOverall=true;
+
+  for(let optIdx=0; optIdx<_pxOptions.length; optIdx++){
+    const opt=_pxOptions[optIdx];
+
+    let itemFontPt=_PX_ITEM_FONT_DEFAULT;
+    let built=_pxBuildRowsStructured(opt.supply,opt.labor,opt.discPP,itemFontPt);
+    let pages=_pxPaginateRows(built.sections,built.totalsRows,PAGE_BUDGET,GAP_TOTALS,GAP1+TOTAL_TEXT_H);
+    if(pages.length>1){
+      // Solo vale la pena intentar si las partidas SOLAS (sin resumen) ya
+      // caben en 1 página a 11pt -- si ni eso cabe, es una cotización
+      // genuinamente grande y no hay tamaño de letra razonable que la
+      // convierta en 1 sola diapositiva; ahí se deja la paginación normal.
+      const itemsOnlyPages=_pxPaginateRows(built.sections,[],PAGE_BUDGET,0,0);
+      if(itemsOnlyPages.length===1){
+        for(let f=_PX_ITEM_FONT_DEFAULT-_PX_ITEM_FONT_STEP;f>=_PX_ITEM_FONT_MIN-1e-9;f-=_PX_ITEM_FONT_STEP){
+          const tryBuilt=_pxBuildRowsStructured(opt.supply,opt.labor,opt.discPP,f);
+          const tryPages=_pxPaginateRows(tryBuilt.sections,tryBuilt.totalsRows,PAGE_BUDGET,GAP_TOTALS,GAP1+TOTAL_TEXT_H);
+          if(tryPages.length===1){
+            itemFontPt=f; built=tryBuilt; pages=tryPages;
+            break;
+          }
+        }
+      }
+    }
+    const {sections,totalsRows,total}=built;
+
+    const letras=montoALetrasMXN(total);
+    const idx=letras.lastIndexOf('/100');
+    const part1=letras.slice(0,idx), part2=letras.slice(idx);
+
+    // Redefinida en cada vuelta del for para que sus cierres (part1/part2/
+    // letras/contentBottom) queden atados a ESTA opción, no a la última.
+    const buildTableSlideXml=function(pristineXml,page){
+      let sX=pristineXml;
+      const itemsBottom=TABLE_TOP+page.h;
+      let contentBottom=itemsBottom;
+      if(page.h===0){
+        // Página de solo totales (sin renglones de partida, p.ej. cuando los
+        // totales no cupieron en la última página con renglones y se
+        // mandaron a una página aparte): no tiene caso dejar la tabla de
+        // partidas con 0 filas en el XML -- ademas de inutil, una <a:tbl>
+        // sin ningun <a:tr> hace que LibreOffice dibuje un remanente del
+        // estilo de tabla por defecto del tema (una franja celeste/azul
+        // delgada) donde debería haber contenido. Se quita el graphicFrame
+        // de la tabla de partidas por completo y la tabla de totales toma
+        // su lugar.
+        const itemFrameRe=/<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="2" name="Tabla 1">[\s\S]*?<\/a:tbl><\/a:graphicData><\/a:graphic><\/p:graphicFrame>/;
+        if(!itemFrameRe.test(sX)) throw new Error('No se encontró el graphicFrame de la tabla de partidas en la plantilla');
+        if(page.totalsXml){
+          const totalsY=itemsBottom+GAP_TOTALS;
+          const totalsFrame=_pxBuildTotalsGraphicFrame(totalsY,page.totalsH,page.totalsXml);
+          sX=sX.replace(itemFrameRe,totalsFrame);
+          contentBottom=totalsY+page.totalsH;
+        } else {
+          sX=sX.replace(itemFrameRe,'');
+        }
+      } else {
+        // Tabla original: 5 columnas. Se reemplaza el tblGrid por uno de 7
+        // columnas (agrega DESCUENTO y TOTAL) manteniendo el mismo ancho
+        // total.
+        const oldGridRe=/<a:tblGrid>[\s\S]*?<\/a:tblGrid>/;
+        if(!oldGridRe.test(sX)) throw new Error('No se encontró el tblGrid de la tabla en la plantilla');
+        sX=sX.replace(oldGridRe, PX_TBL_GRID_7COL);
+        const gridRe=/(<\/a:tblGrid>)([\s\S]*?)(<\/a:tbl>)/;
+        const gm=sX.match(gridRe);
+        if(!gm) throw new Error('No se encontró la tabla en la plantilla');
+        sX=sX.slice(0,gm.index+gm[1].length)+page.xml+sX.slice(gm.index+gm[1].length+gm[2].length);
+
+        // La tabla de partidas termina en TABLE_TOP+page.h (page.h ya NO
+        // incluye los totales, ver _pxPaginateRows). Si esta página trae
+        // totales (RESUMEN DEL PROYECTO), se inserta como una tabla aparte,
+        // independiente de la tabla de partidas, justo después de su
+        // graphicFrame en el árbol de formas de la diapositiva.
+        if(page.totalsXml){
+          const totalsY=itemsBottom+GAP_TOTALS;
+          const totalsFrame=_pxBuildTotalsGraphicFrame(totalsY,page.totalsH,page.totalsXml);
+          const closeNeedle='</a:tbl></a:graphicData></a:graphic></p:graphicFrame>';
+          if(!sX.includes(closeNeedle)) throw new Error('No se encontró el cierre de la tabla de partidas en la plantilla');
+          sX=sX.replace(closeNeedle, closeNeedle+totalsFrame);
+          contentBottom=totalsY+page.totalsH;
+        }
+      }
+
+      if(!page.isLastPage){
+        // Páginas de continuación: sin totales todavía, así que se quita el
+        // cuadro de texto "TOTAL A PAGAR: ..." y la foto de producto por
+        // completo (solo van en la última página con contenido).
+        sX=sX.replace(/<p:sp><p:nvSpPr><p:cNvPr id="11" name="CuadroTexto 10">[\s\S]*?<\/p:sp>/,'');
+        sX=sX.replace(/<p:pic>[\s\S]*?<\/p:pic>/,'');
+        return sX;
+      }
+
+      const totalRe=/(<a:t>TOTAL A PAGAR: <\/a:t><\/a:r><a:r>[\s\S]*?<a:t>)([\s\S]*?)(<\/a:t><\/a:r><a:r>[\s\S]*?<a:t>)([\s\S]*?)(<\/a:t>)/;
+      const tm=sX.match(totalRe);
+      if(!tm) throw new Error('No se encontró el texto "TOTAL A PAGAR" en la plantilla');
+      sX=sX.slice(0,tm.index+tm[1].length)+_pxEsc(part1)
+         +sX.slice(tm.index+tm[1].length+tm[2].length, tm.index+tm[1].length+tm[2].length+tm[3].length)
+         +_pxEsc(part2)
+         +sX.slice(tm.index+tm[1].length+tm[2].length+tm[3].length+tm[4].length);
+
+      // Reposicionamiento del texto en letras + foto según el alto real de
+      // ESTA página (ya no el de toda la cotización) — cada página empieza
+      // su tabla desde TABLE_TOP, así que el cálculo es igual de simple que
+      // antes, solo que ahora usa contentBottom (fin de la tabla de totales,
+      // si la hay, o si no de la tabla de partidas) en vez del alto acumulado
+      // de una sola tabla combinada.
+      const tableBottom=contentBottom;
+      const totalTextY=Math.min(tableBottom+GAP1, MAX_TOTAL_TEXT_Y);
+      const imageY=totalTextY+TOTAL_TEXT_H+GAP2;
+      const maxImageH=FOOTER_SAFE_Y-imageY;
+
+      const oldTotalXfrm='<a:off x="433686" y="2685179"/><a:ext cx="6314873" cy="276999"/>';
+      const newTotalXfrm='<a:off x="433686" y="'+Math.round(totalTextY)+'"/><a:ext cx="6314873" cy="276999"/>';
+      if(!sX.includes(oldTotalXfrm)) throw new Error('No se encontró la posición del texto de total en la plantilla');
+      sX=sX.replace(oldTotalXfrm,newTotalXfrm);
+
+      if(maxImageH<IMAGE_MIN_H){
+        sX=sX.replace(/<p:pic>[\s\S]*?<\/p:pic>/,'');
+      } else {
+        const imageH=Math.min(IMAGE_MAX_H,maxImageH);
+        const imageW=imageH;
+        const imageX=Math.round(TABLE_X+(TABLE_CX-imageW)/2);
+        const oldImgXfrm='<a:off x="1462284" y="3311851"/><a:ext cx="4257675" cy="4257675"/>';
+        const newImgXfrm='<a:off x="'+imageX+'" y="'+Math.round(imageY)+'"/><a:ext cx="'+Math.round(imageW)+'" cy="'+Math.round(imageH)+'"/>';
+        if(!sX.includes(oldImgXfrm)) throw new Error('No se encontró la posición de la foto en la plantilla');
+        sX=sX.replace(oldImgXfrm,newImgXfrm);
+      }
+      return sX;
+    };
+
+    // Foto de esta opción: la opción 0 usa el archivo de media original
+    // (image3.jpeg, referenciado por la rels pristina de slide3 -- igual
+    // que antes de que existieran las opciones). Las opciones siguientes,
+    // si traen foto propia, usan un archivo de media único y una copia de
+    // la rels retargeteada a ese archivo (si no traen foto propia, se
+    // quedan con la rels pristina, mostrando el mismo placeholder que la
+    // opción 0).
+    let _relsOverrideForThisOption;
+    if(optIdx===0){
+      if(opt.productImageBytes){
+        zip.file('ppt/media/image3.jpeg',opt.productImageBytes,{binary:true});
+      }
+    } else if(opt.productImageBytes){
+      const mediaFileName='image3_opt'+optIdx+'.jpeg';
+      zip.file('ppt/media/'+mediaFileName,opt.productImageBytes,{binary:true});
+      _relsOverrideForThisOption=_pxSlide3RelsFor(mediaFileName);
+    }
+
+    // Página 0 de la opción 0 reemplaza directamente la diapositiva 3
+    // original; el resto de páginas (de esta opción y de las siguientes) se
+    // insertan como diapositivas nuevas justo después, en orden,
+    // encadenando cada inserción tras la anterior.
+    for(let p=0;p<pages.length;p++){
+      const pageXml=buildTableSlideXml(s3Pristine,pages[p]);
+      if(_isFirstPageOverall){
+        zip.file('ppt/slides/slide3.xml', pageXml);
+        _isFirstPageOverall=false;
+      } else {
+        const partName='ppt/slides/slide3ext'+optIdx+'_'+p+'.xml';
+        _afterRid=await _pxInsertSlideAfter(zip,_afterRid,partName,pageXml,_relsOverrideForThisOption);
+      }
+    }
   }
 
-  if(quote.productImageBytes){
-    zip.file('ppt/media/image3.jpeg',quote.productImageBytes,{binary:true});
-  }
   if(quote.coverImageBytes){
     zip.file('ppt/media/image2.jpg',quote.coverImageBytes,{binary:true});
   }
@@ -4571,7 +4774,12 @@ function _pxDataUrlToUint8(dataUrl){
 // ==== Botón "Generar PPTX" ====
 async function generateQuotePPTXFromCurrent(){
   if(!CURRENT_Q){toast('Sin cotización activa','⚠️');return;}
-  if(!CURRENT_Q.supply.length&&!CURRENT_Q.labor.length){toast('Añade partidas primero','⚠️');return;}
+  // Vuelca al modelo de opciones lo que esté en pantalla ahora mismo (la
+  // opción activa puede tener discPP/nombre/foto sin sincronizar todavía).
+  syncFormToCurrentQ();
+  ensureQuoteOptions(CURRENT_Q);
+  const _hasAnyItems=CURRENT_Q.options.some(o=>(o.supply&&o.supply.length)||(o.labor&&o.labor.length));
+  if(!_hasAnyItems){toast('Añade partidas primero','⚠️');return;}
   const client=val('q-client');
   const project=val('q-project');
   if(!client){toast('Falta el nombre del cliente','⚠️');return;}
@@ -4589,15 +4797,17 @@ async function generateQuotePPTXFromCurrent(){
       project: project,
       client: client,
       clientMailingName: mailingName,
-      discPP: parseFloat(val('q-disc-pp'))||0,
       text: document.getElementById('proposal-text').innerHTML||'',
       plazoEntrega: val('q-plazo-entrega')||'2 semanas',
       instalacionText: val('q-instalacion')||'Instalación no incluida en la presente cotización',
       instalacionIncluida: val('q-instalacion-incluida')==='si',
-      materialCotizado: val('q-material-cotizado')||'',
-      supply: CURRENT_Q.supply.map(x=>({desc:x.desc,vol:x.vol,unit:x.unit,pvp:x.pvp,disc:x.disc||0,currency:x.currency||'MXN',tcRef:x.tcRef||_TC||17.5})),
-      labor: CURRENT_Q.labor.map(x=>({desc:x.desc,vol:x.vol,unit:x.unit,pvp:x.pvp,disc:x.disc||0,currency:x.currency||'MXN',tcRef:x.tcRef||_TC||17.5})),
-      productImageBytes: CURRENT_Q.productImageDataUrl ? _pxDataUrlToUint8(CURRENT_Q.productImageDataUrl) : null,
+      options: CURRENT_Q.options.map(opt=>({
+        name: opt.name||'',
+        supply: (opt.supply||[]).map(x=>({desc:x.desc,vol:x.vol,unit:x.unit,pvp:x.pvp,disc:x.disc||0,currency:x.currency||'MXN',tcRef:x.tcRef||_TC||17.5})),
+        labor: (opt.labor||[]).map(x=>({desc:x.desc,vol:x.vol,unit:x.unit,pvp:x.pvp,disc:x.disc||0,currency:x.currency||'MXN',tcRef:x.tcRef||_TC||17.5})),
+        discPP: opt.discPP||0,
+        productImageBytes: opt.productImageDataUrl ? _pxDataUrlToUint8(opt.productImageDataUrl) : null,
+      })),
       coverImageBytes: CURRENT_Q.coverImageDataUrl ? _pxDataUrlToUint8(CURRENT_Q.coverImageDataUrl) : null,
     };
     const blob=await generateQuotePPTX(quote);
