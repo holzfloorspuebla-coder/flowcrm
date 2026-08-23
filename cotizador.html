@@ -665,14 +665,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
         </div>
       </div>
       <div class="sec">
-        <div class="sec-hd"><div class="sec-title">📁 Textos predeterminados por producto</div></div>
+        <div class="sec-hd"><div class="sec-title">📁 Textos predeterminados por material</div></div>
         <div style="padding:14px 16px">
-          <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Guarda el texto actual como plantilla de un producto que se esté cotizando ahora, o carga cualquier plantilla ya guardada (de cualquier producto) en la propuesta de esta cotización.</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Se guardan por el nombre escrito en "Material que se cotiza" (Datos para el PPTX) — no por producto del catálogo. Guarda el texto actual como predeterminado de ese material, o carga cualquier predeterminado ya guardado en la propuesta de esta cotización.</div>
 
-          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">Guardar el texto actual como predeterminado de:</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
-            <select class="inp" id="pt-save-product" style="flex:1;min-width:180px" onchange="updatePTStatus()"></select>
-            <button class="btn btn-ghost" onclick="savePropuestaTemplate()">💾 Guardar como predeterminado</button>
+            <button class="btn btn-ghost" onclick="savePropuestaTemplate()">💾 Guardar como predeterminado de "<span id="pt-current-material">—</span>"</button>
           </div>
 
           <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">Cargar un predeterminado ya guardado:</div>
@@ -842,6 +840,10 @@ const PASS_USER  = 'holz2026';
 let IS_ADMIN = false;
 let CATALOG  = [];
 let CAT_DEFS = {};
+// Textos predeterminados de propuesta, guardados por MATERIAL (el texto
+// libre de "Material que se cotiza"), no por producto de catálogo -- ver
+// _ptSavedMaterials()/savePropuestaTemplate() más abajo.
+let PROPOSAL_TEMPLATES = {};
 let QUOTES   = [];
 let PROVIDERS = [];
 let PROVIDER_CATS = [];
@@ -929,7 +931,7 @@ async function persistAll(label=''){
   IS_SAVING=true;
   setSyncDot('loading'); setSyncLbl('Guardando...');
   try{
-    await cloudSet({ quotes: QUOTES, catalog: CATALOG, catDefs: CAT_DEFS, customUnits: CUSTOM_UNITS, _savedAt: Date.now() });
+    await cloudSet({ quotes: QUOTES, catalog: CATALOG, catDefs: CAT_DEFS, customUnits: CUSTOM_UNITS, proposalTemplates: PROPOSAL_TEMPLATES, _savedAt: Date.now() });
     const t = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
     setSyncDot('ok'); setSyncLbl('Guardado · '+t);
     if(label) markClean(t);
@@ -1034,6 +1036,9 @@ async function loadAllFromCloud(){
     // Cargar unidades custom
     CUSTOM_UNITS = data.customUnits || [];
     populateUnitSelects();
+
+    // Textos predeterminados de propuesta (por material, ver PROPOSAL_TEMPLATES)
+    PROPOSAL_TEMPLATES = data.proposalTemplates || {};
 
     // Pre-cargar cache de proyectos
     _psCache = (data.projects||[]).map(p=>({
@@ -3419,103 +3424,74 @@ function copyText(){
     .then(()=>toast('Texto copiado','📋','success')).catch(()=>toast('Error','❌','error'));
 }
 
-// ── TEXTOS PREDETERMINADOS POR PRODUCTO (Propuesta) ──
-// 2 listas independientes, a propósito:
-// - "Guardar" se llena con los productos vinculados al catálogo EN ESTA
-//   cotización (🔄) -- tiene sentido guardar el texto recién escrito bajo el
-//   producto que se está cotizando ahora mismo.
-// - "Cargar" se llena con TODOS los productos que YA tienen un
-//   predeterminado guardado (recorre el catálogo completo, no la
-//   cotización) -- así se puede elegir a mano cualquier plantilla guardada,
-//   de cualquier producto, sin importar qué haya vinculado en la cotización
-//   actual. Antes ambas listas eran la misma (solo lo vinculado en la
-//   cotización actual), lo que impedía cargar un predeterminado si no
-//   habías vinculado ninguna partida todavía, y escondía las plantillas de
-//   otros productos.
-function _ptProductsInQuote(){
-  if(!CURRENT_Q) return [];
-  const items=[...(CURRENT_Q.supply||[]),...(CURRENT_Q.labor||[])].filter(x=>x.catalogId);
-  const seen=new Set(); const out=[];
-  items.forEach(x=>{
-    if(seen.has(x.catalogId)) return;
-    seen.add(x.catalogId);
-    const p=CATALOG.find(c=>c.id===x.catalogId);
-    out.push({id:x.catalogId, label:(p&&(p.description||p.model))||x.desc||x.catalogId});
-  });
-  return out;
-}
-function _ptSavedProducts(){
-  return CATALOG.filter(c=>c.proposalText&&c.proposalText.trim())
-    .map(p=>({id:p.id, label:p.description||p.model||p.id}))
-    .sort((a,b)=>a.label.localeCompare(b.label,'es'));
+// ── TEXTOS PREDETERMINADOS POR MATERIAL (Propuesta) ──
+// Se guardan bajo el nombre libre de "Material que se cotiza" (el
+// "producto master" de la cotización, campo q-material-cotizado /
+// CURRENT_Q.materialCotizado) -- NO bajo el producto específico del
+// catálogo (esos traen toda la ficha técnica en el nombre -- marca,
+// colección, modelo, formato, m2/caja, etc. -- son demasiado largos/
+// granulares para esto, y cada variante de SKU generaría su propia
+// plantilla aunque en la práctica sea "el mismo material"). Todo vive en
+// PROPOSAL_TEMPLATES, un diccionario {nombreMaterial: textoHtml},
+// independiente del catálogo.
+function _ptNormKey(s){ return String(s||'').trim(); }
+function _ptSavedMaterials(){
+  return Object.keys(PROPOSAL_TEMPLATES)
+    .filter(k=>PROPOSAL_TEMPLATES[k]&&PROPOSAL_TEMPLATES[k].trim())
+    .sort((a,b)=>a.localeCompare(b,'es'));
 }
 function renderPTCategorySelect(){
-  const saveSel=document.getElementById('pt-save-product');
   const loadSel=document.getElementById('pt-load-product');
-  if(!saveSel||!loadSel) return;
-
-  const prevSave=saveSel.value;
-  const inQuote=_ptProductsInQuote();
-  saveSel.innerHTML=inQuote.length
-    ? inQuote.map(p=>{
-        const cat=CATALOG.find(c=>c.id===p.id);
-        const has=cat&&cat.proposalText;
-        return `<option value="${esc(p.id)}">${esc(p.label)}${has?' ✓':''}</option>`;
-      }).join('')
-    : '<option value="">— Ninguna partida vinculada al catálogo —</option>';
-  if(inQuote.some(p=>p.id===prevSave)) saveSel.value=prevSave;
-
+  if(!loadSel) return;
   const prevLoad=loadSel.value;
-  const saved=_ptSavedProducts();
+  const saved=_ptSavedMaterials();
   loadSel.innerHTML=saved.length
-    ? saved.map(p=>`<option value="${esc(p.id)}">${esc(p.label)}</option>`).join('')
-    : '<option value="">— Ningún producto tiene texto guardado todavía —</option>';
-  if(saved.some(p=>p.id===prevLoad)) loadSel.value=prevLoad;
-
+    ? saved.map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('')
+    : '<option value="">— Ningún material tiene texto guardado todavía —</option>';
+  if(saved.includes(prevLoad)) loadSel.value=prevLoad;
   updatePTStatus();
 }
 function updatePTStatus(){
   const status=document.getElementById('pt-status');
-  const saveSel=document.getElementById('pt-save-product');
-  if(!status||!saveSel) return;
-  const saveId=saveSel.value;
+  const materialSpan=document.getElementById('pt-current-material');
+  if(!status) return;
+  const material=_ptNormKey(CURRENT_Q&&(CURRENT_Q.materialCotizado||val('q-material-cotizado')));
+  if(materialSpan) materialSpan.textContent=material||'—';
   let msg;
-  if(!saveId){
-    msg='Vincula al menos una partida al catálogo (botón 🔄 en la tabla) para poder guardar un texto predeterminado de ese producto.';
+  if(!material){
+    msg='Escribe el "Material que se cotiza" (en Datos para el PPTX) para poder guardar un texto predeterminado con ese nombre.';
   } else {
-    const p=CATALOG.find(c=>c.id===saveId);
-    msg=(p&&p.proposalText)?'Este producto ya tiene un texto predeterminado guardado (guardar lo reemplaza).':'Este producto aún no tiene un texto predeterminado.';
+    const has=PROPOSAL_TEMPLATES[material]&&PROPOSAL_TEMPLATES[material].trim();
+    msg=has?`"${material}" ya tiene un texto predeterminado guardado (guardar lo reemplaza).`:`"${material}" aún no tiene un texto predeterminado.`;
   }
-  const loadCount=_ptSavedProducts().length;
-  msg+=' · '+(loadCount?loadCount+' producto(s) con texto guardado, listos para cargar.':'Todavía no hay ningún texto guardado para cargar.');
+  const loadCount=_ptSavedMaterials().length;
+  msg+=' · '+(loadCount?loadCount+' material(es) con texto guardado, listos para cargar.':'Todavía no hay ningún texto guardado para cargar.');
   status.textContent=msg;
 }
 async function savePropuestaTemplate(){
-  const id=document.getElementById('pt-save-product')?.value;
-  if(!id){ toast('Vincula una partida al catálogo primero','⚠️'); return; }
-  const p=CATALOG.find(c=>c.id===id);
-  if(!p){ toast('Producto no encontrado en el catálogo','⚠️'); return; }
+  if(!CURRENT_Q){ toast('Sin cotización activa','⚠️'); return; }
+  const material=_ptNormKey(CURRENT_Q.materialCotizado||val('q-material-cotizado'));
+  if(!material){ toast('Escribe el "Material que se cotiza" primero','⚠️'); return; }
   const html=document.getElementById('proposal-text').innerHTML||'';
   if(!html.trim()){ toast('El texto de la propuesta está vacío','⚠️'); return; }
-  if(p.proposalText && !confirm(`Ya existe un texto predeterminado para "${p.description||p.model}". ¿Reemplazarlo con el texto actual?`)) return;
-  p.proposalText=html;
+  if(PROPOSAL_TEMPLATES[material] && !confirm(`Ya existe un texto predeterminado para "${material}". ¿Reemplazarlo con el texto actual?`)) return;
+  PROPOSAL_TEMPLATES[material]=html;
   await persistAll();
   renderPTCategorySelect();
-  toast(`Texto guardado como predeterminado de "${p.description||p.model}"`,'💾','success');
+  toast(`Texto guardado como predeterminado de "${material}"`,'💾','success');
 }
 function loadPropuestaTemplate(){
   if(!CURRENT_Q){ toast('Sin cotización activa','⚠️'); return; }
-  const id=document.getElementById('pt-load-product')?.value;
-  if(!id){ toast('No hay ningún texto predeterminado guardado todavía','⚠️'); return; }
-  const p=CATALOG.find(c=>c.id===id);
-  const tpl=p&&p.proposalText;
-  if(!tpl){ toast(`"${p?(p.description||p.model):id}" no tiene un texto predeterminado guardado`,'⚠️'); return; }
+  const name=document.getElementById('pt-load-product')?.value;
+  if(!name){ toast('No hay ningún texto predeterminado guardado todavía','⚠️'); return; }
+  const tpl=PROPOSAL_TEMPLATES[name];
+  if(!tpl){ toast(`"${name}" no tiene un texto predeterminado guardado`,'⚠️'); return; }
   const current=document.getElementById('proposal-text').innerHTML||'';
   if(current.trim() && !confirm('Esto reemplazará el texto actual de la propuesta. ¿Continuar?')) return;
   document.getElementById('proposal-text').innerHTML=tpl;
   CURRENT_Q.text=tpl;
   markDirty();
-  toast(`Predeterminado de "${p.description||p.model}" cargado`,'📋','success');
+  toast(`Predeterminado de "${name}" cargado`,'📋','success');
 }
 
 // ── TABS ──
