@@ -560,7 +560,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
             <div class="sec-title">Opciones de material</div>
           </div>
           <div style="padding:12px 16px">
-            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Si el cliente está dudando entre materiales, agrega una opción por cada uno — cada una lleva sus propias partidas, descuento, total y foto en el PPTX (en páginas separadas).</div>
+            <div style="font-size:11px;color:var(--text3);margin-bottom:8px">Si el cliente está dudando entre materiales, agrega una opción por cada uno — cada una lleva sus propias partidas, descuento, plazo de entrega, total y foto en el PPTX (en páginas separadas). El campo "Material cotizado" de abajo es único para toda la cotización, no cambia entre opciones.</div>
             <div id="quote-options-tabs" style="display:flex;flex-wrap:wrap"></div>
           </div>
         </div>
@@ -667,11 +667,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);fon
       <div class="sec">
         <div class="sec-hd"><div class="sec-title">📁 Textos predeterminados por producto</div></div>
         <div style="padding:14px 16px">
-          <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Guarda el texto actual como plantilla del producto del catálogo que se está cotizando, o carga una plantilla ya guardada para ese producto. Solo aplica a partidas vinculadas al catálogo (🔄).</div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-            <select class="inp" id="pt-product" style="flex:1;min-width:180px" onchange="updatePTStatus()"></select>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Guarda el texto actual como plantilla de un producto que se esté cotizando ahora, o carga cualquier plantilla ya guardada (de cualquier producto) en la propuesta de esta cotización.</div>
+
+          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">Guardar el texto actual como predeterminado de:</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
+            <select class="inp" id="pt-save-product" style="flex:1;min-width:180px" onchange="updatePTStatus()"></select>
             <button class="btn btn-ghost" onclick="savePropuestaTemplate()">💾 Guardar como predeterminado</button>
-            <button class="btn btn-ghost" onclick="loadPropuestaTemplate()">📋 Cargar predeterminado</button>
+          </div>
+
+          <div style="font-size:11px;font-weight:600;color:var(--text2);margin-bottom:4px">Cargar un predeterminado ya guardado:</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select class="inp" id="pt-load-product" style="flex:1;min-width:180px"></select>
+            <button class="btn btn-ghost" onclick="loadPropuestaTemplate()">📋 Cargar en la propuesta</button>
           </div>
           <div id="pt-status" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
         </div>
@@ -2480,14 +2487,20 @@ function syncFormToCurrentQ(){
   q.plazoEntrega=val('q-plazo-entrega')||'2 semanas';
   q.instalacionText=val('q-instalacion')||'Instalación no incluida en la presente cotización';
   q.instalacionIncluida=val('q-instalacion-incluida')==='si';
+  // "Material cotizado" es un campo único a nivel cotización (el "producto
+  // master"), NO por opción -- las opciones (materiales alternativos) se
+  // identifican por su propio nombre de pestaña (ver renameQuoteOption),
+  // independiente de este campo.
   q.materialCotizado=val('q-material-cotizado')||'';
-  // Volcar discPP/nombre/foto a la opción activa -- supply/labor ya están
-  // sincronizados solos porque CURRENT_Q.supply/labor son la MISMA
+  // Volcar discPP/plazo de entrega/foto a la opción activa -- supply/labor
+  // ya están sincronizados solos porque CURRENT_Q.supply/labor son la MISMA
   // referencia que options[activeIdx].supply/labor (ver ensureQuoteOptions).
+  // El plazo de entrega SÍ es por opción (cada material puede tardar
+  // distinto en llegar).
   if(q.options && q.options[q._activeOptionIdx]){
     const opt=q.options[q._activeOptionIdx];
     opt.discPP=q.discPP;
-    opt.name=q.materialCotizado;
+    opt.plazoEntrega=q.plazoEntrega;
     opt.productImageDataUrl=q.productImageDataUrl;
   }
 }
@@ -2495,19 +2508,25 @@ function syncFormToCurrentQ(){
 //  OPCIONES DE COTIZACIÓN (materiales alternativos para el cliente)
 // ═══════════════════════════════════════════════════════════════
 // Cada opción es como una mini-cotización: su propia lista de partidas
-// (supply/labor), su descuento y su foto. CURRENT_Q.supply/labor/discPP/
-// materialCotizado/productImageDataUrl siempre reflejan la opción ACTIVA
-// -- de hecho supply/labor son la MISMA referencia de array que
-// options[activeIdx].supply/labor, así que todo el código que ya existía
-// para agregar/editar/borrar partidas (renderQTable, removeItem,
+// (supply/labor), su descuento, su plazo de entrega y su foto. CURRENT_Q.
+// supply/labor/discPP/plazoEntrega/productImageDataUrl siempre reflejan la
+// opción ACTIVA -- de hecho supply/labor son la MISMA referencia de array
+// que options[activeIdx].supply/labor, así que todo el código que ya
+// existía para agregar/editar/borrar partidas (renderQTable, removeItem,
 // syncItemFromCatalog, etc.) sigue funcionando exactamente igual, sin
 // tocarlo, porque en el fondo está editando el array de la opción activa.
+// OJO: "materialCotizado" (el producto master) NO vive aquí -- es un campo
+// único a nivel cotización, independiente de las opciones (ver
+// syncFormToCurrentQ). El nombre de cada opción (opt.name) es solo la
+// etiqueta de su pestaña, editable con renameQuoteOption.
 function ensureQuoteOptions(q){
   if(!q) return;
   if(!q.options || !q.options.length){
     // Migración: cotizaciones guardadas antes de que existieran las
-    // opciones se migran a "1 opción única" sin perder nada.
-    q.options=[{id:uid(), name:q.materialCotizado||'', supply:q.supply||[], labor:q.labor||[], discPP:q.discPP||0, productImageDataUrl:q.productImageDataUrl||null}];
+    // opciones se migran a "1 opción única" sin perder nada. Se usa el
+    // material cotizado (si lo había) como nombre inicial de esa opción
+    // única -- solo como valor de arranque, no queda ligado después.
+    q.options=[{id:uid(), name:q.materialCotizado||'', supply:q.supply||[], labor:q.labor||[], discPP:q.discPP||0, plazoEntrega:q.plazoEntrega||'2 semanas', productImageDataUrl:q.productImageDataUrl||null}];
     q._activeOptionIdx=0;
   }
   if(q._activeOptionIdx==null || q._activeOptionIdx<0 || q._activeOptionIdx>=q.options.length) q._activeOptionIdx=0;
@@ -2517,12 +2536,12 @@ function ensureQuoteOptions(q){
   q.supply=opt.supply;
   q.labor=opt.labor;
   q.discPP=opt.discPP||0;
-  q.materialCotizado=opt.name||'';
+  q.plazoEntrega=opt.plazoEntrega||q.plazoEntrega||'2 semanas';
   q.productImageDataUrl=opt.productImageDataUrl||null;
 }
 function switchQuoteOption(idx){
   if(!CURRENT_Q) return;
-  syncFormToCurrentQ(); // persiste discPP/nombre/foto de la opción que se deja
+  syncFormToCurrentQ(); // persiste discPP/plazo de entrega/foto de la opción que se deja
   CURRENT_Q._activeOptionIdx=idx;
   ensureQuoteOptions(CURRENT_Q);
   loadQuoteToForm(); renderQuoteTables(); recalcAll();
@@ -2533,7 +2552,7 @@ function addQuoteOption(){
   syncFormToCurrentQ();
   ensureQuoteOptions(CURRENT_Q);
   const n=CURRENT_Q.options.length+1;
-  CURRENT_Q.options.push({id:uid(), name:'Opción '+n, supply:[], labor:[], discPP:0, productImageDataUrl:null});
+  CURRENT_Q.options.push({id:uid(), name:'Opción '+n, supply:[], labor:[], discPP:0, plazoEntrega:'2 semanas', productImageDataUrl:null});
   switchQuoteOption(CURRENT_Q.options.length-1);
 }
 function renameQuoteOption(idx,event){
@@ -2543,7 +2562,6 @@ function renameQuoteOption(idx,event){
   const name=prompt('Nombre de la opción (ej. material cotizado):',opt.name||'');
   if(name===null) return;
   opt.name=name.trim();
-  if(idx===CURRENT_Q._activeOptionIdx){ CURRENT_Q.materialCotizado=opt.name; setValue('q-material-cotizado',opt.name); }
   renderOptionTabs();
   markDirty();
 }
@@ -3402,8 +3420,18 @@ function copyText(){
 }
 
 // ── TEXTOS PREDETERMINADOS POR PRODUCTO (Propuesta) ──
-// Ligado directamente al producto del catálogo que se está cotizando (item.catalogId),
-// no a la categoría — cada producto puede tener su propio texto de propuesta.
+// 2 listas independientes, a propósito:
+// - "Guardar" se llena con los productos vinculados al catálogo EN ESTA
+//   cotización (🔄) -- tiene sentido guardar el texto recién escrito bajo el
+//   producto que se está cotizando ahora mismo.
+// - "Cargar" se llena con TODOS los productos que YA tienen un
+//   predeterminado guardado (recorre el catálogo completo, no la
+//   cotización) -- así se puede elegir a mano cualquier plantilla guardada,
+//   de cualquier producto, sin importar qué haya vinculado en la cotización
+//   actual. Antes ambas listas eran la misma (solo lo vinculado en la
+//   cotización actual), lo que impedía cargar un predeterminado si no
+//   habías vinculado ninguna partida todavía, y escondía las plantillas de
+//   otros productos.
 function _ptProductsInQuote(){
   if(!CURRENT_Q) return [];
   const items=[...(CURRENT_Q.supply||[]),...(CURRENT_Q.labor||[])].filter(x=>x.catalogId);
@@ -3416,36 +3444,54 @@ function _ptProductsInQuote(){
   });
   return out;
 }
+function _ptSavedProducts(){
+  return CATALOG.filter(c=>c.proposalText&&c.proposalText.trim())
+    .map(p=>({id:p.id, label:p.description||p.model||p.id}))
+    .sort((a,b)=>a.label.localeCompare(b.label,'es'));
+}
 function renderPTCategorySelect(){
-  const sel=document.getElementById('pt-product');
-  if(!sel) return;
-  const prev=sel.value;
-  const prods=_ptProductsInQuote();
-  if(!prods.length){
-    sel.innerHTML='<option value="">— Ninguna partida vinculada al catálogo —</option>';
-    updatePTStatus();
-    return;
-  }
-  sel.innerHTML=prods.map(p=>{
-    const cat=CATALOG.find(c=>c.id===p.id);
-    const has=cat&&cat.proposalText;
-    return `<option value="${esc(p.id)}">${esc(p.label)}${has?' ✓':''}</option>`;
-  }).join('');
-  if(prods.some(p=>p.id===prev)) sel.value=prev;
+  const saveSel=document.getElementById('pt-save-product');
+  const loadSel=document.getElementById('pt-load-product');
+  if(!saveSel||!loadSel) return;
+
+  const prevSave=saveSel.value;
+  const inQuote=_ptProductsInQuote();
+  saveSel.innerHTML=inQuote.length
+    ? inQuote.map(p=>{
+        const cat=CATALOG.find(c=>c.id===p.id);
+        const has=cat&&cat.proposalText;
+        return `<option value="${esc(p.id)}">${esc(p.label)}${has?' ✓':''}</option>`;
+      }).join('')
+    : '<option value="">— Ninguna partida vinculada al catálogo —</option>';
+  if(inQuote.some(p=>p.id===prevSave)) saveSel.value=prevSave;
+
+  const prevLoad=loadSel.value;
+  const saved=_ptSavedProducts();
+  loadSel.innerHTML=saved.length
+    ? saved.map(p=>`<option value="${esc(p.id)}">${esc(p.label)}</option>`).join('')
+    : '<option value="">— Ningún producto tiene texto guardado todavía —</option>';
+  if(saved.some(p=>p.id===prevLoad)) loadSel.value=prevLoad;
+
   updatePTStatus();
 }
 function updatePTStatus(){
-  const sel=document.getElementById('pt-product');
   const status=document.getElementById('pt-status');
-  if(!sel||!status) return;
-  const id=sel.value;
-  if(!id){ status.textContent='Vincula al menos una partida al catálogo (botón 🔄 en la tabla) para poder guardar o cargar un texto predeterminado.'; return; }
-  const p=CATALOG.find(c=>c.id===id);
-  const has=p&&p.proposalText;
-  status.textContent=has?'Este producto ya tiene un texto predeterminado guardado.':'Este producto aún no tiene un texto predeterminado.';
+  const saveSel=document.getElementById('pt-save-product');
+  if(!status||!saveSel) return;
+  const saveId=saveSel.value;
+  let msg;
+  if(!saveId){
+    msg='Vincula al menos una partida al catálogo (botón 🔄 en la tabla) para poder guardar un texto predeterminado de ese producto.';
+  } else {
+    const p=CATALOG.find(c=>c.id===saveId);
+    msg=(p&&p.proposalText)?'Este producto ya tiene un texto predeterminado guardado (guardar lo reemplaza).':'Este producto aún no tiene un texto predeterminado.';
+  }
+  const loadCount=_ptSavedProducts().length;
+  msg+=' · '+(loadCount?loadCount+' producto(s) con texto guardado, listos para cargar.':'Todavía no hay ningún texto guardado para cargar.');
+  status.textContent=msg;
 }
 async function savePropuestaTemplate(){
-  const id=document.getElementById('pt-product')?.value;
+  const id=document.getElementById('pt-save-product')?.value;
   if(!id){ toast('Vincula una partida al catálogo primero','⚠️'); return; }
   const p=CATALOG.find(c=>c.id===id);
   if(!p){ toast('Producto no encontrado en el catálogo','⚠️'); return; }
@@ -3459,8 +3505,8 @@ async function savePropuestaTemplate(){
 }
 function loadPropuestaTemplate(){
   if(!CURRENT_Q){ toast('Sin cotización activa','⚠️'); return; }
-  const id=document.getElementById('pt-product')?.value;
-  if(!id){ toast('Vincula una partida al catálogo primero','⚠️'); return; }
+  const id=document.getElementById('pt-load-product')?.value;
+  if(!id){ toast('No hay ningún texto predeterminado guardado todavía','⚠️'); return; }
   const p=CATALOG.find(c=>c.id===id);
   const tpl=p&&p.proposalText;
   if(!tpl){ toast(`"${p?(p.description||p.model):id}" no tiene un texto predeterminado guardado`,'⚠️'); return; }
@@ -4339,8 +4385,16 @@ async function generateQuotePPTX(quote){
   // bajo el texto (no bajo el centro geométrico de la diapositiva, que por
   // el tracking negativo no coincide exactamente con el centro visual del
   // texto).
+  // El ancho medido pixel-a-pixel (5983831 EMU) depende de qué fuente use el
+  // programa que abre/renderiza el PPTX -- "Franklin Gothic Book" no está
+  // instalada en todos los entornos, y con una fuente de reemplazo un poco
+  // más ancha la línea se queda corta respecto a la palabra. Se agrega un
+  // 5% de margen (manteniendo fijo el borde derecho, que sí es exacto
+  // porque se ancla al inset del cuadro de texto, no al ancho del glyph) --
+  // deja ~1.5% de colchón antes de arriesgar que "COTIZACIÓN" se parta a 2
+  // líneas (el cuadro se ensanchó para que quepa en 1 línea con margen).
   const oldCotizLineXfrm='<a:off x="1249680" y="4737211"/><a:ext cx="4460965" cy="0"/>';
-  const newCotizLineXfrm='<a:off x="632679" y="4737211"/><a:ext cx="5983831" cy="0"/>';
+  const newCotizLineXfrm='<a:off x="333487" y="4737211"/><a:ext cx="6283023" cy="0"/>';
   if(!s1.includes(oldCotizLineXfrm)) throw new Error('No se encontró la línea roja bajo "COTIZACIÓN" en la plantilla');
   s1=s1.replace(oldCotizLineXfrm,newCotizLineXfrm);
   // Bloque FECHA/NUMERO/PROYECTO: ocupa el ancho total de la diapositiva
@@ -4364,12 +4418,10 @@ async function generateQuotePPTX(quote){
   }
   s1=s1.replace(_pxRunPrefix+'<a:t>F E C H A : 0 5 / 0 8 / 2 0 2 6</a:t>',
     _pxLabelValueRuns('F E C H A : ',_pxSpaceOut(quote.date)));
-  // Con varias opciones (materiales alternativos), la línea NUMERO junta
-  // los nombres de todas las opciones con " / " (antes solo había un
-  // materialCotizado plano; ahora vive uno por opción).
-  const _pxOptionNamesForNumero=(quote.options||[]).map(o=>o.name).filter(Boolean);
-  const _pxMaterialLabel=_pxOptionNamesForNumero.join(' / ');
-  const _pxNumeroLine=[quote.projectNum||'',quote.cotNum||'',_pxMaterialLabel].filter(Boolean).join('/');
+  // Solo hay 1 "producto master" por cotización (independiente de las
+  // opciones/materiales alternativos que pueda tener) -- va en la línea
+  // NUMERO igual que antes de que existieran las opciones.
+  const _pxNumeroLine=[quote.projectNum||'',quote.cotNum||'',quote.materialCotizado||''].filter(Boolean).join('/');
   s1=s1.replace(_pxRunPrefix+'<a:t>N U M E R O : P 0 9 6 / C 0 0 1 / 2 0 2 6</a:t>',
     _pxLabelValueRuns('N U M E R O : ',_pxSpaceOut(_pxNumeroLine)));
   s1=s1.replace(_pxRunPrefix+'<a:t>P R O Y E C T O : P 0 9 6 – W O W  D E S I G N</a:t>',
@@ -4472,7 +4524,7 @@ async function generateQuotePPTX(quote){
   // de partidas, descuento y foto, y se imprime en su(s) propia(s)
   // diapositiva(s) -- con su propio cuadro RESUMEN DEL PROYECTO, total en
   // letra y foto al final de sus páginas.
-  const _pxOptions=(quote.options&&quote.options.length)?quote.options:[{name:'',supply:quote.supply||[],labor:quote.labor||[],discPP:quote.discPP||0,productImageBytes:quote.productImageBytes||null}];
+  const _pxOptions=(quote.options&&quote.options.length)?quote.options:[{name:'',supply:quote.supply||[],labor:quote.labor||[],discPP:quote.discPP||0,plazoEntrega:quote.plazoEntrega||'2 semanas',productImageBytes:quote.productImageBytes||null}];
 
   let _afterRid='rId4'; // rId de slide3.xml en presentation.xml.rels
   let _isFirstPageOverall=true;
@@ -4646,8 +4698,28 @@ async function generateQuotePPTX(quote){
 
   // ---- slide4: plazo de entrega + instalación ----
   let s4=await zip.file('ppt/slides/slide4.xml').async('string');
-  s4=s4.replace('<a:t>Plazo estimado de entrega de materiales: 2 semanas</a:t>',
-    '<a:t>'+_pxEsc('Plazo estimado de entrega de materiales: '+(quote.plazoEntrega||'2 semanas'))+'</a:t>');
+  // Con 1 sola opción se deja el mismo renglón de siempre ("Plazo estimado
+  // de entrega de materiales: X"). Con varias opciones (cada material puede
+  // tardar distinto en llegar), ese renglón se reemplaza por 1 viñeta por
+  // opción ("Plazo de entrega opción 1 (nombre): X semanas", etc.),
+  // clonando el mismo estilo de viñeta (bullet "•", mismo tamaño/fuente)
+  // que ya trae la plantilla para este punto de la lista.
+  const _PX_BULLET_PPR='<a:pPr marL="171450" indent="-171450"><a:buFont typeface="Arial" panose="020B0604020202020204" pitchFamily="34" charset="0"/><a:buChar char="•"/></a:pPr>';
+  const _PX_BULLET_RUNPR='<a:rPr lang="es-ES" sz="900" dirty="0"><a:latin typeface="Franklin Gothic Book" panose="020B0503020102020204" pitchFamily="34" charset="0"/></a:rPr>';
+  const oldPlazoPara='<a:p>'+_PX_BULLET_PPR+'<a:r>'+_PX_BULLET_RUNPR+'<a:t>Plazo estimado de entrega de materiales: 2 semanas</a:t></a:r></a:p>';
+  if(!s4.includes(oldPlazoPara)) throw new Error('No se encontró el renglón de plazo de entrega en la plantilla');
+  const _pxOptsForPlazo=(quote.options&&quote.options.length)?quote.options:[{name:'',plazoEntrega:quote.plazoEntrega}];
+  let newPlazoParas;
+  if(_pxOptsForPlazo.length<=1){
+    const plazoTxt='Plazo estimado de entrega de materiales: '+(_pxOptsForPlazo[0].plazoEntrega||quote.plazoEntrega||'2 semanas');
+    newPlazoParas='<a:p>'+_PX_BULLET_PPR+'<a:r>'+_PX_BULLET_RUNPR+'<a:t>'+_pxEsc(plazoTxt)+'</a:t></a:r></a:p>';
+  } else {
+    newPlazoParas=_pxOptsForPlazo.map((opt,i)=>{
+      const label='Plazo de entrega opción '+(i+1)+(opt.name?' ('+opt.name+')':'')+': '+(opt.plazoEntrega||'2 semanas');
+      return '<a:p>'+_PX_BULLET_PPR+'<a:r>'+_PX_BULLET_RUNPR+'<a:t>'+_pxEsc(label)+'</a:t></a:r></a:p>';
+    }).join('');
+  }
+  s4=s4.replace(oldPlazoPara,newPlazoParas);
   s4=s4.replace('<a:t>Instalación no incluida en la presente cotización</a:t>',
     '<a:t>'+_pxEsc(quote.instalacionText||'Instalación no incluida en la presente cotización')+'</a:t>');
   zip.file('ppt/slides/slide4.xml',s4);
@@ -4798,7 +4870,10 @@ async function generateQuotePPTXFromCurrent(){
       client: client,
       clientMailingName: mailingName,
       text: document.getElementById('proposal-text').innerHTML||'',
-      plazoEntrega: val('q-plazo-entrega')||'2 semanas',
+      // Producto master: único para toda la cotización, independiente de
+      // las opciones (materiales alternativos) que pueda tener.
+      materialCotizado: val('q-material-cotizado')||'',
+      plazoEntrega: val('q-plazo-entrega')||'2 semanas', // respaldo si alguna opción no trae el suyo
       instalacionText: val('q-instalacion')||'Instalación no incluida en la presente cotización',
       instalacionIncluida: val('q-instalacion-incluida')==='si',
       options: CURRENT_Q.options.map(opt=>({
@@ -4806,6 +4881,7 @@ async function generateQuotePPTXFromCurrent(){
         supply: (opt.supply||[]).map(x=>({desc:x.desc,vol:x.vol,unit:x.unit,pvp:x.pvp,disc:x.disc||0,currency:x.currency||'MXN',tcRef:x.tcRef||_TC||17.5})),
         labor: (opt.labor||[]).map(x=>({desc:x.desc,vol:x.vol,unit:x.unit,pvp:x.pvp,disc:x.disc||0,currency:x.currency||'MXN',tcRef:x.tcRef||_TC||17.5})),
         discPP: opt.discPP||0,
+        plazoEntrega: opt.plazoEntrega||'2 semanas',
         productImageBytes: opt.productImageDataUrl ? _pxDataUrlToUint8(opt.productImageDataUrl) : null,
       })),
       coverImageBytes: CURRENT_Q.coverImageDataUrl ? _pxDataUrlToUint8(CURRENT_Q.coverImageDataUrl) : null,
