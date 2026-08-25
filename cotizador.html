@@ -924,20 +924,62 @@ async function cloudGet(){
 }
 async function cloudSet(data){
   const r = await fetch(WORKER+'/data',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  if(!r.ok) throw new Error('HTTP '+r.status);
+  if(!r.ok){
+    // Capturar el detalle real del error (status + cuerpo de la respuesta)
+    // en vez de solo "HTTP 500" -- así el toast/consola dicen la causa real
+    // (ej. "413" por payload demasiado pesado, o el mensaje de Supabase) en
+    // vez de dejarnos adivinar por qué falló un guardado.
+    let detail='';
+    try{ detail=(await r.text()).slice(0,300); }catch(e){}
+    throw new Error('HTTP '+r.status+(detail?': '+detail:''));
+  }
 }
+// Guarda TODO el estado (catálogo, categorías, unidades, proveedores,
+// textos predeterminados, etc.) -- pero YA NO incluye `quotes`. Las
+// cotizaciones pueden traer varias fotos base64 cada una (portada + 1 por
+// opción), y reenviar las ~60 y pico cotizaciones completas con todas sus
+// fotos en CADA guardado (incluso al editar una categoría del catálogo,
+// nada que ver con cotizaciones) es lo que empezó a hacer fallar el
+// guardado por payload demasiado pesado. El Worker (POST /data) solo toca
+// las claves que vengan en el body, así que omitir `quotes` aquí no borra
+// ni pisa ninguna cotización ya guardada -- para guardar UNA cotización se
+// usa persistQuote(), que solo manda esa.
 async function persistAll(label=''){
-  if(IS_SAVING) return;
+  if(IS_SAVING) return false;
   IS_SAVING=true;
   setSyncDot('loading'); setSyncLbl('Guardando...');
   try{
-    await cloudSet({ quotes: QUOTES, catalog: CATALOG, catDefs: CAT_DEFS, customUnits: CUSTOM_UNITS, proposalTemplates: PROPOSAL_TEMPLATES, _savedAt: Date.now() });
+    await cloudSet({ catalog: CATALOG, catDefs: CAT_DEFS, customUnits: CUSTOM_UNITS, proposalTemplates: PROPOSAL_TEMPLATES, _savedAt: Date.now() });
     const t = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
     setSyncDot('ok'); setSyncLbl('Guardado · '+t);
     if(label) markClean(t);
+    return true;
   }catch(e){
     setSyncDot('err'); setSyncLbl('Error al guardar');
-    toast('Error al guardar en la nube','❌','error');
+    toast('Error al guardar en la nube: '+(e.message||e),'❌','error');
+    return false;
+  }finally{ IS_SAVING=false; }
+}
+// Guarda UNA sola cotización (no las ~60 con todas sus fotos) -- usado por
+// cualquier acción que solo cambia la cotización activa (guardar, cerrar,
+// reabrir). El Worker hace upsert parcial: si `quotes` en el body trae solo
+// esta cotización, únicamente esa fila se actualiza en crm_quotes, el resto
+// se queda intacto.
+async function persistQuote(q, label=''){
+  if(!q) return false;
+  if(IS_SAVING) return false;
+  IS_SAVING=true;
+  setSyncDot('loading'); setSyncLbl('Guardando...');
+  try{
+    await cloudSet({ quotes: [q], _savedAt: Date.now() });
+    const t = new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+    setSyncDot('ok'); setSyncLbl('Guardado · '+t);
+    if(label) markClean(t);
+    return true;
+  }catch(e){
+    setSyncDot('err'); setSyncLbl('Error al guardar');
+    toast('Error al guardar en la nube: '+(e.message||e),'❌','error');
+    return false;
   }finally{ IS_SAVING=false; }
 }
 
@@ -1212,8 +1254,9 @@ async function confirmCloseQuote(){
   CURRENT_Q.accEntityId=entityId||CURRENT_Q.accEntityId;
   CURRENT_Q.accConcept=concept;
   CURRENT_Q._closedAt=Date.now();
+  CURRENT_Q._updatedAt=Date.now();
   markDirty();
-  await persistAll();
+  await persistQuote(CURRENT_Q);
   renderQuoteList();
   // Actualizar botones
   document.getElementById('btn-close-quote').style.display='none';
@@ -1246,8 +1289,9 @@ async function reopenQuote(){
   if(!confirm('¿Reabrir este proyecto? Podrás editar los datos y volver a enviar el resultado a contabilidad.')) return;
   CURRENT_Q.status='open';
   delete CURRENT_Q._closedAt;
+  CURRENT_Q._updatedAt=Date.now();
   markDirty();
-  await persistAll();
+  await persistQuote(CURRENT_Q);
   renderQuoteList();
   document.getElementById('btn-close-quote').style.display='';
   document.getElementById('btn-reopen-quote').style.display='none';
@@ -2605,8 +2649,10 @@ async function saveQuote(){
   const idx=QUOTES.findIndex(x=>x.id===q.id);
   if(idx>-1) QUOTES[idx]=q;
   renderQuoteList(); updateTopbar();
-  await persistAll('quote');
-  toast('Cotización guardada en la nube','✅','success');
+  const ok=await persistQuote(q,'quote');
+  if(ok) toast('Cotización guardada en la nube','✅','success');
+  // Si falló, persistQuote ya mostró su propio toast de error con el
+  // detalle -- no hace falta un segundo toast contradictorio encima.
 }
 async function deleteQuote(id,e){
   e.stopPropagation();
