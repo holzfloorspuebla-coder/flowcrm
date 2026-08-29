@@ -449,10 +449,6 @@ select.inp{cursor:pointer;}
             <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
               <button class="btn btn-ghost btn-sm" id="contacts-select-btn" onclick="toggleContactsSelectMode()">☑️ Seleccionar</button>
               <button class="btn btn-ghost btn-sm" id="btn-duplicados" onclick="openDuplicateFinder()" style="display:none;color:var(--orange)">🔍 Duplicados</button>
-              <button class="btn btn-ghost btn-sm" onclick="$('csv-contact-input').click()">📥 Importar CSV</button>
-              <input type="file" id="csv-contact-input" accept=".csv" style="display:none" onchange="handleContactCsvImport(this)">
-              <button class="btn btn-ghost btn-sm" id="excel-contact-import-btn" onclick="$('excel-contact-input').click()" style="display:none">📊 Importar Excel</button>
-              <input type="file" id="excel-contact-input" accept=".xlsx,.xls" style="display:none" onchange="handleContactExcelImport(this)">
               <div class="chip active" id="c-filter-all2" onclick="filterC(this,'all')">Todos</div>
               <div id="c-agent-chips2"></div>
             </div>
@@ -2565,8 +2561,6 @@ function bootApp(){
   showTareasNav();
   showProvidersNav();
   showDatabaseNav();
-  const excelBtn=document.getElementById('excel-contact-import-btn');
-  if(excelBtn) excelBtn.style.display=(ME&&ME.role==='admin')?'':'none';
   renderSidebar();
   ensureCodes(); // assign codes to any records missing them
   cleanStudioContacts(); // remove artifact type='Estudio' contacts
@@ -2596,6 +2590,17 @@ function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'
 function norm(s){
   if(!s) return '';
   return String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+}
+
+// Empata el nombre de una fase del pipeline de contactos (tal como se escribe
+// en la columna "FASE PIPELINE" del importador de Base de datos) contra
+// C_STAGES, ignorando mayusculas/acentos. Devuelve el id de la fase o null
+// si no hay match (columna vacia o valor no reconocido).
+function stageIdByName(name){
+  const n=norm(name);
+  if(!n) return null;
+  const hit=C_STAGES.find(s=>norm(s.name)===n);
+  return hit?hit.id:null;
 }
 
 function nextCode(type){
@@ -6073,11 +6078,17 @@ function showNextDup(){
 
   const fields=type==='studio'
     ?['name','email','email2','phone','whatsapp','city','state','web','instagram','linkedin','priceList']
-    :['name','mailingName','email','email2','phone','whatsapp','city','state','instagram','linkedin'];
+    :['name','mailingName','stage','email','email2','phone','whatsapp','city','state','instagram','linkedin'];
 
-  const fLabels={name:'Nombre',mailingName:'Nombre corto',email:'Email',email2:'Email 2',
+  const fLabels={name:'Nombre',mailingName:'Nombre corto',stage:'Fase pipeline',email:'Email',email2:'Email 2',
     phone:'Teléfono',whatsapp:'WhatsApp',city:'Ciudad',state:'Estado',
     web:'Web',instagram:'Instagram',linkedin:'LinkedIn',priceList:'Price List'};
+
+  // La fase se guarda como id (ej. 'c-lead'); para mostrarla se traduce a su nombre.
+  const fDisplay=(f,v)=>{
+    if(f==='stage') return v?(C_STAGES.find(s=>s.id===v)?.name||v):'Sin fase (no está en el pipeline)';
+    return v||'—';
+  };
 
   const mkCol=(title,obj,color)=>`
     <div style="background:var(--surface2);border-radius:10px;padding:14px;border:2px solid ${color}">
@@ -6085,7 +6096,7 @@ function showNextDup(){
       ${fields.filter(f=>existing[f]||incoming[f]).map(f=>`
         <div style="margin-bottom:6px">
           <div style="font-size:10px;color:var(--text3)">${fLabels[f]||f}</div>
-          <div style="font-size:12px;font-weight:${existing[f]!==incoming[f]?'700':'400'};color:${existing[f]!==incoming[f]?'var(--text)':'var(--text2)'}">${obj[f]||'—'}</div>
+          <div style="font-size:12px;font-weight:${existing[f]!==incoming[f]?'700':'400'};color:${existing[f]!==incoming[f]?'var(--text)':'var(--text2)'}">${fDisplay(f,obj[f])}</div>
         </div>`).join('')}
     </div>`;
 
@@ -7327,7 +7338,7 @@ function processUnifiedCsv(text,input){
       if(!D.contacts)D.contacts=[];
 
       let studiosCreated=0,studiosUpdated=0;
-      let archsCreated=0,archsUpdated=0,skipped=0;
+      let archsCreated=0,archsUpdated=0,skipped=0,phaseUnmatched=0;
       const studioDups=[], archDups=[];
 
       // First pass: process all Estudio rows so architects can reference them
@@ -7437,6 +7448,13 @@ function processUnifiedCsv(text,input){
         const ownCity=get('ciudad','city');
         const ownState=get('estado','state');
 
+        // Fase del pipeline: columna opcional "FASE PIPELINE" (o variantes).
+        // Si viene vacia o no coincide con ninguna fase conocida, el contacto
+        // se guarda en la base de datos pero NO entra al pipeline (stage:null).
+        const faseRaw=get('fase_pipeline','fase','etapa_pipeline','etapa','pipeline');
+        const stageId=faseRaw?stageIdByName(faseRaw):null;
+        if(faseRaw && !stageId) phaseUnmatched++;
+
         const obj={
           name,
           mailingName: get('nombre_whats','nombre_corto','mailing'),
@@ -7453,7 +7471,7 @@ function processUnifiedCsv(text,input){
           priceList:   studioPriceList, // always inherited from studio
           studioId,
           agent:       agentId,
-          stage:       'c-lead',
+          stage:       stageId,
           tags:[],notes:'',
         };
 
@@ -7477,7 +7495,7 @@ function processUnifiedCsv(text,input){
             });
         if(existing){
           // Check if there are meaningful differences worth showing in modal
-          const diffFields=['name','email','email2','phone','whatsapp','city','state','instagram','linkedin','web','mailingName','priceList'];
+          const diffFields=['name','email','email2','phone','whatsapp','city','state','instagram','linkedin','web','mailingName','priceList','stage'];
           const hasDiff=diffFields.some(f=>obj[f]&&obj[f]!==existing[f]);
           if(hasDiff){
             archDups.push({existing,incoming:obj,type:'contact'});
@@ -7511,6 +7529,7 @@ function processUnifiedCsv(text,input){
         if(archsUpdated) parts.push(`${archsUpdated} arquitecto${archsUpdated!==1?'s':''} actualizado${archsUpdated!==1?'s':''}`);
         if(archDups.length) parts.push(`${archDups.length} arquitecto${archDups.length!==1?'s':''} con cambios`);
         if(skipped) parts.push(`${skipped} omitido${skipped!==1?'s':''}`);
+        if(phaseUnmatched) parts.push(`${phaseUnmatched} con fase no reconocida (revisa el CSV)`);
         toast('✓ Importación completa: '+parts.join(', '));
       };
       if(allDups.length) startDupResolution(allDups,applyAndFinish);
@@ -7519,143 +7538,6 @@ function processUnifiedCsv(text,input){
       console.error(err);
       toast('Error procesando el CSV: '+err.message,'⚠️');
     }
-}
-
-// ══════════════════════════════════════════════════════
-//  CSV IMPORT FOR CONTACTS
-// ══════════════════════════════════════════════════════
-// Logica compartida de importacion de contactos (usada por CSV y Excel):
-// recibe encabezados ya normalizados + filas como arreglos de celdas.
-function processContactImportRows(headers, rows){
-  const idx=k=>headers.indexOf(k);
-  const col=(keys)=>{for(const k of keys){const i=idx(k);if(i>=0)return i;}return -1;};
-  let created=0,skipped=0;
-  rows.forEach(cols=>{
-    const get=keys=>{const i=col(keys);return i>=0?String(cols[i]==null?'':cols[i]).trim():'';}
-    const name=get(['nombre_arquitecto','nombre','name','arquitecto']);
-    if(!name){skipped++;return;}
-    // Find or create studio
-    const studioName=get(['nombre_del_estudio','estudio','studio','nombre_estudio']);
-    let studioId=null;
-    if(studioName){
-      const existing=(D.studios||[]).find(s=>s.name.toLowerCase()===studioName.toLowerCase());
-      if(existing){studioId=existing.id;}
-      else{
-        const newStudio={id:nid(),name:studioName,
-          email:get(['e_mail_estudio','email_estudio','correo_estudio']),
-          phone:get(['telefono_estudio','tel_estudio','phone_estudio']),
-          city:get(['ciudad']),state:get(['estado']),
-          web:get(['web','pagina_web']),
-          instagram:get(['instagram_estudio']),
-          linkedin:get(['linkedin_estudio']),
-          agent:ME.id,notes:'',date:today()};
-        if(!D.studios)D.studios=[];
-        D.studios.push(newStudio);
-        studioId=newStudio.id;
-      }
-    }
-    // Find agent by name
-    const agentName=get(['vendedor_asignado','vendedor','agente','agent']);
-    let agentId=ME.id;
-    if(agentName){const u=USERS.find(u=>u.name.toLowerCase().includes(agentName.toLowerCase()));if(u)agentId=u.id;}
-    // Find segment
-    const segName=get(['segmento','segment']);
-    let segId='';
-    if(segName){const segs=D.segments||DEFAULT_SEGMENTS;const sg=segs.find(s=>s.label.toLowerCase().includes(segName.toLowerCase())||s.id.toLowerCase()===segName.toLowerCase());if(sg)segId=sg.id;}
-    const contact={
-      id:nid(),
-      name,
-      mailingName:get(['nombre_para_mailing','mailing','nombre_mailing']),
-      type:get(['tipo','type'])||'Arquitecto',
-      phone:get(['telefono_arquitecto','tel_arquitecto','celular','telefono']),
-      email:get(['e_mail_arquitecto','email_arquitecto','correo_arquitecto','email']),
-      instagram:get(['instagram_arquitecto','instagram']),
-      linkedin:get(['linkedin_arquitecto','linkedin']),
-      studioId,
-      studioEmail:get(['e_mail_estudio','email_estudio']),
-      studioPhone:get(['telefono_estudio','tel_estudio']),
-      studioInstagram:get(['instagram_estudio']),
-      studioLinkedin:get(['linkedin_estudio']),
-      web:get(['web','pagina_web']),
-      city:get(['ciudad','city']),
-      state:get(['estado','state']),
-      origin:get(['origen','origin']),
-      priceList:get(['price_list','pricelist','lista_precios']),
-      segment:segId,
-      agent:agentId,
-      stage:null,
-      inPipeline:false,
-      tags:[],notes:'',date:today(),notesList:[],
-    };
-    D.contacts.push(contact);
-    created++;
-  });
-  saveData();
-  renderCTable();renderCKanban();
-  toast(`✓ ${created} contacto${created!==1?'s':''} importado${created!==1?'s':''}${skipped?' ('+skipped+' omitidos)':''}`);
-}
-
-function handleContactCsvImport(input){
-  const file=input.files[0];
-  if(!file)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    try{
-      const text=e.target.result;
-      const lines=text.split(/\r?\n/).filter(l=>l.trim());
-      if(lines.length<2){toast('El CSV está vacío','⚠️');return;}
-      // Detect separator
-      const sep=lines[0].includes(';')?';':',';
-      const headers=lines[0].split(sep).map(h=>h.trim().toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // remove accents
-        .replace(/[^a-z0-9]/g,'_'));
-      const rows=lines.slice(1).map(line=>line.split(sep).map(c=>c.trim().replace(/^"|"$/g,'')));
-      processContactImportRows(headers, rows);
-    }catch(err){
-      console.error(err);
-      toast('Error procesando el CSV: '+err.message,'⚠️');
-    }
-  };
-  reader.readAsText(file,'UTF-8');
-  input.value='';
-}
-
-// Importar Excel (.xlsx/.xls) — misma logica que el CSV, portada del Gestor
-// de Contactos (Fase 4 de la fusion), pero reutilizando processContactImportRows
-// en vez de la version simplificada que tenia el Gestor.
-function handleContactExcelImport(input){
-  if(!ME||ME.role!=='admin'){ toast('Solo un administrador puede importar Excel','⚠️'); return; }
-  const file=input.files[0];
-  if(!file) return;
-  toast('Cargando Excel...','⏳');
-  function doImport(XLSX){
-    const reader=new FileReader();
-    reader.onload=e=>{
-      try{
-        const wb=XLSX.read(e.target.result,{type:'array'});
-        const ws=wb.Sheets[wb.SheetNames[0]];
-        const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-        if(raw.length<2){toast('El Excel está vacío','⚠️');return;}
-        const headers=raw[0].map(h=>String(h||'').trim().toLowerCase()
-          .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-          .replace(/[^a-z0-9]/g,'_'));
-        const rows=raw.slice(1).map(r=>r.map(c=>String(c==null?'':c).trim()));
-        processContactImportRows(headers, rows);
-      }catch(err){
-        console.error(err);
-        toast('Error procesando el Excel: '+err.message,'⚠️');
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    input.value='';
-  }
-  if(window.XLSX) doImport(XLSX);
-  else{
-    const s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    s.onload=()=>doImport(XLSX);
-    document.head.appendChild(s);
-  }
 }
 
 // ══════════════════════════════════════════════════════
