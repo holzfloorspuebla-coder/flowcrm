@@ -968,15 +968,7 @@ select.inp{cursor:pointer;}
       <div class="r3">
         <div class="fg" style="grid-column:span 2"><label class="lbl">Nombre *</label><input class="inp" id="muc-c-name" placeholder="Nombre completo"></div>
         <div class="fg"><label class="lbl">Tipo</label>
-          <select class="inp" id="muc-c-type">
-            <option value="Arquitecto">Arquitecto</option>
-            <option value="Constructora">Constructora</option>
-            <option value="Interiorista">Interiorista</option>
-            <option value="Desarrollador">Desarrollador</option>
-            <option value="Contratista">Contratista</option>
-            <option value="Particular">Particular</option>
-            <option value="Distribuidor">Distribuidor</option>
-          </select>
+          <select class="inp" id="muc-c-type"></select>
         </div>
       </div>
       <div class="r3">
@@ -1640,7 +1632,7 @@ const DEFAULT_DATA={
     {id:204,name:'Casa Pedregal',contactIds:[101],value:32000,stage:'p-ganado',agent:1,city:'CDMX',tags:['residencial'],notes:'Coordinar entrega',date:'2026-03-08',segment:'home',closeDate:'2026-03-15'},
   ],
   tags:['VIP','recurrente','corporativo','caliente','potencial','residencial','hotelero','urgente','comercial'],
-  contactTypes:['Arquitecto','Constructora','Interiorista','Desarrollador','Contratista','Particular','Distribuidor'],
+  contactTypes:['Dealer','Developer','End user','General contractor','Importer','Installer','Manufacturer','Project manager','Specifer'],
   lossReasons:['Precio','Competencia','Sin presupuesto','Proyecto cancelado','Falta de respuesta','Timing','Otro'],
   stageAlarms:{
     'c-msg1': {days:7, color:'#ff5c5c'},
@@ -2541,6 +2533,46 @@ function migrateContactStages(data){
   (data.contacts||[]).forEach(c=>{if(map[c.stage])c.stage=map[c.stage];});
   (data.studios||[]).forEach(s=>{if(map[s.stage])s.stage=map[s.stage];if(map[s.pipelineStage])s.pipelineStage=map[s.pipelineStage];});
 }
+
+// Categorías de tipo de contacto (ago 2026) — reemplazan a las anteriores
+// (Arquitecto/Constructora/Interiorista/Desarrollador/Contratista/Particular/
+// Distribuidor). Se muestran siempre ordenadas alfabéticamente en los selects.
+const CONTACT_TYPES_CANONICAL=['Dealer','Developer','End user','General contractor','Importer','Installer','Manufacturer','Project manager','Specifer'];
+// Mapa de nombres viejos -> nuevos, para poder migrar contactos y el listado
+// de categorías guardado sin perder nada.
+const CONTACT_TYPE_MIGRATION_MAP={
+  'Arquitecto':'Specifer',
+  'Interiorista':'Specifer',
+  'Constructora':'General contractor',
+  'Contratista':'General contractor',
+  'Particular':'End user',
+  'Desarrollador':'Developer',
+  'Distribuidor':'Dealer',
+};
+function sortedContactTypes(list){
+  return [...(list||CONTACT_TYPES_CANONICAL)].sort((a,b)=>a.localeCompare(b,'es'));
+}
+// Migra c.type de cada contacto con un nombre viejo a su equivalente nuevo,
+// y reconstruye data.contactTypes con las 9 categorías nuevas + cualquier
+// categoría personalizada que el usuario haya agregado (que no sea una de
+// las viejas ya migradas). Devuelve true si algo cambió.
+function migrateContactTypes(data){
+  let changed=false;
+  (data.contacts||[]).forEach(c=>{
+    const mapped=CONTACT_TYPE_MIGRATION_MAP[c.type];
+    if(mapped){ c.type=mapped; changed=true; }
+  });
+  const oldNames=Object.keys(CONTACT_TYPE_MIGRATION_MAP);
+  const custom=(data.contactTypes||[]).filter(t=>!oldNames.includes(t)&&!CONTACT_TYPES_CANONICAL.includes(t));
+  const merged=[...CONTACT_TYPES_CANONICAL,...custom];
+  const currentSorted=JSON.stringify([...(data.contactTypes||[])].sort());
+  const mergedSorted=JSON.stringify([...merged].sort());
+  if(currentSorted!==mergedSorted){
+    data.contactTypes=merged;
+    changed=true;
+  }
+  return changed;
+}
 function bootApp(){
   // ONE-TIME MIGRATION: merge contacts from Abril and Karina that may be missing
   (function runMigration(){
@@ -2556,6 +2588,12 @@ function bootApp(){
       console.log('Migration apr21: added',toAdd.length,'contacts');
     }
     localStorage.setItem('fcrm_migration_apr21','done');
+  })();
+  (function runMigrationContactTypes(){
+    if(localStorage.getItem('fcrm_migration_clienttypes_aug26')) return;
+    const changed=migrateContactTypes(D);
+    if(changed){ saveData(); console.log('Migration clienttypes_aug26: tipos de contacto actualizados'); }
+    localStorage.setItem('fcrm_migration_clienttypes_aug26','done');
   })();
   updateSidebarUser();
   showTareasNav();
@@ -2601,6 +2639,19 @@ function stageIdByName(name){
   if(!n) return null;
   const hit=C_STAGES.find(s=>norm(s.name)===n);
   return hit?hit.id:null;
+}
+
+// Empata el nombre de una categoria de contacto (columna "TIPO DE CLIENTE"
+// del importador de Base de datos) contra las categorias existentes en
+// D.contactTypes (las 9 canonicas + cualquiera que el usuario haya agregado
+// a mano en Ajustes), ignorando mayusculas/acentos. Devuelve el nombre tal
+// como esta guardado en D.contactTypes, o null si no hay match.
+function matchContactType(raw){
+  const n=norm(raw);
+  if(!n) return null;
+  const all=(D.contactTypes&&D.contactTypes.length)?D.contactTypes:CONTACT_TYPES_CANONICAL;
+  const hit=all.find(t=>norm(t)===n);
+  return hit||null;
 }
 
 function nextCode(type){
@@ -2825,6 +2876,9 @@ function openUnifiedCreate(defaultTab){
   if($('muc-p-segment')){
     $('muc-p-segment').innerHTML=`<option value="">— Sin segmento —</option>`+segs.map(s=>`<option value="${s.id}">${s.icon} ${s.label}</option>`).join('');
   }
+  if($('muc-c-type')){
+    $('muc-c-type').innerHTML=sortedContactTypes(D.contactTypes).map(t=>`<option value="${t}">${t}</option>`).join('');
+  }
   // Clear all fields
   ['muc-s-name','muc-s-city','muc-s-state','muc-s-email','muc-s-phone','muc-s-whatsapp','muc-s-web','muc-s-instagram','muc-s-linkedin','muc-s-pricelist','muc-s-notes'].forEach(id=>{if($(id))$(id).value='';});
   ['muc-c-name','muc-c-email','muc-c-phone','muc-c-whatsapp','muc-c-city','muc-c-state','muc-c-instagram','muc-c-linkedin','muc-c-pricelist'].forEach(id=>{if($(id))$(id).value='';});
@@ -3005,7 +3059,7 @@ function saveUnifiedCreate(andClose){
     if(!name){toast('El nombre del contacto es requerido','⚠️');return;}
     const studioId=parseInt($('muc-c-studio-id')?.value)||null;
     const newC={id:nid(),code:nextCode('A'),
-      name,mailingName:'',type:$('muc-c-type')?.value||'Arquitecto',
+      name,mailingName:'',type:$('muc-c-type')?.value||'',
       email:$('muc-c-email')?.value.trim()||'',email2:'',
       phone:$('muc-c-phone')?.value.trim()||'',whatsapp:$('muc-c-whatsapp')?.value.trim()||'',
       city:$('muc-c-city')?.value.trim()||'',state:$('muc-c-state')?.value.trim()||'',
@@ -4689,7 +4743,7 @@ function renderContactMergeFields(){
   html+=`<div style="background:rgba(230,51,41,.06);padding:9px 12px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-top:2px solid var(--accent);font-weight:700;color:var(--accent);font-size:11px">RESULTADO</div>`;
 
   // ── Campos de clasificación (tipo, etapa, vendedor, estudio, segmento) — con selects para no perder integridad ──
-  const contactTypes=D.contactTypes||['Arquitecto','Constructora'];
+  const contactTypes=sortedContactTypes(D.contactTypes);
   const bestType=contacts.map(c=>c.type).find(Boolean)||contactTypes[0];
   html+=`<div style="padding:7px 12px;font-size:11px;font-weight:600;color:var(--text3);background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center">Tipo</div>`;
   contacts.forEach((c,ci)=>{
@@ -6078,9 +6132,9 @@ function showNextDup(){
 
   const fields=type==='studio'
     ?['name','email','email2','phone','whatsapp','city','state','web','instagram','linkedin','priceList']
-    :['name','mailingName','stage','email','email2','phone','whatsapp','city','state','instagram','linkedin'];
+    :['name','mailingName','type','stage','email','email2','phone','whatsapp','city','state','instagram','linkedin'];
 
-  const fLabels={name:'Nombre',mailingName:'Nombre corto',stage:'Fase pipeline',email:'Email',email2:'Email 2',
+  const fLabels={name:'Nombre',mailingName:'Nombre corto',type:'Tipo de cliente',stage:'Fase pipeline',email:'Email',email2:'Email 2',
     phone:'Teléfono',whatsapp:'WhatsApp',city:'Ciudad',state:'Estado',
     web:'Web',instagram:'Instagram',linkedin:'LinkedIn',priceList:'Price List'};
 
@@ -6570,8 +6624,8 @@ document.addEventListener('click',e=>{
 function openContactModal(stageId,editId){
   S.editCId=editId||null;S.cTags=[];
   $('mc-title').textContent=editId?'✏️ Editar Contacto':'👤 Nuevo Contacto';
-  D.contactTypes=D.contactTypes||['Arquitecto','Constructora'];
-  $('c-type').innerHTML=D.contactTypes.map(t=>`<option>${t}</option>`).join('');
+  D.contactTypes=D.contactTypes||CONTACT_TYPES_CANONICAL;
+  $('c-type').innerHTML=sortedContactTypes(D.contactTypes).map(t=>`<option>${t}</option>`).join('');
   const agentOpts=ME.role==='admin'?USERS:USERS.filter(u=>u.id===ME.id);
   $('c-agent').innerHTML=agentOpts.map(a=>`<option value="${a.id}" ${a.id===ME.id?'selected':''}>${a.name}</option>`).join('');
   // Populate segment dropdown
@@ -7338,7 +7392,7 @@ function processUnifiedCsv(text,input){
       if(!D.contacts)D.contacts=[];
 
       let studiosCreated=0,studiosUpdated=0;
-      let archsCreated=0,archsUpdated=0,skipped=0,phaseUnmatched=0;
+      let archsCreated=0,archsUpdated=0,skipped=0,phaseUnmatched=0,typeUnmatched=0;
       const studioDups=[], archDups=[];
 
       // First pass: process all Estudio rows so architects can reference them
@@ -7455,10 +7509,18 @@ function processUnifiedCsv(text,input){
         const stageId=faseRaw?stageIdByName(faseRaw):null;
         if(faseRaw && !stageId) phaseUnmatched++;
 
+        // Tipo de cliente: columna opcional "TIPO DE CLIENTE" (no confundir
+        // con la columna "TIPO" de Estudio/Arquitecto). Si viene vacia o no
+        // coincide con ninguna categoria conocida, el contacto se guarda sin
+        // categoria asignada (se puede editar despues desde su ficha).
+        const tipoClienteRaw=get('tipo_de_cliente','tipo_cliente','categoria_cliente','client_type');
+        const clientType=tipoClienteRaw?matchContactType(tipoClienteRaw):null;
+        if(tipoClienteRaw && !clientType) typeUnmatched++;
+
         const obj={
           name,
           mailingName: get('nombre_whats','nombre_corto','mailing'),
-          type:        'Arquitecto',
+          type:        clientType,
           phone:       get('telefono_1','tel_1','telefono','tel','phone'),
           whatsapp:    get('telefono_2','tel_2','whatsapp'),
           email:       get('email_1','mail_1','email','mail','e_mail'),
@@ -7495,13 +7557,14 @@ function processUnifiedCsv(text,input){
             });
         if(existing){
           // Check if there are meaningful differences worth showing in modal
-          const diffFields=['name','email','email2','phone','whatsapp','city','state','instagram','linkedin','web','mailingName','priceList','stage'];
+          const diffFields=['name','email','email2','phone','whatsapp','city','state','instagram','linkedin','web','mailingName','priceList','stage','type'];
           const hasDiff=diffFields.some(f=>obj[f]&&obj[f]!==existing[f]);
           if(hasDiff){
             archDups.push({existing,incoming:obj,type:'contact'});
           } else {
-            // No meaningful difference — silent update (preserves stage, notes, etc.)
+            // No meaningful difference — silent update (preserves stage, type, notes, etc.)
             Object.assign(existing,{...obj,stage:existing.stage,stageDate:existing.stageDate,
+              type:existing.type,
               notes:existing.notes,notesList:existing.notesList,tags:existing.tags,
               id:existing.id,code:existing.code,date:existing.date});
             archsUpdated++;
@@ -7530,6 +7593,7 @@ function processUnifiedCsv(text,input){
         if(archDups.length) parts.push(`${archDups.length} arquitecto${archDups.length!==1?'s':''} con cambios`);
         if(skipped) parts.push(`${skipped} omitido${skipped!==1?'s':''}`);
         if(phaseUnmatched) parts.push(`${phaseUnmatched} con fase no reconocida (revisa el CSV)`);
+        if(typeUnmatched) parts.push(`${typeUnmatched} con tipo de cliente no reconocido (revisa el CSV)`);
         toast('✓ Importación completa: '+parts.join(', '));
       };
       if(allDups.length) startDupResolution(allDups,applyAndFinish);
