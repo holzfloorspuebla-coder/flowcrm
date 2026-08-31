@@ -2524,8 +2524,13 @@ function syncFormToCurrentQ(){
   // guardar como al duplicar, para que nunca se pierdan cambios sin guardar.
   if(!CURRENT_Q) return;
   const q=CURRENT_Q;
-  q.num=val('q-num'); q.date=val('q-date'); q.project=val('q-project');
   q.projectNum=val('q-proj-num'); q.cotNum=val('q-cot-num'); q.numYear=val('q-year');
+  // q-num no existe como campo del formulario (los datos viven en los 3
+  // campos de arriba) -- se compone aqui en vez de leerlo con val('q-num'),
+  // que siempre devolvia '' y borraba el numero de la cotizacion en cada
+  // guardado/duplicado (asi quedo en blanco el num de una cotizacion real).
+  q.num=[q.projectNum,q.cotNum,q.numYear].filter(Boolean).join('/');
+  q.date=val('q-date'); q.project=val('q-project');
   const _newStatus=document.getElementById('q-proj-status')?.value||'active';
   if(_newStatus!==q.projectStatus){ q.projectStatus=_newStatus; setProjectStatus(_newStatus); }
   else { q.projectStatus=_newStatus; }
@@ -3699,7 +3704,7 @@ function updateQuoteNum(){
   if(CURRENT_Q) CURRENT_Q.num=num;
   updateTopbar();
 }
-function updateTopbar(){setText('topbar-num',val('q-num'));setText('topbar-client',val('q-client'));}
+function updateTopbar(){setText('topbar-num',(CURRENT_Q&&CURRENT_Q.num)||'');setText('topbar-client',val('q-client'));}
 function mbadge(pct){
   const p=(pct*100).toFixed(1)+'%';
   if(pct>=0.35)return`<span class="margin-badge m-good">▲ ${p}</span>`;
@@ -4885,7 +4890,7 @@ async function generateQuotePPTXFromCurrent(){
     const mailingName=(CURRENT_Q.clientMailingName||'').trim();
     const quote={
       date: formatDateForPPTX(val('q-date')||today()),
-      num: val('q-num'),
+      num: [projNum,cotNum,val('q-year')||CURRENT_Q.numYear||''].filter(Boolean).join('/'),
       projectNum: projNum,
       cotNum: cotNum,
       project: project,

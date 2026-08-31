@@ -1632,7 +1632,7 @@ const DEFAULT_DATA={
     {id:204,name:'Casa Pedregal',contactIds:[101],value:32000,stage:'p-ganado',agent:1,city:'CDMX',tags:['residencial'],notes:'Coordinar entrega',date:'2026-03-08',segment:'home',closeDate:'2026-03-15'},
   ],
   tags:['VIP','recurrente','corporativo','caliente','potencial','residencial','hotelero','urgente','comercial'],
-  contactTypes:['Dealer','Developer','End user','General contractor','Importer','Installer','Manufacturer','Project manager','Specifer'],
+  contactTypes:['Dealer','Developer','End user','General contractor','Importer','Installer','Manufacturer','Project manager','Specifier'],
   lossReasons:['Precio','Competencia','Sin presupuesto','Proyecto cancelado','Falta de respuesta','Timing','Otro'],
   stageAlarms:{
     'c-msg1': {days:7, color:'#ff5c5c'},
@@ -2537,12 +2537,12 @@ function migrateContactStages(data){
 // Categorías de tipo de contacto (ago 2026) — reemplazan a las anteriores
 // (Arquitecto/Constructora/Interiorista/Desarrollador/Contratista/Particular/
 // Distribuidor). Se muestran siempre ordenadas alfabéticamente en los selects.
-const CONTACT_TYPES_CANONICAL=['Dealer','Developer','End user','General contractor','Importer','Installer','Manufacturer','Project manager','Specifer'];
+const CONTACT_TYPES_CANONICAL=['Dealer','Developer','End user','General contractor','Importer','Installer','Manufacturer','Project manager','Specifier'];
 // Mapa de nombres viejos -> nuevos, para poder migrar contactos y el listado
 // de categorías guardado sin perder nada.
 const CONTACT_TYPE_MIGRATION_MAP={
-  'Arquitecto':'Specifer',
-  'Interiorista':'Specifer',
+  'Arquitecto':'Specifier',
+  'Interiorista':'Specifier',
   'Constructora':'General contractor',
   'Contratista':'General contractor',
   'Particular':'End user',
