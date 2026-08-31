@@ -2281,7 +2281,7 @@ function refreshCurrentView(silent=false){
   if(!ME) return;
   const v=S.curView;
   if(v==='contacts-view'){renderCKanban();renderCTable();}
-  else if(v==='studios-view')renderStudios();
+  else if(v==='studios-view')renderStudios($('studios-search-inp')?.value||'');
   else if(v==='projects-view'){renderPKanban();renderPTable();}
   else if(v==='kpi-view')renderKPIs();
   else if(v==='profile-view')openProfile(S.profileId);
@@ -3946,7 +3946,7 @@ async function loadTrackerSyncStatus(){
     const rows = await res.json();
     _trackerSynced.clear();
     rows.forEach(r => _trackerSynced.add(String(r.external_id)));
-    if(S.curView==='studios-view') renderStudios($('studio-search')?.value||'');
+    if(S.curView==='studios-view') renderStudios($('studios-search-inp')?.value||'');
   }catch(e){ console.warn('No se pudo consultar estado del tracker:', e.message); }
 }
 
@@ -4084,7 +4084,7 @@ async function confirmSendTracker(){
 
   if(ok>0){
     saveData();
-    renderStudios($('studio-search')?.value||'');
+    renderStudios($('studios-search-inp')?.value||'');
     toast(`✅ ${ok} estudio${ok!==1?'s':''} enviado${ok!==1?'s':''} al tracker`,'✅');
   }
   if(err>0) toast(`❌ ${err} error${err!==1?'es':''}: ${errs.join(' | ')}`, '❌');
@@ -5200,7 +5200,7 @@ async function confirmStudioMerge(){
   _mergeStudiosS=[];
   selectedStudios.clear();
   toggleStudiosSelectMode(false);
-  renderStudios($('studio-search')?.value||'');
+  renderStudios($('studios-search-inp')?.value||'');
   renderCKanban();renderCTable();
   if(S.curView==='database-view'){
     renderDatabaseView(false);
@@ -7899,7 +7899,7 @@ function renderStudios(filter=''){
 function renderStudiosFiltered(agentId){
   if(!D.studios)return;
   const list=$('studios-list');
-  $('studio-search').value='';
+  $('studios-search-inp').value='';
   const filtered=D.studios.filter(s=>s.agent===agentId);
   const tmp=D.studios;
   // Temporarily swap and re-render
@@ -9013,7 +9013,7 @@ function toggleStudiosSelectMode(force){
   if(on){bar.classList.add('show');btn.textContent='✕ Cancelar';}
   else{bar.classList.remove('show');btn.textContent='☑️ Seleccionar';}
   $('studios-select-all').checked=false;
-  renderStudios($('studio-search')?.value||'');
+  renderStudios($('studios-search-inp')?.value||'');
 }
 
 function toggleStudioSel(id){
@@ -9031,7 +9031,7 @@ function toggleSelectAllStudios(checked){
   const visible=(D.studios||[]).filter(s=>canSeeStudioDetails(s.id));
   visible.forEach(s=>{ if(checked)selectedStudios.add(s.id); else selectedStudios.delete(s.id); });
   updateStudioSelCount();
-  renderStudios($('studio-search')?.value||'');
+  renderStudios($('studios-search-inp')?.value||'');
 }
 
 function updateStudioSelCount(){
