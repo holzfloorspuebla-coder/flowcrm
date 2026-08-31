@@ -415,10 +415,6 @@ select.inp{cursor:pointer;}
       <span id="sync-dot-icon">●</span> <span id="sync-time-lbl">—</span>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <div style="position:relative" id="search-wrap">
-        <div class="srch"><span>🔍</span><input type="text" id="global-search" placeholder="Nombre, estudio, teléfono, email..." oninput="globalSearch(this.value)" onkeydown="searchKeyNav(event)" autocomplete="off" style="width:240px"></div>
-        <div id="search-results" style="display:none;position:absolute;top:calc(100% + 6px);right:0;width:420px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:200;max-height:480px;overflow-y:auto"></div>
-      </div>
       <button class="btn btn-ghost btn-sm hidden" id="btn-sec">＋</button>
       <button class="btn btn-primary btn-sm" id="btn-main" onclick="mainAction()">＋ Nuevo contacto</button>
     </div>
@@ -441,6 +437,7 @@ select.inp{cursor:pointer;}
               <div class="srch"><span>🔍</span><input type="text" id="kanban-search" placeholder="Buscar en pipeline..." oninput="renderCKanban()" style="width:200px" autocomplete="off"></div>
             </div>
           </div>
+          <div id="c-kanban-fallback" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden"></div>
           <div class="kanban" id="c-kanban"></div>
         </div>
         <div class="tab-panel" id="ctab-table">
@@ -466,6 +463,7 @@ select.inp{cursor:pointer;}
             <input class="inp" id="c-table-filter" placeholder="🔍 Filtrar tabla (nombre, estudio, email, ciudad...)" oninput="renderCTable()" style="flex:1;min-width:180px;max-width:400px;font-size:13px;padding:6px 10px">
             <button class="btn btn-ghost btn-sm" onclick="clearTableFilter()" id="c-filter-clear" style="display:none">✕ Limpiar</button>
           </div>
+          <div id="c-table-fallback" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 0 10px"></div>
           <div class="table-wrap">
             <table><thead><tr>
               <th id="c-th-check" style="display:none"><input type="checkbox" class="sel-cb" id="contacts-select-all2" onchange="toggleSelectAllContacts(this.checked)"></th>
@@ -502,6 +500,7 @@ select.inp{cursor:pointer;}
       <div style="display:flex;flex-direction:column;height:100%;overflow:hidden">
         <div class="toolbar" style="gap:8px;flex-wrap:wrap">
           <div id="studio-agent-filter" style="display:flex;gap:5px"></div>
+          <div class="srch"><span>🔍</span><input type="text" id="studios-search-inp" placeholder="Buscar estudios..." oninput="renderStudios(this.value)" style="width:200px" autocomplete="off"></div>
           <div style="margin-left:auto;display:flex;gap:7px">
             <button class="btn btn-ghost btn-sm" id="studios-select-btn" onclick="toggleStudiosSelectMode()">☑️ Seleccionar</button>
             <button class="btn btn-ghost btn-sm" onclick="$('csv-unified-input').click()">📥 Importar CSV</button>
@@ -509,6 +508,7 @@ select.inp{cursor:pointer;}
             <button class="btn btn-primary btn-sm" onclick="openStudioModal()">🏛️ ＋ Nuevo estudio</button>
           </div>
         </div>
+        <div id="studios-fallback" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 22px 10px;overflow:hidden"></div>
         <!-- Bulk action bar (studios) -->
         <div class="bulk-bar" id="studios-bulk-bar">
           <input type="checkbox" class="sel-cb" id="studios-select-all" onchange="toggleSelectAllStudios(this.checked)" title="Seleccionar todos">
@@ -544,16 +544,19 @@ select.inp{cursor:pointer;}
               <input type="text" id="p-pipeline-search" placeholder="Buscar proyecto..." oninput="renderPKanban()" autocomplete="off" style="width:200px">
             </div>
           </div>
+          <div id="p-kanban-fallback" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden"></div>
           <div class="kanban" id="p-kanban"></div>
         </div>
         <div class="tab-panel" id="ptab-table">
           <div class="toolbar">
             <span style="font-size:13px;color:var(--text2)" id="p-table-count"></span>
-            <div style="margin-left:auto;display:flex;gap:8px">
+            <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
               <div class="chip active" onclick="filterP(this,'all')">Todos</div>
               <div id="p-agent-chips2"></div>
+              <div class="srch"><span>🔍</span><input type="text" id="p-table-filter" placeholder="Buscar en tabla..." oninput="renderPTable()" style="width:200px" autocomplete="off"></div>
             </div>
           </div>
+          <div id="p-table-fallback" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 22px 10px"></div>
           <div class="table-wrap">
             <table><thead><tr>
               <th>Proyecto</th><th>Contactos</th><th>Valor</th><th>Etapa</th>
@@ -613,6 +616,7 @@ select.inp{cursor:pointer;}
       <div class="toolbar" style="padding:14px 22px 0">
         <div id="prov-cat-chips-crm" style="display:flex;gap:6px;flex-wrap:wrap"></div>
         <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <div class="srch"><span>🔍</span><input type="text" id="prov-search-crm" placeholder="Buscar proveedores..." oninput="renderProviders()" style="width:200px" autocomplete="off"></div>
           <span style="font-size:13px;color:var(--text2)" id="prov-count-crm"></span>
           <button class="btn btn-ghost btn-sm" onclick="openProvCatManager()">⚙️ Categorías</button>
         </div>
@@ -1333,12 +1337,29 @@ select.inp{cursor:pointer;}
         <div class="fg"><label class="lbl">Nombre completo *</label><input class="inp" id="ar-name" placeholder="Arq. Juan García"></div>
         <div class="fg"><label class="lbl">Estudio</label><input class="inp" id="ar-studio-name" disabled style="opacity:.55;cursor:not-allowed"></div>
       </div>
-      <div class="r2">
+      <div class="r3">
+        <div class="fg"><label class="lbl">Nombre para mailing</label><input class="inp" id="ar-mailing" placeholder="Juan"></div>
+        <div class="fg"><label class="lbl">Tipo</label><select class="inp" id="ar-type"></select></div>
         <div class="fg"><label class="lbl">Email personal *</label><input class="inp" id="ar-email" type="email" placeholder="juan@estudio.mx"></div>
-        <div class="fg"><label class="lbl">Celular</label><input class="inp" id="ar-phone" placeholder="+52 55 9876 5432"></div>
       </div>
-      <div class="r2">
+      <div class="r3">
+        <div class="fg"><label class="lbl">Celular</label><input class="inp" id="ar-phone" placeholder="+52 55 9876 5432"></div>
+        <div class="fg"><label class="lbl">WhatsApp</label><input class="inp" id="ar-whatsapp" placeholder="+52 55 9876 5432"></div>
+        <div class="fg"><label class="lbl">Email 2</label><input class="inp" id="ar-email2" type="email" placeholder="juan2@correo.mx"></div>
+      </div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">Instagram</label><input class="inp" id="ar-instagram" placeholder="@juan_arq"></div>
+        <div class="fg"><label class="lbl">LinkedIn</label><input class="inp" id="ar-linkedin" placeholder="linkedin.com/in/juan"></div>
         <div class="fg"><label class="lbl">Ciudad</label><input class="inp" id="ar-city" placeholder="Ciudad de México"></div>
+      </div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">Estado</label><input class="inp" id="ar-state" placeholder="CDMX"></div>
+        <div class="fg"><label class="lbl">Origen</label><input class="inp" id="ar-origin" placeholder="Referido / Expo / Web..."></div>
+        <div class="fg"><label class="lbl">Price List</label><input class="inp" id="ar-pricelist" placeholder="Entry, Arq1..."></div>
+      </div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">Segmento</label><select class="inp" id="ar-segment"></select></div>
+        <div class="fg"><label class="lbl">Vendedor asignado</label><select class="inp" id="ar-agent"></select></div>
         <div class="fg"><label class="lbl">Etapa pipeline</label>
           <select class="inp" id="ar-stage">
             <option value="c-lead">Lead captado</option>
@@ -4088,6 +4109,8 @@ function renderProviders(){
   renderProvCatChipsCRM();
   let items=[...D.providers];
   if(_provCatFilter) items=items.filter(p=>p.cat===_provCatFilter);
+  const provQ=norm($('prov-search-crm')?.value||'');
+  if(provQ) items=items.filter(p=>[p.name,p.rfc,p.email,p.phone,p.instagram,p.notes].some(f=>norm(f).includes(provQ)));
   items.sort((a,b)=>(a.name||'').localeCompare(b.name||'','es'));
   const el=document.getElementById('prov-tbody-crm');
   const cel=document.getElementById('prov-count-crm');
@@ -5294,6 +5317,14 @@ function swTab(mod,name,el){
 // ══════════════════════════════════════════════════════
 function renderCKanban(){
   const kq=norm(document.getElementById('kanban-search')?.value||'');
+  if(kq){
+    const anyMatch=visibleContacts().some(c=>{
+      const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
+      return norm(c.name).includes(kq)||norm(studio?.name||'').includes(kq)||norm(c.email||'').includes(kq)||norm(c.phone||'').includes(kq);
+    });
+    if(!anyMatch) scheduleFallback('contacts', document.getElementById('kanban-search').value, 'c-kanban-fallback');
+    else scheduleFallback('contacts', '', 'c-kanban-fallback');
+  } else scheduleFallback('contacts', '', 'c-kanban-fallback');
   const activeStages=C_STAGES.filter(st=>!st.final);
   const finalStages=C_STAGES.filter(st=>st.final);
   if(!C_STAGES.find(s=>s.id===S.cSelectedStage)) S.cSelectedStage=activeStages[0].id;
@@ -5408,8 +5439,11 @@ function renderCTable(){
               c.whatsapp,studio?.name,c.city,c.state,c.code].some(f=>norm(f).includes(filterVal));
     });
     if($('c-filter-clear')) $('c-filter-clear').style.display='';
+    if(!items.length) scheduleFallback('contacts', filterInp.value, 'c-table-fallback');
+    else scheduleFallback('contacts', '', 'c-table-fallback');
   } else {
     if($('c-filter-clear')) $('c-filter-clear').style.display='none';
+    scheduleFallback('contacts', '', 'c-table-fallback');
   }
 
   // Apply sort
@@ -5580,6 +5614,19 @@ function isClosedProjectHidden(p){
 
 function renderPKanban(){
   syncPostventa();
+  const _psqGlobal=norm(document.getElementById('p-pipeline-search')?.value||'');
+  if(_psqGlobal){
+    const anyMatch=visibleProjects().some(p=>{
+      if(p.inPipeline===false) return false;
+      const contacts=visibleContacts().filter(c=>p.contactIds?.includes(c.id));
+      const contactNames=contacts.map(c=>c.name+' '+(c.studio||'')).join(' ');
+      const ag=USERS.find(a=>a.id===p.agent);
+      const haystack=[p.name,p.city,p.value,p.date,ag?.name,contactNames,(p.tags||[]).join(' '),p.notes||''].join(' ');
+      return norm(haystack).includes(_psqGlobal);
+    });
+    if(!anyMatch) scheduleFallback('projects', document.getElementById('p-pipeline-search').value, 'p-kanban-fallback');
+    else scheduleFallback('projects', '', 'p-kanban-fallback');
+  } else scheduleFallback('projects', '', 'p-kanban-fallback');
   $('p-kanban').innerHTML=P_STAGES.map(st=>{
     const isPostventa = st.id===POSTVENTA_ID;
     const _psq=norm(document.getElementById('p-pipeline-search')?.value||'');
@@ -5638,6 +5685,19 @@ function pCardH(p,col){
 function renderPTable(){
   let items=visibleProjects();
   if(S.pFilter!=='all')items=items.filter(p=>p.agent===S.pFilter);
+  const ptfInp=$('p-table-filter');
+  const ptfVal=ptfInp?norm(ptfInp.value):'';
+  if(ptfVal){
+    items=items.filter(p=>{
+      const contacts=visibleContacts().filter(c=>p.contactIds?.includes(c.id));
+      const contactNames=contacts.map(c=>c.name).join(' ');
+      return [p.name,p.city,contactNames].some(f=>norm(f).includes(ptfVal));
+    });
+    if(!items.length) scheduleFallback('projects', ptfInp.value, 'p-table-fallback');
+    else scheduleFallback('projects', '', 'p-table-fallback');
+  } else {
+    scheduleFallback('projects', '', 'p-table-fallback');
+  }
   $('p-table-count').textContent=`${items.length} proyecto${items.length!==1?'s':''}`;
   $('p-tbody').innerHTML=items.map(p=>{
     const contacts=visibleContacts().filter(c=>p.contactIds?.includes(c.id));
@@ -7785,6 +7845,12 @@ function renderStudios(filter=''){
     norm(s.web||'').includes(q)
   );
   if(agentFilter!=='all') filtered=filtered.filter(s=>s.agent===agentFilter);
+  if(q){
+    if(!filtered.length) scheduleFallback('studios', filter, 'studios-fallback');
+    else scheduleFallback('studios', '', 'studios-fallback');
+  } else {
+    scheduleFallback('studios', '', 'studios-fallback');
+  }
   if(ME.role==='admin'){
     $('studio-agent-filter').innerHTML=
       `<div class="chip${agentFilter==='all'?' active':''}" style="font-size:11px;padding:3px 9px" onclick="S.studioAgentFilter='all';renderStudios()">Todos</div>`+
@@ -8090,14 +8156,33 @@ function openArchitectModal(studioId,editId){
   $('ma2-title').textContent=editId?'✏️ Editar Arquitecto':'👤 Nuevo Arquitecto';
   const s=(D.studios||[]).find(x=>x.id===studioId);
   $('ar-studio-name').value=s?s.name:'—';
+  // Mismos catálogos dinámicos (tipo/segmento/vendedor) que el modal completo
+  // de Nuevo/Editar Contacto -- antes este formulario los omitía por
+  // completo, así que un arquitecto agregado desde la ficha del estudio
+  // siempre quedaba sin tipo, segmento, WhatsApp, etc.
+  D.contactTypes=D.contactTypes||CONTACT_TYPES_CANONICAL;
+  $('ar-type').innerHTML=sortedContactTypes(D.contactTypes).map(t=>`<option>${t}</option>`).join('');
+  const agentOpts=ME.role==='admin'?USERS:USERS.filter(u=>u.id===ME.id);
+  $('ar-agent').innerHTML=agentOpts.map(a=>`<option value="${a.id}" ${a.id===(s?s.agent:ME.id)?'selected':''}>${a.name}</option>`).join('');
+  const segs=D.segments||DEFAULT_SEGMENTS;
+  $('ar-segment').innerHTML=`<option value="">— Sin segmento —</option>`+segs.map(sg=>`<option value="${sg.id}">${sg.icon} ${sg.label}</option>`).join('');
   if(editId){
     const c=D.contacts.find(x=>x.id===editId);
-    $('ar-name').value=c.name;$('ar-email').value=c.email||'';
-    $('ar-phone').value=c.phone||'';$('ar-city').value=c.city||'';
-    $('ar-stage').value=c.stage||'c-inicial';$('ar-notes').value=c.notes||'';
+    $('ar-name').value=c.name;$('ar-mailing').value=c.mailingName||'';
+    if(c.type) $('ar-type').value=c.type;
+    $('ar-email').value=c.email||'';$('ar-email2').value=c.email2||'';
+    $('ar-phone').value=c.phone||'';$('ar-whatsapp').value=c.whatsapp||'';
+    $('ar-instagram').value=c.instagram||'';$('ar-linkedin').value=c.linkedin||'';
+    $('ar-city').value=c.city||'';$('ar-state').value=c.state||'';
+    $('ar-origin').value=c.origin||'';$('ar-pricelist').value=c.priceList||'';
+    $('ar-segment').value=c.segment||'';
+    if(c.agent) $('ar-agent').value=c.agent;
+    $('ar-stage').value=c.stage||'c-lead';$('ar-notes').value=c.notes||'';
     S.cTags=[...(c.tags||[])];
   }else{
-    ['ar-name','ar-email','ar-phone','ar-city','ar-notes'].forEach(i=>$(i).value='');
+    ['ar-name','ar-mailing','ar-email','ar-email2','ar-phone','ar-whatsapp',
+     'ar-instagram','ar-linkedin','ar-city','ar-state','ar-origin','ar-pricelist','ar-notes'].forEach(i=>$(i).value='');
+    $('ar-segment').value='';
     $('ar-stage').value='c-lead';
   }
   renderTagWrap('ar-tagwrap','ar-taginp',S.cTags);
@@ -8108,257 +8193,139 @@ function saveArchitect(){
   if(!name){toast('El nombre es requerido','⚠️');return;}
   const s=(D.studios||[]).find(x=>x.id===S.archStudioId);
   if(!s){toast('Estudio no encontrado','⚠️');return;}
-  const obj={name,type:'Arquitecto',studioId:S.archStudioId,company:'',
-    email:$('ar-email').value.trim(),phone:$('ar-phone').value.trim(),
-    city:$('ar-city').value.trim(),stage:$('ar-stage').value,
-    agent:s.agent,tags:[...S.cTags],notes:$('ar-notes').value.trim()};
+  const agentId=parseInt($('ar-agent').value)||s.agent;
+  if(!canEdit(agentId)&&!S.editArchId){toast('No puedes asignar a otro agente','⚠️');return;}
+  const obj={name,type:$('ar-type').value||'',studioId:S.archStudioId,company:'',
+    mailingName:$('ar-mailing').value.trim(),
+    email:$('ar-email').value.trim(),email2:$('ar-email2').value.trim(),
+    phone:$('ar-phone').value.trim(),whatsapp:$('ar-whatsapp').value.trim(),
+    instagram:$('ar-instagram').value.trim(),linkedin:$('ar-linkedin').value.trim(),
+    city:$('ar-city').value.trim(),state:$('ar-state').value.trim(),
+    origin:$('ar-origin').value.trim(),priceList:$('ar-pricelist').value.trim(),
+    segment:$('ar-segment').value,
+    stage:$('ar-stage').value,
+    agent:agentId,tags:[...S.cTags],notes:$('ar-notes').value.trim()};
   if(S.editArchId){Object.assign(D.contacts.find(x=>x.id===S.editArchId),obj);toast('Arquitecto actualizado ✓');}
   else{D.contacts.push({id:nid(),...obj,date:today(),notesList:[]});toast('Arquitecto añadido 🎉');}
   saveData();closeM('modal-architect');
   if(S.currentStudioId)openStudioProfile(S.currentStudioId);
 }
 // ══════════════════════════════════════════════════════
-//  GLOBAL SEARCH
+//  BÚSQUEDA POR PÁGINA CON FALLBACK A BASE DE DATOS
 // ══════════════════════════════════════════════════════
-let _searchIdx=0; // for keyboard navigation
+// Cada página (Contactos/Estudios/Proyectos) solo tiene en memoria un
+// subconjunto activo (registros con fase de pipeline asignada, o
+// vinculados a esos). Cuando la búsqueda local de una página no
+// encuentra nada, esto consulta Supabase directamente y muestra los
+// resultados en la misma página, con un botón para activarlos.
+// Proveedores NO usa este mecanismo: D.providers siempre está completo
+// en memoria (viene de crm_meta), así que ahí la búsqueda es solo local.
+const _FB_CFG={
+  contacts:{
+    table:'crm_contacts', filter:'data->>stage=is.null',
+    already:r=>(D.contacts||[]).some(x=>String(x.id)===String(r.id)),
+    fields:['name','mailingName','email','email2','phone','whatsapp','city','state'],
+    icon:'👤', title:r=>r.name||'—',
+    subtitle:r=>[r.city,r.email].filter(Boolean).join(' · '),
+    actionLabel:'Activar en pipeline',
+    activate: async r=>{
+      if(!ME||ME.role!=='admin'){ toast('Solo un administrador puede activar contactos en el pipeline','⚠️'); return; }
+      r.agent=_dbResolveAgent(r);
+      r.stage='c-lead'; r.stageDate=today(); r.inPipeline=true; r._updatedAt=Date.now();
+      D.contacts.push(r);
+      if(r.studioId && !(D.studios||[]).find(s=>String(s.id)===String(r.studioId))){
+        try{
+          const rows=await sbFetchAll('crm_studios','*',`id=eq.${r.studioId}`);
+          if(rows[0]) D.studios.push(rows[0].data);
+        }catch(e){}
+      }
+      saveData(); renderCKanban(); renderCTable();
+    },
+  },
+  studios:{
+    table:'crm_studios', filter:'',
+    already:r=>(D.studios||[]).some(x=>String(x.id)===String(r.id)),
+    fields:['name','email','email2','phone','whatsapp','city','state','instagram','web'],
+    icon:'🏛️', title:r=>r.name||'—',
+    subtitle:r=>[r.city,r.email].filter(Boolean).join(' · '),
+    actionLabel:'Agregar',
+    activate: async r=>{
+      r.inPipeline=true; r._updatedAt=Date.now();
+      D.studios.push(r);
+      saveData(); renderStudios(document.getElementById('studios-search-inp')?.value||'');
+    },
+  },
+  projects:{
+    table:'crm_projects', filter:'data->>stage=is.null',
+    already:r=>(D.projects||[]).some(x=>String(x.id)===String(r.id)),
+    fields:['name','city'],
+    icon:'📁', title:r=>r.name||'—',
+    subtitle:r=>[r.city].filter(Boolean).join(' · '),
+    actionLabel:'Activar en pipeline',
+    activate: async r=>{
+      if(!ME||ME.role!=='admin'){ toast('Solo un administrador puede activar proyectos en el pipeline','⚠️'); return; }
+      r.agent=_dbResolveAgent(r);
+      r.stage=r.stage||P_STAGES[0].id; r.inPipeline=true; r._updatedAt=Date.now();
+      D.projects.push(r);
+      saveData(); renderPKanban(); renderPTable();
+    },
+  },
+};
 
-function globalSearch(val){
-  const box=document.getElementById('search-results');
-  if(!box) return;
-  const q=val.trim().toLowerCase();
-  if(!q){ box.style.display='none'; _searchIdx=0; return; }
-  const _nq=norm(val.trim()); // accent-insensitive version
-
-  // Search contacts by name, studio, phone, email, whatsapp
-  const nq=norm(val.trim());
-  const cMatch=visibleContacts().filter(c=>{
-    const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
-    return [c.name, c.mailingName, c.email, c.email2,
-            c.phone, c.whatsapp, studio?.name,
-            c.city, c.state, c.origin].some(f=>norm(f).includes(nq));
-  }).slice(0,12);
-
-  // Search projects
-  const pMatch=visibleProjects().filter(p=>
-    [p.name,p.city].some(f=>f?.toLowerCase().includes(q))
-  ).slice(0,5);
-
-  // Search studios
-  const sMatch=(D.studios||[]).filter(s=>{
-    return [s.name,s.email,s.email2,s.phone,s.whatsapp,s.city,s.state,s.instagram,s.web].some(f=>norm(f).includes(nq));
-  }).slice(0,5);
-
-  if(!cMatch.length && !pMatch.length && !sMatch.length){
-    box.innerHTML=`<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Buscando en la base de datos completa...</div>`;
-    box.style.display='block';
-    searchInFullDB(val, box);
+let _fbSeq=0, _fbTimers={};
+function scheduleFallback(entityType, query, containerId){
+  clearTimeout(_fbTimers[containerId]);
+  if(!norm(query)){
+    const box=document.getElementById(containerId);
+    if(box){box.style.display='none';box.innerHTML='';}
     return;
   }
-
-  let html='';
-
-  if(sMatch.length){
-    html+=`<div style="padding:8px 12px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)">Estudios (${sMatch.length})</div>`;
-    html+=sMatch.map(s=>{
-      const ag=USERS.find(a=>a.id===s.agent);
-      const showPhone=(s.phone||s.whatsapp||'').toLowerCase().includes(q);
-      const showEmail=(s.email||'').toLowerCase().includes(q);
-      return`<div class="search-result-item" data-type="studio" data-id="${s.id}" tabindex="-1"
-        onclick="selectSearchResult('studio',${s.id})"
-        onmouseover="highlightSearch(this)">
-        <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;transition:background .12s">
-          <div style="width:30px;height:30px;border-radius:8px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🏛️</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.name}</div>
-            <div style="font-size:11px;color:var(--text2);margin-top:1px;display:flex;gap:8px;flex-wrap:wrap">
-              ${s.city?`<span>📍 ${s.city}${s.state?', '+s.state:''}</span>`:''}
-              ${showPhone?`<span>📞 ${s.phone||s.whatsapp}</span>`:''}
-              ${showEmail?`<span>✉️ ${s.email}</span>`:''}
-              ${ag?`<span style="color:var(--text3)">${ag.name.split(' ')[0]}</span>`:''}
-            </div>
-          </div>
-        </div>
-      </div>`;
-    }).join('');
-    if(cMatch.length||pMatch.length) html+=`<div style="border-top:1px solid var(--border);margin:4px 0"></div>`;
-  }
-
-  if(cMatch.length){
-    html+=`<div style="padding:8px 12px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)">Contactos (${cMatch.length})</div>`;
-    html+=cMatch.map((c,i)=>{
-      const studio=(D.studios||[]).find(s=>String(s.id)===String(c.studioId));
-      const ag=USERS.find(a=>a.id===c.agent);
-      const st=C_STAGES.find(s=>s.id===c.stage);
-      // Highlight matching field
-      const phone=c.phone||c.whatsapp||'';
-      const showPhone=phone&&phone.toLowerCase().includes(q);
-      const showEmail=(c.email||'').toLowerCase().includes(q)||(c.email2||'').toLowerCase().includes(q);
-      const matchEmail=showEmail?(c.email||c.email2):'';
-      return`<div class="search-result-item" data-type="contact" data-id="${c.id}" tabindex="-1"
-        onclick="selectSearchResult('contact',${c.id})"
-        onmouseover="highlightSearch(this)">
-        <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;transition:background .12s">
-          ${avEl(c.name[0],ag?.color||COLORS[0],30)}
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${c.name}</div>
-            <div style="font-size:11px;color:var(--text2);margin-top:1px;display:flex;gap:8px;flex-wrap:wrap">
-              ${studio?`<span>🏛️ ${studio.name}</span>`:''}
-              ${showPhone?`<span>📞 ${phone}</span>`:''}
-              ${showEmail?`<span>✉️ ${matchEmail}</span>`:''}
-              ${st?`<span style="color:${st.color}">${st.name}</span>`:''}
-            </div>
-          </div>
-          ${ag?`<div style="font-size:10px;color:var(--text3)">${ag.name.split(' ')[0]}</div>`:''}
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  if(pMatch.length){
-    if(cMatch.length) html+=`<div style="border-top:1px solid var(--border);margin:4px 0"></div>`;
-    html+=`<div style="padding:8px 12px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)">Proyectos (${pMatch.length})</div>`;
-    html+=pMatch.map(p=>{
-      const ag=USERS.find(a=>a.id===p.agent);
-      const st=P_STAGES.find(s=>s.id===p.stage);
-      return`<div class="search-result-item" data-type="project" data-id="${p.id}" tabindex="-1"
-        onclick="selectSearchResult('project',${p.id})"
-        onmouseover="highlightSearch(this)">
-        <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;transition:background .12s">
-          <div style="width:30px;height:30px;border-radius:8px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">📁</div>
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:600;font-size:13px">${p.name}</div>
-            <div style="font-size:11px;color:var(--text2);margin-top:1px;display:flex;gap:8px">
-              <span style="font-family:'Syne',sans-serif;font-weight:700;color:var(--green)">${fmtVal(p.value)}</span>
-              ${st?`<span style="color:${st.color}">${st.name}</span>`:''}
-              ${p.city?`<span>📍 ${p.city}</span>`:''}
-            </div>
-          </div>
-        </div>
-      </div>`;
-    }).join('');
-  }
-
-  box.innerHTML=html;
-  box.style.display='block';
-  _searchIdx=0;
+  _fbTimers[containerId]=setTimeout(()=>renderFallback(entityType,query,containerId), 400);
 }
 
-async function searchInFullDB(val, box){
-  const nq = norm(val.trim());
-  try {
-    // Search in all contacts (no stage filter)
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/crm_contacts?select=data&limit=20`,
-      { headers: { ...SB_HEADERS, 'Prefer': 'count=none' } }
-    );
-    // Use PostgREST full-text or client-side filter on fetched batch
-    // Since we can't do complex JSONB text search easily, fetch with or filter
-    const allRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/crm_contacts?select=data&data->>stage=is.null&limit=500`,
-      { headers: SB_HEADERS }
-    );
-    if(!allRes.ok) throw new Error('Error buscando en BD');
-    const rows = await allRes.json();
-    const matches = rows.map(r=>r.data).filter(c=>{
-      return [c.name,c.mailingName,c.email,c.email2,c.phone,c.whatsapp,c.city,c.studio]
-        .some(f=>norm(f).includes(nq));
-    }).slice(0,10);
-
+async function renderFallback(entityType, query, containerId){
+  const box=document.getElementById(containerId);
+  if(!box) return;
+  const cfg=_FB_CFG[entityType];
+  const nq=norm(query);
+  if(!nq){ box.style.display='none'; box.innerHTML=''; return; }
+  const mySeq=++_fbSeq;
+  box.style.display='block';
+  box.innerHTML=`<div style="padding:10px 14px;color:var(--text3);font-size:12px">Buscando "${esc(query)}" en toda la base de datos...</div>`;
+  try{
+    const rows=await sbFetchAll(cfg.table, '*', cfg.filter);
+    if(mySeq!==_fbSeq) return;
+    const all=rows.map(r=>r.data).filter(Boolean);
+    const matches=all.filter(r=>!cfg.already(r)&&cfg.fields.some(f=>norm(r[f]).includes(nq))).slice(0,10);
     if(!matches.length){
-      box.innerHTML=`<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Sin resultados para "<strong>${esc(val)}</strong>"</div>`;
+      box.innerHTML=`<div style="padding:10px 14px;color:var(--text3);font-size:12px">Sin resultados para "${esc(query)}" tampoco en la base de datos completa.</div>`;
       return;
     }
-
-    let html=`<div style="padding:8px 12px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--accent)">En base de datos (no en CRM)</div>`;
-    html+=matches.map(c=>`
-      <div style="display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid var(--border)">
-        <div style="width:30px;height:30px;border-radius:8px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;color:var(--text3)">👤</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-weight:600;font-size:13px">${esc(c.name||'—')}</div>
-          <div style="font-size:11px;color:var(--text2)">${[c.studio,c.city,c.email].filter(Boolean).join(' · ')||'—'}</div>
-        </div>
-        <button onclick="addToCRM('${String(c.id).replace(/'/g,'')}')" style="flex-shrink:0;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap">➕ Agregar al CRM</button>
-      </div>`).join('');
-    box.innerHTML=html;
-  } catch(e) {
-    box.innerHTML=`<div style="padding:16px;text-align:center;color:var(--text3);font-size:13px">Sin resultados para "<strong>${esc(val)}</strong>"</div>`;
+    box.innerHTML=`<div style="padding:6px 14px 2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--accent)">Encontrado${matches.length!==1?'s':''} en la base de datos (fuera del pipeline)</div>`+
+      matches.map((r,i)=>`
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 14px;border-top:1px solid var(--border)">
+          <div style="width:28px;height:28px;border-radius:8px;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">${cfg.icon}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px">${esc(cfg.title(r))}</div>
+            <div style="font-size:11px;color:var(--text2)">${esc(cfg.subtitle(r))||'—'}</div>
+          </div>
+          <button onclick="_fbActivate('${entityType}',${i},'${containerId}')" style="flex-shrink:0;background:var(--accent);color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;white-space:nowrap">➕ ${cfg.actionLabel}</button>
+        </div>`).join('');
+    box._fbMatches=matches;
+  }catch(e){
+    if(mySeq!==_fbSeq) return;
+    box.innerHTML=`<div style="padding:10px 14px;color:var(--text3);font-size:12px">No se pudo buscar en la base de datos completa.</div>`;
   }
 }
 
-async function addToCRM(contactId){
-  // Fetch the full contact from Supabase
-  try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/crm_contacts?id=eq.${encodeURIComponent(contactId)}&select=data`,
-      { headers: SB_HEADERS }
-    );
-    const rows = await res.json();
-    if(!rows[0]) { toast('Contacto no encontrado','⚠️'); return; }
-    const c = rows[0].data;
-    // Assign default stage
-    c.stage = 'c-lead';
-    c.stageDate = today();
-    c._updatedAt = Date.now();
-    // Add to local data
-    if(!D.contacts.find(x=>String(x.id)===String(c.id))){
-      D.contacts.push(c);
-    }
-    // Also load studio if not present
-    if(c.studioId && !D.studios.find(s=>String(s.id)===String(c.studioId))){
-      const sRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/crm_studios?id=eq.${c.studioId}&select=data`,
-        { headers: SB_HEADERS }
-      );
-      const sRows = await sRes.json();
-      if(sRows[0]) D.studios.push(sRows[0].data);
-    }
-    saveData();
-    document.getElementById('search-results').style.display='none';
-    document.getElementById('global-search-input'||'search-inp').value='';
-    toast(`✅ ${c.name} agregado al CRM`);
-    renderContacts();
-  } catch(e) {
-    toast('Error al agregar contacto','⚠️');
-  }
+async function _fbActivate(entityType, idx, containerId){
+  const box=document.getElementById(containerId);
+  const r=box&&box._fbMatches&&box._fbMatches[idx];
+  if(!r) return;
+  await _FB_CFG[entityType].activate(r);
+  toast(`✅ ${r.name||'Registro'} agregado`);
+  box.style.display='none'; box.innerHTML='';
 }
-
-function highlightSearch(el){
-  document.querySelectorAll('.search-result-item').forEach(i=>i.style.background='');
-  el.style.background='var(--surface2)';
-}
-
-function selectSearchResult(type, id){
-  closeSearch();
-  if(type==='contact') openProfile(id);
-  else if(type==='studio') openStudioProfile(id);
-  else { goView('projects-view'); openProjDetail(id); }
-}
-
-function closeSearch(){
-  const box=document.getElementById('search-results');
-  if(box) box.style.display='none';
-  const inp=document.getElementById('global-search');
-  if(inp) inp.value='';
-  _searchIdx=0;
-}
-
-function searchKeyNav(e){
-  const box=document.getElementById('search-results');
-  if(!box||box.style.display==='none') return;
-  const items=[...box.querySelectorAll('.search-result-item')];
-  if(!items.length) return;
-  if(e.key==='ArrowDown'){e.preventDefault();_searchIdx=Math.min(_searchIdx+1,items.length-1);}
-  else if(e.key==='ArrowUp'){e.preventDefault();_searchIdx=Math.max(_searchIdx-1,0);}
-  else if(e.key==='Enter'){e.preventDefault();items[_searchIdx]?.click();return;}
-  else if(e.key==='Escape'){closeSearch();return;}
-  items.forEach((it,i)=>it.style.background=i===_searchIdx?'var(--surface2)':'');
-  items[_searchIdx]?.scrollIntoView({block:'nearest'});
-}
-
-// Close search when clicking outside
-document.addEventListener('click', e=>{
-  if(!e.target.closest('#search-wrap')) closeSearch();
-});
 
 // ══════════════════════════════════════════════════════
 //  SHOWROOM VISIT REGISTRATION
