@@ -7837,8 +7837,8 @@ function renderStudios(filter=''){
     norm(s.name).includes(q)||
     norm(s.email||'').includes(q)||
     norm(s.email2||'').includes(q)||
-    (s.phone||'').replace(/\D/g,'').includes(qRaw)||
-    (s.whatsapp||'').replace(/\D/g,'').includes(qRaw)||
+    (!!qRaw&&(s.phone||'').replace(/\D/g,'').includes(qRaw))||
+    (!!qRaw&&(s.whatsapp||'').replace(/\D/g,'').includes(qRaw))||
     norm(s.city||'').includes(q)||
     norm(s.state||'').includes(q)||
     norm(s.instagram||'').includes(q)||
