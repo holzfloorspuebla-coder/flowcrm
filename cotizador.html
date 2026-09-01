@@ -6,7 +6,7 @@
 <title>Holz — Cotizador</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700;800&family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0d0e10;--surface:#161719;--surface2:#1d1f22;--surface3:#25282d;--border:#2a2d34;--border2:#363b44;--accent:#e63329;--accentDim:rgba(230,51,41,.12);--green:#4ade80;--greenDim:rgba(74,222,128,.12);--blue:#60a5fa;--orange:#fb923c;--text:#f0f1f3;--text2:#8b9099;--text3:#4a5060;--r:8px;--rlg:14px;--shadow:0 8px 32px rgba(0,0,0,.5);--font:'DM Sans',sans-serif;--mono:'JetBrains Mono',monospace;}
+:root{--bg:#f1f5f9;--surface:#ffffff;--surface2:#f8fafc;--surface3:#e2e8f0;--border:#e2e8f0;--border2:#cbd5e1;--accent:#e63329;--accentDim:rgba(230,51,41,.10);--green:#10b981;--greenDim:rgba(16,185,129,.12);--blue:#2563eb;--orange:#f97316;--text:#1e293b;--text2:#475569;--text3:#94a3b8;--r:8px;--rlg:14px;--shadow:0 4px 24px rgba(0,0,0,.08);--font:'DM Sans',sans-serif;--mono:'JetBrains Mono',monospace;}
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font);}
 .login-wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:999;}
@@ -2512,7 +2512,7 @@ function renderCrmLinkBadge(){
   const el=document.getElementById('crm-link-badge');
   if(!el) return;
   if(CURRENT_Q && CURRENT_Q.crmProjectId){
-    el.innerHTML='<span style="color:#3ecf8e">🔗 Vinculado al proyecto del CRM</span>';
+    el.innerHTML='<span style="color:#059669">🔗 Vinculado al proyecto del CRM</span>';
   } else {
     el.innerHTML='<span style="color:var(--text3)">Sin vínculo al pipeline de proyectos</span>';
   }
@@ -2789,12 +2789,12 @@ function renderQTable(tbodyId,items,table){
       <td style="font-size:11px;color:var(--text3);white-space:nowrap">${esc(x.unit)}</td>
       <td style="white-space:nowrap">
         <input class="mini-inp" type="number" value="${x.pvp}" style="width:72px" onchange="CURRENT_Q['${table}'][${i}].pvp=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()">
-        ${x.currency==='USD'?'<span style="font-size:9px;font-weight:700;background:#2563eb22;color:#60a5fa;border-radius:3px;padding:1px 4px;margin-left:2px">USD</span>':''}
+        ${x.currency==='USD'?'<span style="font-size:9px;font-weight:700;background:#2563eb18;color:#2563eb;border-radius:3px;padding:1px 4px;margin-left:2px">USD</span>':''}
       </td>
-      <td class="num">${x.currency==='USD'?'<span style="color:#60a5fa">USD '+fmtUSD(sub)+'</span>':mxn(sub)}</td>
+      <td class="num">${x.currency==='USD'?'<span style="color:#2563eb">USD '+fmtUSD(sub)+'</span>':mxn(sub)}</td>
       <td><input class="mini-inp" type="number" value="${x.disc||0}" min="0" max="100" style="width:46px;text-align:center" onchange="CURRENT_Q['${table}'][${i}].disc=parseFloat(this.value)||0;renderQuoteTables();recalcAll();markDirty()"></td>
-      <td class="num">${x.currency==='USD'?'<span style="color:#60a5fa">USD '+fmtUSD(pvpDesc)+'</span>':mxn(pvpDesc)}</td>
-      <td class="num" style="font-weight:600">${x.currency==='USD'?'<span style="color:#60a5fa">USD '+fmtUSD(total)+'</span>':mxn(total)}</td>
+      <td class="num">${x.currency==='USD'?'<span style="color:#2563eb">USD '+fmtUSD(pvpDesc)+'</span>':mxn(pvpDesc)}</td>
+      <td class="num" style="font-weight:600">${x.currency==='USD'?'<span style="color:#2563eb">USD '+fmtUSD(total)+'</span>':mxn(total)}</td>
       <td style="display:flex;gap:2px;align-items:center">
         <button class="btn-icon" title="Subir" onclick="moveItem('${table}',${i},-1)" style="font-size:10px;line-height:1${i===0?';opacity:0.3;pointer-events:none':''}">▲</button>
         <button class="btn-icon" title="Bajar" onclick="moveItem('${table}',${i},1)" style="font-size:10px;line-height:1${i===items.length-1?';opacity:0.3;pointer-events:none':''}">▼</button>
