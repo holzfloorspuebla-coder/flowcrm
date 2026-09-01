@@ -375,19 +375,22 @@ select.inp{cursor:pointer;}
   <div class="logo"><div class="logo-icon">⚡</div><div class="logo-text">Flow<span>CRM</span></div></div>
   <nav class="nav">
     <div class="ns">CRM</div>
-    <button class="ni active" onclick="goView('contacts-view')"><span class="ic">👥</span>Contactos</button>
-    <button class="ni" onclick="goView('studios-view')"><span class="ic">🏛️</span>Estudios</button>
-    <button class="ni" onclick="goView('projects-view')"><span class="ic">📁</span>Proyectos</button>
-    <button class="ni" id="ni-providers" onclick="goView('providers-view')" style="display:none"><span class="ic">🏢</span>Proveedores</button>
-    <button class="ni" id="ni-database" onclick="goView('database-view')" style="display:none"><span class="ic">🗄️</span>Base de datos</button>
+    <button class="ni active" data-view="contacts-view" onclick="goView('contacts-view')"><span class="ic">👥</span>Contactos</button>
+    <button class="ni" data-view="studios-view" onclick="goView('studios-view')"><span class="ic">🏛️</span>Estudios</button>
+    <button class="ni" data-view="projects-view" onclick="goView('projects-view')"><span class="ic">📁</span>Proyectos</button>
+    <button class="ni" id="ni-providers" data-view="providers-view" onclick="goView('providers-view')" style="display:none"><span class="ic">🏢</span>Proveedores</button>
+    <button class="ni" id="ni-database" data-view="database-view" onclick="goView('database-view')" style="display:none"><span class="ic">🗄️</span>Base de datos</button>
     <div class="ns">Análisis</div>
-    <button class="ni" onclick="goView('kpi-view')"><span class="ic">🎯</span>KPIs</button>
+    <button class="ni" data-view="kpi-view" onclick="goView('kpi-view')"><span class="ic">🎯</span>KPIs</button>
 
     <div class="ns" id="ns-tareas" style="display:none">Tareas</div>
-    <button class="ni" id="ni-tareas" onclick="goView('tareas-view')" style="display:none"><span class="ic">📌</span>Tareas</button>
+    <button class="ni" id="ni-tareas" data-view="tareas-view" onclick="goView('tareas-view')" style="display:none"><span class="ic">📌</span>Tareas</button>
+    <div class="ns">Agenda</div>
+    <button class="ni" id="ni-reminders" data-view="reminders-view" onclick="goView('reminders-view')"><span class="ic">⏰</span>Recordatorios</button>
+    <button class="ni" id="ni-events" data-view="events-view" onclick="goView('events-view')"><span class="ic">🎉</span>Eventos</button>
     <div class="ns">Sistema</div>
-    <button class="ni" id="ni-inbox" onclick="goView('inbox-view')"><span class="ic">🔔</span>Solicitudes <span id="inbox-badge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:auto">0</span></button>
-    <button class="ni" onclick="goView('settings-view')"><span class="ic">⚙️</span>Configuración</button>
+    <button class="ni" id="ni-inbox" data-view="inbox-view" onclick="goView('inbox-view')"><span class="ic">🔔</span>Solicitudes <span id="inbox-badge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:auto">0</span></button>
+    <button class="ni" data-view="settings-view" onclick="goView('settings-view')"><span class="ic">⚙️</span>Configuración</button>
     <div style="padding:10px 14px 4px">
       <button onclick="openUnifiedCreate()" class="btn btn-primary" style="width:100%;font-size:13px;font-weight:700;padding:10px">
         &#65291; Crear nuevo...
@@ -768,6 +771,109 @@ select.inp{cursor:pointer;}
           <div>
             <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--green);margin-bottom:10px">&#9989; Completadas</div>
             <div id="tareas-done"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECORDATORIOS VIEW -->
+    <div class="view hidden" id="reminders-view" style="display:flex;flex-direction:column;overflow:hidden">
+      <div style="flex:1;overflow-y:auto;padding:22px;max-width:900px;width:100%;margin:0 auto;box-sizing:border-box">
+        <div style="display:flex;gap:16px;margin-bottom:18px">
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px">&#128276; Pendientes</div>
+            <div id="reminders-pending"></div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--text3);margin-bottom:10px">&#10003; Completados</div>
+          <div id="reminders-done"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EVENTOS VIEW -->
+    <div class="view hidden" id="events-view" style="display:flex;flex-direction:column;overflow:hidden">
+      <div style="flex-shrink:0;padding:16px 22px 0;max-width:1100px;width:100%;margin:0 auto;box-sizing:border-box">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+          <div id="events-cat-filter" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+          <select class="inp" id="events-contact-filter" style="max-width:220px;margin-left:auto;font-size:12px" onchange="renderEvents()">
+            <option value="">Filtrar por arquitecto/contacto...</option>
+          </select>
+        </div>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:0 22px 22px;max-width:1100px;width:100%;margin:0 auto;box-sizing:border-box">
+        <div id="events-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px"></div>
+      </div>
+    </div>
+
+    <!-- MODAL RECORDATORIO -->
+    <div class="overlay hidden" id="modal-reminder">
+      <div class="modal">
+        <div class="modal-hd"><h2 id="reminder-modal-title">&#128276; Nuevo recordatorio</h2><button class="modal-close" onclick="closeM('modal-reminder')">✕</button></div>
+        <div class="modal-body">
+          <input type="hidden" id="rem-id">
+          <div class="fg"><label class="lbl">Titulo *</label><input class="inp" id="rem-title" placeholder="Cumpleanos de Daniela Pozos"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="fg"><label class="lbl">Fecha *</label><input class="inp" type="date" id="rem-date"></div>
+            <div class="fg"><label class="lbl">Repetir</label>
+              <select class="inp" id="rem-recurring" onchange="document.getElementById('rem-custom-days-wrap').style.display=this.value==='custom'?'':'none'">
+                <option value="">No se repite</option>
+                <option value="yearly">Cada ano (cumpleanos, aniversarios)</option>
+                <option value="monthly">Cada mes</option>
+                <option value="custom">Cada N dias...</option>
+              </select>
+            </div>
+          </div>
+          <div class="fg" id="rem-custom-days-wrap" style="display:none"><label class="lbl">Repetir cada (dias)</label><input class="inp" type="number" min="1" id="rem-custom-days" placeholder="30"></div>
+          <div class="fg"><label class="lbl">Vincular a contacto (opcional)</label>
+            <input class="inp" id="rem-contact-search" list="rem-contact-list" placeholder="Buscar contacto..." oninput="onRemContactPick()">
+            <datalist id="rem-contact-list"></datalist>
+            <input type="hidden" id="rem-contact-id">
+          </div>
+          <div class="fg"><label class="lbl">Notas</label><textarea class="inp" id="rem-notes" rows="2" style="resize:none"></textarea></div>
+        </div>
+        <div class="modal-ft" style="justify-content:space-between">
+          <button class="btn btn-ghost" id="rem-delete-btn" style="display:none;color:var(--red)" onclick="deleteReminder(document.getElementById('rem-id').value)">Eliminar</button>
+          <div style="display:flex;gap:8px;margin-left:auto">
+            <button class="btn btn-ghost" onclick="closeM('modal-reminder')">Cancelar</button>
+            <button class="btn btn-primary" onclick="saveReminder()">Guardar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL EVENTO -->
+    <div class="overlay hidden" id="modal-event">
+      <div class="modal">
+        <div class="modal-hd"><h2 id="event-modal-title">&#127881; Nuevo evento</h2><button class="modal-close" onclick="closeM('modal-event')">✕</button></div>
+        <div class="modal-body">
+          <input type="hidden" id="ev-id">
+          <div class="fg"><label class="lbl">Titulo *</label><input class="inp" id="ev-title" placeholder="Apertura showroom Puebla"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="fg"><label class="lbl">Fecha *</label><input class="inp" type="date" id="ev-date"></div>
+            <div class="fg"><label class="lbl">Categoria *</label>
+              <select class="inp" id="ev-category"></select>
+            </div>
+          </div>
+          <div class="fg" style="display:flex;gap:6px;align-items:flex-end">
+            <div style="flex:1"><label class="lbl">Nueva categoria</label><input class="inp" id="ev-new-cat" placeholder="Ej. Capacitacion"></div>
+            <button class="btn btn-ghost" type="button" onclick="addEventCategory()">Agregar</button>
+          </div>
+          <div class="fg"><label class="lbl">Notas</label><textarea class="inp" id="ev-notes" rows="2" style="resize:none"></textarea></div>
+          <div class="fg"><label class="lbl">Arquitectos / contactos invitados</label>
+            <div style="position:relative">
+              <input class="inp" id="ev-contact-search" placeholder="Buscar y agregar contacto..." oninput="filterEvContactList(this.value)" onfocus="filterEvContactList(this.value)">
+              <div id="ev-contact-dropdown" style="display:none;position:absolute;z-index:80;background:var(--surface);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;width:100%;box-shadow:0 6px 24px rgba(0,0,0,.15);top:100%;left:0"></div>
+            </div>
+            <div id="ev-linked-contacts" style="margin-top:8px;display:flex;flex-direction:column;gap:5px"></div>
+          </div>
+        </div>
+        <div class="modal-ft" style="justify-content:space-between">
+          <button class="btn btn-ghost" id="ev-delete-btn" style="display:none;color:var(--red)" onclick="deleteEvent(document.getElementById('ev-id').value)">Eliminar</button>
+          <div style="display:flex;gap:8px;margin-left:auto">
+            <button class="btn btn-ghost" onclick="closeM('modal-event')">Cancelar</button>
+            <button class="btn btn-primary" onclick="saveEvent()">Guardar</button>
           </div>
         </div>
       </div>
@@ -1684,6 +1790,9 @@ const DEFAULT_DATA={
     {id:9004,type:'meeting',title:'Reunión Torre Norte',date:'2026-03-25',time:'11:00',contactId:102,projectId:203,agent:1,notes:'',done:false},
   ],
   showroomVisits:[],
+  reminders:[],
+  events:[],
+  eventCategories:['Capacitación','Showroom','Feria'],
 };
 
 function loadUsers(){
@@ -1725,6 +1834,9 @@ function loadData(){
     }
     if(!data.stageMessages) data.stageMessages={};
     if(!data.taskTemplates) data.taskTemplates=JSON.parse(JSON.stringify(DEFAULT_DATA.taskTemplates));
+    if(!data.reminders) data.reminders=[];
+    if(!data.events) data.events=[];
+    if(!data.eventCategories) data.eventCategories=JSON.parse(JSON.stringify(DEFAULT_DATA.eventCategories));
     migrateContactStages(data);
     return data;
   }catch(e){return JSON.parse(JSON.stringify(DEFAULT_DATA));}
@@ -1802,6 +1914,8 @@ let _syncTimer=null;
 let _isSyncing=false;
 const _localDeletedIds=new Set(); // IDs borrados localmente — ignorar en merge remoto
 const _localDeletedTaskIds=new Set(); // Tareas borradas localmente — ignorar en merge remoto
+const _localDeletedReminderIds=new Set(); // Recordatorios borrados localmente — ignorar en merge remoto
+const _localDeletedEventIds=new Set(); // Eventos borrados localmente — ignorar en merge remoto
 const _localDeletedStudioIds=new Set(); // Estudios borrados localmente — ignorar en merge remoto
 // Cache en memoria + localStorage de los últimos valores de "meta" ya
 // enviados con éxito al servidor, para no reenviar arrays completos
@@ -1857,6 +1971,9 @@ async function pushToDrive(){
         showroomVisits: D.showroomVisits,
         providers:    D.providers,
         providerCats: D.providerCats,
+        reminders:    D.reminders,
+        events:       D.events,
+        eventCategories: D.eventCategories,
       };
       const _metaStrings = {};
       const _metaChangedKeys = [];
@@ -2243,6 +2360,38 @@ async function loadFromDrive(silent=false){
             }
           });
         }
+        // Merge reminders por id: gana el registro con _updatedAt mas reciente (mismo
+        // patron que adminTasks, para que dos agentes agregando recordatorios a la vez
+        // no se pisen el uno al otro).
+        if(remote.reminders&&remote.reminders.length){
+          if(!D.reminders) D.reminders=[];
+          const localReminderMap=new Map(D.reminders.map(t=>[String(t.id),t]));
+          remote.reminders.forEach(rt=>{
+            const tid=String(rt.id);
+            if(_localDeletedReminderIds.has(tid)) return;
+            const lt=localReminderMap.get(tid);
+            if(!lt){ D.reminders.push(rt); mergeChanged=true; }
+            else if((rt._updatedAt||0)>(lt._updatedAt||0)){ Object.assign(lt,rt); mergeChanged=true; }
+          });
+        }
+        // Merge events por id, mismo patron.
+        if(remote.events&&remote.events.length){
+          if(!D.events) D.events=[];
+          const localEventMap=new Map(D.events.map(t=>[String(t.id),t]));
+          remote.events.forEach(rt=>{
+            const tid=String(rt.id);
+            if(_localDeletedEventIds.has(tid)) return;
+            const lt=localEventMap.get(tid);
+            if(!lt){ D.events.push(rt); mergeChanged=true; }
+            else if((rt._updatedAt||0)>(lt._updatedAt||0)){ Object.assign(lt,rt); mergeChanged=true; }
+          });
+        }
+        // eventCategories: union simple (son solo nombres de texto libre, no hay
+        // conflicto real que resolver — solo agregar las que falten localmente).
+        if(remote.eventCategories&&remote.eventCategories.length){
+          if(!D.eventCategories) D.eventCategories=[];
+          remote.eventCategories.forEach(c=>{ if(!D.eventCategories.includes(c)){ D.eventCategories.push(c); mergeChanged=true; } });
+        }
         // Normalizar IDs de fase antiguos que puedan venir del Worker (ej. c-contactado)
         migrateContactStages(D);
         // Non-record fields: take remote if it's newer overall
@@ -2407,6 +2556,9 @@ async function initApp(){
         if(!incoming.stageMessages)incoming.stageMessages={};
         if(!incoming.taskTemplates)incoming.taskTemplates=JSON.parse(JSON.stringify(DEFAULT_DATA.taskTemplates));
         if(!incoming.segments)incoming.segments=JSON.parse(JSON.stringify(DEFAULT_SEGMENTS));
+        if(!incoming.reminders)incoming.reminders=[];
+        if(!incoming.events)incoming.events=[];
+        if(!incoming.eventCategories)incoming.eventCategories=JSON.parse(JSON.stringify(DEFAULT_DATA.eventCategories));
         incoming._savedAt=incoming._savedAt||Date.now();
         migrateContactStages(incoming);
         D=incoming;
@@ -2427,6 +2579,9 @@ async function initApp(){
             if(!incoming.stageMessages)incoming.stageMessages={};
             if(!incoming.taskTemplates)incoming.taskTemplates=JSON.parse(JSON.stringify(DEFAULT_DATA.taskTemplates));
             if(!incoming.segments)incoming.segments=JSON.parse(JSON.stringify(DEFAULT_SEGMENTS));
+            if(!incoming.reminders)incoming.reminders=[];
+            if(!incoming.events)incoming.events=[];
+            if(!incoming.eventCategories)incoming.eventCategories=JSON.parse(JSON.stringify(DEFAULT_DATA.eventCategories));
             migrateContactStages(incoming);
             D=incoming;
             localStorage.setItem('fcrm_data',JSON.stringify(D));
@@ -2562,6 +2717,7 @@ const CONTACT_TYPES_CANONICAL=['Dealer','Developer','End user','General contract
 // Mapa de nombres viejos -> nuevos, para poder migrar contactos y el listado
 // de categorías guardado sin perder nada.
 const CONTACT_TYPE_MIGRATION_MAP={
+  'Specifer':'Specifier',
   'Arquitecto':'Specifier',
   'Interiorista':'Specifier',
   'Constructora':'General contractor',
@@ -5300,6 +5456,8 @@ const VIEW_CFG={
   'profile-view':{title:'Perfil de contacto',main:null,sec:null},
   'kpi-view':{title:'KPIs del equipo',main:null,sec:null},
   'tareas-view':{title:'Tareas pendientes',main:null,sec:null},
+  'reminders-view':{title:'Recordatorios',main:'＋ Nuevo recordatorio',mainFn:'openReminderModal()',sec:null},
+  'events-view':{title:'Eventos',main:'＋ Nuevo evento',mainFn:'openEventModal()',sec:null},
   'inbox-view':{title:'Solicitudes de cambio',main:null,sec:null},
   'settings-view':{title:'Configuración',main:null,sec:null},
 };
@@ -5307,8 +5465,8 @@ function goView(id){
   document.querySelectorAll('.view').forEach(v=>v.classList.add('hidden'));
   $(id)?.classList.remove('hidden');
   document.querySelectorAll('.ni').forEach(n=>n.classList.remove('active'));
-  const map={'contacts-view':0,'studios-view':1,'studio-profile-view':1,'projects-view':2,'providers-view':3,'database-view':4,'kpi-view':5,'tareas-view':6,'inbox-view':7,'settings-view':8};
-  document.querySelectorAll('.ni')[map[id]]?.classList.add('active');
+  const navMap={'studio-profile-view':'studios-view'};
+  document.querySelector(`.ni[data-view="${navMap[id]||id}"]`)?.classList.add('active');
   const cfg=VIEW_CFG[id]||{};
   $('page-title').textContent=cfg.title||'';
   const bm=$('btn-main'),bs=$('btn-sec');
@@ -5323,6 +5481,8 @@ function goView(id){
   if(id==='providers-view')renderProviders();
   if(id==='database-view'){renderDatabaseView(true);updateDbProvidersTabVisibility();}
   if(id==='tareas-view'){renderTareas();const df=document.getElementById('nueva-tarea-fecha');if(df&&!df.value){const d=new Date();d.setDate(d.getDate()+1);df.value=d.toISOString().slice(0,10);}}
+  if(id==='reminders-view')renderReminders();
+  if(id==='events-view')renderEvents();
   if(id==='inbox-view')renderInbox();
   if(id==='settings-view')renderSettings();
 }
@@ -7821,6 +7981,276 @@ function addLossReason(){const inp=$('new-loss-reason');const v=inp.value.trim()
 function removeLossReason(r){D.lossReasons=(D.lossReasons||[]).filter(x=>x!==r);saveData();renderSettings();}
 function addTag(){const inp=$('new-tag');const v=inp.value.trim();if(v&&!D.tags.includes(v)){D.tags.push(v);saveData();inp.value='';renderSettings();}}
 function removeTag(t){D.tags=D.tags.filter(x=>x!==t);saveData();renderSettings();}
+
+// ══════════════════════════════════════════════════════
+//  RECORDATORIOS ENGINE
+// ══════════════════════════════════════════════════════
+// Recordatorios de fechas importantes (cumpleanos, aniversarios, etc.)
+// con soporte de recurrencia (anual/mensual/cada N dias) y toggle de
+// completado. Viven en D.reminders y sincronizan via crm_meta (ver
+// pushToDrive/_metaCandidates y loadFromDrive).
+function nextReminderOccurrence(r){
+  if(!r.date) return null;
+  const anchor=new Date(r.date+'T00:00:00');
+  if(isNaN(anchor)) return r.date;
+  if(!r.recurring) return r.date;
+  const now=new Date(today()+'T00:00:00');
+  let next=new Date(anchor);
+  if(r.recurring==='yearly'){
+    next=new Date(now.getFullYear(),anchor.getMonth(),anchor.getDate());
+    if(next<now) next=new Date(now.getFullYear()+1,anchor.getMonth(),anchor.getDate());
+  } else if(r.recurring==='monthly'){
+    next=new Date(now.getFullYear(),now.getMonth(),anchor.getDate());
+    if(next<now) next=new Date(now.getFullYear(),now.getMonth()+1,anchor.getDate());
+  } else if(r.recurring&&r.recurring.type==='custom'){
+    const days=Math.max(1,parseInt(r.recurring.days)||1);
+    next=new Date(anchor);
+    let guard=0;
+    while(next<now&&guard<10000){ next.setDate(next.getDate()+days); guard++; }
+  }
+  return next.toISOString().slice(0,10);
+}
+function recurringLabel(r){
+  if(!r.recurring) return '';
+  if(r.recurring==='yearly') return 'Cada ano';
+  if(r.recurring==='monthly') return 'Cada mes';
+  if(r.recurring.type==='custom') return `Cada ${r.recurring.days} dias`;
+  return '';
+}
+function renderReminders(){
+  const pendEl=$('reminders-pending'), doneEl=$('reminders-done');
+  if(!pendEl&&!doneEl) return;
+  if(!D.reminders) D.reminders=[];
+  const active=D.reminders.filter(r=>!r.completed).map(r=>({...r,_next:nextReminderOccurrence(r)}))
+    .sort((a,b)=>(a._next||'9999').localeCompare(b._next||'9999'));
+  const done=D.reminders.filter(r=>r.completed).slice()
+    .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  function card(r){
+    const overdue=!r.recurring&&!r.completed&&r._next&&r._next<today();
+    const c=r.contactId?D.contacts.find(x=>String(x.id)===String(r.contactId)):null;
+    const dot=r.completed?'var(--text3)':overdue?'var(--red)':'var(--accent)';
+    return`<div style="background:var(--surface2);border:1px solid var(--border);border-left:4px solid ${dot};border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;gap:10px;align-items:flex-start">
+      <input type="checkbox" ${r.completed?'checked':''} onchange="toggleReminderCompleted(${r.id})" style="margin-top:3px;accent-color:var(--accent)">
+      <div style="flex:1;min-width:0;cursor:pointer" onclick="openReminderModal(${r.id})">
+        <div style="font-size:13px;font-weight:600;color:var(--text);${r.completed?'text-decoration:line-through;opacity:.6':''}">${esc(r.title)}</div>
+        <div style="font-size:11px;color:${overdue?'var(--red)':'var(--text3)'};display:flex;gap:8px;flex-wrap:wrap;margin-top:3px;align-items:center">
+          <span>&#128197; ${r._next||r.date}</span>
+          ${r.recurring?`<span>&#128257; ${recurringLabel(r)}</span>`:''}
+          ${c?`<span>&#128100; ${esc(c.name)}</span>`:''}
+        </div>
+      </div>
+    </div>`;
+  }
+  if(pendEl) pendEl.innerHTML=active.length?active.map(card).join(''):'<div style="color:var(--text3);font-size:13px;padding:8px 0">Sin recordatorios pendientes</div>';
+  if(doneEl) doneEl.innerHTML=done.length?done.map(card).join(''):'<div style="color:var(--text3);font-size:13px;padding:8px 0">Sin recordatorios completados</div>';
+}
+function openReminderModal(id){
+  const r=id?D.reminders.find(x=>String(x.id)===String(id)):null;
+  $('reminder-modal-title').textContent=r?'Editar recordatorio':'Nuevo recordatorio';
+  $('rem-id').value=r?r.id:'';
+  $('rem-title').value=r?r.title:'';
+  $('rem-date').value=r?r.date:'';
+  $('rem-recurring').value=r&&r.recurring?(typeof r.recurring==='string'?r.recurring:'custom'):'';
+  $('rem-custom-days').value=r&&r.recurring&&r.recurring.type==='custom'?r.recurring.days:'';
+  $('rem-custom-days-wrap').style.display=r&&r.recurring&&r.recurring.type==='custom'?'':'none';
+  const c=r&&r.contactId?D.contacts.find(x=>String(x.id)===String(r.contactId)):null;
+  $('rem-contact-search').value=c?c.name:'';
+  $('rem-contact-id').value=r&&r.contactId?r.contactId:'';
+  $('rem-notes').value=r?(r.notes||''):'';
+  $('rem-contact-list').innerHTML=(D.contacts||[]).slice(0,300).map(c=>`<option value="${esc(c.name)}" data-id="${c.id}">`).join('');
+  $('rem-delete-btn').style.display=r?'':'none';
+  $('modal-reminder').classList.remove('hidden');
+}
+function onRemContactPick(){
+  const v=$('rem-contact-search').value;
+  const opt=[...document.querySelectorAll('#rem-contact-list option')].find(o=>o.value===v);
+  $('rem-contact-id').value=opt?opt.dataset.id:'';
+}
+function saveReminder(){
+  const title=$('rem-title').value.trim();
+  const date=$('rem-date').value;
+  if(!title){toast('Escribe un titulo','⚠️');return;}
+  if(!date){toast('Elige una fecha','⚠️');return;}
+  const recSel=$('rem-recurring').value;
+  let recurring=null;
+  if(recSel==='yearly') recurring='yearly';
+  else if(recSel==='monthly') recurring='monthly';
+  else if(recSel==='custom'){
+    const days=parseInt($('rem-custom-days').value)||0;
+    if(days<1){toast('Indica cada cuantos dias se repite','⚠️');return;}
+    recurring={type:'custom',days};
+  }
+  const contactIdRaw=$('rem-contact-id').value;
+  const contactId=contactIdRaw?Number(contactIdRaw):null;
+  const id=$('rem-id').value;
+  if(id){
+    const r=D.reminders.find(x=>String(x.id)===String(id));
+    if(r) Object.assign(r,{title,date,recurring,contactId,notes:$('rem-notes').value.trim(),_updatedAt:Date.now()});
+  } else {
+    if(!D.reminders) D.reminders=[];
+    D.reminders.push({id:nid(),title,date,recurring,contactId,completed:false,notes:$('rem-notes').value.trim(),_updatedAt:Date.now()});
+  }
+  saveData();
+  closeM('modal-reminder');
+  renderReminders();
+  toast('Recordatorio guardado ✓');
+}
+function toggleReminderCompleted(id){
+  const r=(D.reminders||[]).find(x=>String(x.id)===String(id));
+  if(!r) return;
+  r.completed=!r.completed;
+  r._updatedAt=Date.now();
+  saveData();
+  renderReminders();
+}
+function deleteReminder(id){
+  if(!id||!confirm('¿Eliminar este recordatorio?')) return;
+  _localDeletedReminderIds.add(String(id));
+  D.reminders=(D.reminders||[]).filter(x=>String(x.id)!==String(id));
+  saveData();
+  closeM('modal-reminder');
+  renderReminders();
+}
+
+// ══════════════════════════════════════════════════════
+//  EVENTOS ENGINE
+// ══════════════════════════════════════════════════════
+// Eventos con categorias de texto libre (creables al vuelo, D.eventCategories)
+// y arquitectos/contactos invitados vinculados (D.events[].contactIds).
+function setEvCatFilter(el){
+  S.evFilterCat=el.dataset.cat||'';
+  renderEvents();
+}
+function renderEvents(){
+  const grid=$('events-grid');
+  if(!grid) return;
+  if(!D.events) D.events=[];
+  if(!D.eventCategories) D.eventCategories=[];
+  if(S.evFilterCat===undefined) S.evFilterCat='';
+  const catFilterEl=$('events-cat-filter');
+  const cats=['',...D.eventCategories];
+  if(catFilterEl) catFilterEl.innerHTML=cats.map(c=>{
+    const active=S.evFilterCat===c;
+    return`<span data-cat="${esc(c)}" onclick="setEvCatFilter(this)" style="cursor:pointer;font-size:12px;padding:4px 12px;border-radius:8px;${active?'background:var(--accent);color:#fff':'border:1px solid var(--border);color:var(--text2)'}">${c?esc(c):'Todos'}</span>`;
+  }).join('');
+  const contactFilterSel=$('events-contact-filter');
+  const prevFilterVal=contactFilterSel?contactFilterSel.value:'';
+  if(contactFilterSel){
+    contactFilterSel.innerHTML='<option value="">Filtrar por arquitecto/contacto...</option>'+
+      (D.contacts||[]).slice().sort((a,b)=>a.name.localeCompare(b.name,'es')).map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    contactFilterSel.value=prevFilterVal;
+  }
+  const filterContactId=contactFilterSel?contactFilterSel.value:'';
+  let list=D.events.slice();
+  if(S.evFilterCat) list=list.filter(e=>e.category===S.evFilterCat);
+  if(filterContactId) list=list.filter(e=>(e.contactIds||[]).some(id=>String(id)===String(filterContactId)));
+  list.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  grid.innerHTML=list.length?list.map(e=>{
+    const n=(e.contactIds||[]).length;
+    return`<div onclick="openEventModal(${e.id})" style="cursor:pointer;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px 14px">
+      <span style="font-size:11px;padding:2px 8px;border-radius:8px;background:var(--glow);color:var(--accent2)">${esc(e.category||'—')}</span>
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin:8px 0 2px">${esc(e.title)}</div>
+      <div style="font-size:12px;color:var(--text3)">${e.date||''} &middot; ${n} invitado${n===1?'':'s'}</div>
+    </div>`;
+  }).join(''):'<div style="color:var(--text3);font-size:13px;padding:8px 0;grid-column:1/-1">Sin eventos</div>';
+}
+function addEventCategory(){
+  const inp=$('ev-new-cat');
+  const v=inp.value.trim();
+  if(!v) return;
+  if(!D.eventCategories) D.eventCategories=[];
+  if(!D.eventCategories.some(c=>norm(c)===norm(v))){
+    D.eventCategories.push(v);
+    saveData();
+  }
+  inp.value='';
+  const sel=$('ev-category');
+  sel.innerHTML=D.eventCategories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  sel.value=v;
+}
+function openEventModal(id){
+  const e=id?D.events.find(x=>String(x.id)===String(id)):null;
+  $('event-modal-title').textContent=e?'Editar evento':'Nuevo evento';
+  $('ev-id').value=e?e.id:'';
+  $('ev-title').value=e?e.title:'';
+  $('ev-date').value=e?e.date:'';
+  $('ev-notes').value=e?(e.notes||''):'';
+  if(!D.eventCategories) D.eventCategories=[];
+  const sel=$('ev-category');
+  sel.innerHTML=D.eventCategories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if(e&&e.category) sel.value=e.category;
+  S.evLinkedIds=new Set(e?(e.contactIds||[]):[]);
+  S.evContactPool=(D.contacts||[]).slice();
+  $('ev-contact-search').value='';
+  $('ev-contact-dropdown').style.display='none';
+  renderEvLinkedContacts();
+  $('ev-delete-btn').style.display=e?'':'none';
+  $('modal-event').classList.remove('hidden');
+}
+function filterEvContactList(q){
+  const dd=$('ev-contact-dropdown');
+  if(!q||!q.trim()){ dd.style.display='none'; dd.innerHTML=''; return; }
+  const nq=norm(q);
+  const results=(S.evContactPool||[]).filter(c=>norm(c.name).includes(nq)).slice(0,30);
+  dd.innerHTML=results.length?results.map(c=>`<div onclick="toggleEvContact(${c.id})" style="padding:8px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)">${esc(c.name)}</div>`).join(''):'<div style="padding:8px 10px;font-size:12px;color:var(--text3)">Sin resultados</div>';
+  dd.style.display='block';
+}
+function toggleEvContact(id){
+  if(!S.evLinkedIds) S.evLinkedIds=new Set();
+  S.evLinkedIds.add(Number(id));
+  $('ev-contact-search').value='';
+  $('ev-contact-dropdown').style.display='none';
+  renderEvLinkedContacts();
+}
+function unlinkEvContact(id){
+  if(!S.evLinkedIds) return;
+  const sid=String(id);
+  [...S.evLinkedIds].forEach(x=>{ if(String(x)===sid) S.evLinkedIds.delete(x); });
+  renderEvLinkedContacts();
+}
+function renderEvLinkedContacts(){
+  const el=$('ev-linked-contacts');
+  if(!el) return;
+  const ids=[...(S.evLinkedIds||new Set())];
+  if(!ids.length){ el.innerHTML='<div style="font-size:12px;color:var(--text3)">Sin invitados</div>'; return; }
+  el.innerHTML=ids.map(id=>{
+    const c=(S.evContactPool||[]).find(x=>String(x.id)===String(id))||(D.contacts||[]).find(x=>String(x.id)===String(id));
+    const name=c?c.name:('ID: '+id);
+    return`<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--surface2);border-radius:6px;font-size:13px">
+      <span>${esc(name)}</span>
+      <button type="button" onclick="unlinkEvContact(${id})" style="background:none;border:none;cursor:pointer;color:var(--text3)">✕</button>
+    </div>`;
+  }).join('');
+}
+function saveEvent(){
+  const title=$('ev-title').value.trim();
+  const date=$('ev-date').value;
+  const category=$('ev-category').value;
+  if(!title){toast('Escribe un titulo','⚠️');return;}
+  if(!date){toast('Elige una fecha','⚠️');return;}
+  if(!category){toast('Elige o agrega una categoria','⚠️');return;}
+  const contactIds=[...(S.evLinkedIds||new Set())];
+  const id=$('ev-id').value;
+  if(id){
+    const e=D.events.find(x=>String(x.id)===String(id));
+    if(e) Object.assign(e,{title,date,category,notes:$('ev-notes').value.trim(),contactIds,_updatedAt:Date.now()});
+  } else {
+    if(!D.events) D.events=[];
+    D.events.push({id:nid(),title,date,category,notes:$('ev-notes').value.trim(),contactIds,_updatedAt:Date.now()});
+  }
+  saveData();
+  closeM('modal-event');
+  renderEvents();
+  toast('Evento guardado ✓');
+}
+function deleteEvent(id){
+  if(!id||!confirm('¿Eliminar este evento?')) return;
+  _localDeletedEventIds.add(String(id));
+  D.events=(D.events||[]).filter(x=>String(x.id)!==String(id));
+  saveData();
+  closeM('modal-event');
+  renderEvents();
+}
 
 // ══════════════════════════════════════════════════════
 //  PROJECT CONTACT LIST FILTER
