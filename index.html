@@ -2611,10 +2611,14 @@ function bootApp(){
     localStorage.setItem('fcrm_migration_apr21','done');
   })();
   (function runMigrationContactTypes(){
-    if(localStorage.getItem('fcrm_migration_clienttypes_aug26')) return;
+    // Se ejecuta en CADA carga (ya no detrás de un flag de una sola vez):
+    // es idempotente, si todos los tipos ya son válidos no hace nada. Hace
+    // falta porque algunas vías de alta (ej. confirmImport(), el
+    // importador de Excel) podían seguir creando contactos con tipos viejos
+    // ya migrados una sola vez -- así cualquier contacto "huérfano" se
+    // autocorrige en la siguiente carga en vez de quedar roto para siempre.
     const changed=migrateContactTypes(D);
     if(changed){ saveData(); console.log('Migration clienttypes_aug26: tipos de contacto actualizados'); }
-    localStorage.setItem('fcrm_migration_clienttypes_aug26','done');
   })();
   updateSidebarUser();
   showTareasNav();
@@ -7926,7 +7930,7 @@ function openStudioProfile(id){
   const s=(D.studios||[]).find(x=>x.id===id);if(!s)return;
   if(!canSeeStudioDetails(id)){toast('No tienes acceso a este estudio','⚠️');return;}
   const ag=USERS.find(u=>u.id===s.agent);
-  const archs=D.contacts.filter(c=>c.studioId===id&&c.type==='Arquitecto');
+  const archs=D.contacts.filter(c=>c.studioId===id);
   const owned=ME.role==='admin'||s.agent===ME.id;
   const totalVal=D.projects.filter(p=>archs.some(a=>p.contactIds?.includes(a.id))).reduce((s,p)=>s+(p.value||0),0);
   $('spf-header').innerHTML=`
@@ -8448,7 +8452,7 @@ function calcKpiForAgent(agentId,period){
   // 9. Arquitectos activos (contactos tipo Arquitecto que tienen proyecto ganado en últimos 90 días)
   const ninety=new Date();ninety.setDate(ninety.getDate()-90);
   const ninetyStr=ninety.toISOString().slice(0,10);
-  const archContactIds=D.contacts.filter(c=>c.agent===agentId&&c.type==='Arquitecto').map(c=>c.id);
+  const archContactIds=D.contacts.filter(c=>c.agent===agentId).map(c=>c.id);
   const activeArchs=new Set(
     won.filter(p=>p.closeDate>=ninetyStr&&(p.contactIds||[]).some(cid=>archContactIds.includes(cid)))
        .flatMap(p=>(p.contactIds||[]).filter(cid=>archContactIds.includes(cid)))
@@ -8967,7 +8971,7 @@ function confirmImport(){
       // Create architect contact
       if(r.archName && r.archStatus==='nuevo'){
         D.contacts.push({
-          id:nid(), name:r.archName, type:'Arquitecto',
+          id:nid(), name:r.archName, type:'Specifier',
           studioId:studioId||null, company:'',
           email:r.archEmail||'', phone:r.archPhone||'',
           city:r.studioCity||'', state:r.studioState||'',
