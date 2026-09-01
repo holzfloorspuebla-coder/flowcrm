@@ -2594,6 +2594,31 @@ function migrateContactTypes(data){
   }
   return changed;
 }
+// Repara IDs de contactos guardados como string en project.contactIds
+// (bug del checkbox de "Contactos vinculados" en el modal de Proyecto: el
+// atributo HTML onchange="togglePContact('${c.id}',...)" convertía el id
+// numérico de nid() a texto; ese string quedaba guardado para siempre en
+// contactIds y rompía todas las comparaciones ===/includes(c.id) en el
+// resto de la app -- causaba "0 proy. $0" en la ficha de estudio y el
+// texto crudo "ID: 1234..." en vez del nombre en Contactos vinculados).
+// Convierte de vuelta a Number cualquier contactId que sea string numérico
+// y que corresponda a un contacto real. Idempotente, se corre en cada carga.
+function repairContactIdTypes(data){
+  let changed=false;
+  const idSet=new Set((data.contacts||[]).map(c=>c.id));
+  (data.projects||[]).forEach(p=>{
+    if(!Array.isArray(p.contactIds)||!p.contactIds.length) return;
+    let rowChanged=false;
+    const fixed=p.contactIds.map(id=>{
+      if(typeof id==='number') return id;
+      const num=Number(id);
+      if(!isNaN(num)&&idSet.has(num)){ rowChanged=true; return num; }
+      return id;
+    });
+    if(rowChanged){ p.contactIds=fixed; changed=true; }
+  });
+  return changed;
+}
 function bootApp(){
   // ONE-TIME MIGRATION: merge contacts from Abril and Karina that may be missing
   (function runMigration(){
@@ -2618,7 +2643,8 @@ function bootApp(){
     // ya migrados una sola vez -- así cualquier contacto "huérfano" se
     // autocorrige en la siguiente carga en vez de quedar roto para siempre.
     const changed=migrateContactTypes(D);
-    if(changed){ saveData(); console.log('Migration clienttypes_aug26: tipos de contacto actualizados'); }
+    const idsFixed=repairContactIdTypes(D);
+    if(changed||idsFixed){ saveData(); console.log('Migration clienttypes_aug26/contactIds: datos actualizados'); }
   })();
   updateSidebarUser();
   showTareasNav();
@@ -6902,7 +6928,7 @@ function renderLinkedContacts(){
     return;
   }
   el.innerHTML=ids.map(id=>{
-    const c=S.pContactPool?.find(x=>x.id===id)||(D.contacts||[]).find(x=>x.id===id);
+    const c=S.pContactPool?.find(x=>String(x.id)===String(id))||(D.contacts||[]).find(x=>String(x.id)===String(id));
     const name=c?c.name:('ID: '+id);
     const type=c?c.type||'':'';
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:var(--surface2,#1d1f22);border-radius:6px;font-size:13px;margin-bottom:4px">
@@ -6917,7 +6943,8 @@ function renderLinkedContacts(){
 
 function unlinkPContact(id){
   if(!S.pLinkedIds) return;
-  S.pLinkedIds.delete(id);
+  const sId=String(id);
+  [...S.pLinkedIds].forEach(x=>{ if(String(x)===sId) S.pLinkedIds.delete(x); });
   renderLinkedContacts();
 }
 
@@ -7802,7 +7829,7 @@ function renderPContactList(pool, checked){
   const existing=checked||[];
   $('p-contact-list').innerHTML=pool.length
     ?pool.map(c=>`<label class="copt">
-        <input type="checkbox" id="pcc-${c.id}" value="${c.id}" ${existing.includes(c.id)?'checked':''} onchange="togglePContact('${c.id}',this.checked)" style="accent-color:var(--accent)">
+        <input type="checkbox" id="pcc-${c.id}" value="${c.id}" ${existing.some(x=>String(x)===String(c.id))?'checked':''} onchange="togglePContact('${c.id}',this.checked)" style="accent-color:var(--accent)">
         ${avEl(c.name[0],'#888',20)}
         <div>
           <div style="font-weight:500">${c.name}</div>
@@ -7813,8 +7840,12 @@ function renderPContactList(pool, checked){
 }
 function togglePContact(id, checked){
   if(!S.pLinkedIds) S.pLinkedIds=new Set();
-  if(checked) S.pLinkedIds.add(id);
-  else S.pLinkedIds.delete(id);
+  // id llega como string desde el atributo HTML onchange aunque c.id sea
+  // numérico (nid()) -- se normaliza aquí para no volver a contaminar
+  // project.contactIds con strings (ver repairContactIdTypes).
+  const nId=(typeof id==='string'&&/^-?\d+$/.test(id))?Number(id):id;
+  if(checked) S.pLinkedIds.add(nId);
+  else{ S.pLinkedIds.delete(nId); S.pLinkedIds.delete(id); }
   renderLinkedContacts();
 }
 function filterPContactList(q){
