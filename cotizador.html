@@ -3487,8 +3487,13 @@ function copyText(){
 // independiente del catálogo.
 function _ptNormKey(s){ return String(s||'').trim(); }
 function _ptSavedMaterials(){
+  // typeof===string es necesario: cualquier clave no-string que se cuele
+  // en PROPOSAL_TEMPLATES (p.ej. por una prueba manual contra el Worker,
+  // o datos corruptos) tronaba .trim() aquí y rompía en silencio todo
+  // el flujo de "Guardar/Cargar predeterminado" (el botón dejaba de
+  // hacer cualquier cosa sin mostrar error visible al usuario).
   return Object.keys(PROPOSAL_TEMPLATES)
-    .filter(k=>PROPOSAL_TEMPLATES[k]&&PROPOSAL_TEMPLATES[k].trim())
+    .filter(k=>typeof PROPOSAL_TEMPLATES[k]==='string'&&PROPOSAL_TEMPLATES[k].trim())
     .sort((a,b)=>a.localeCompare(b,'es'));
 }
 function renderPTCategorySelect(){
