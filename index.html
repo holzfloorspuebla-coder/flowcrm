@@ -7608,7 +7608,16 @@ function handleUnifiedCsvImport(input){
     if(text.includes('\uFFFD')){
       const r2=new FileReader();
       r2.onload=e2=>{window.processUnifiedCsv(e2.target.result,input);};
-      r2.readAsText(input.files[0],'latin-1');
+      // Usar la referencia ya capturada `file`, NO input.files[0]: el
+      // input.value='' de abajo se ejecuta de forma sincrona justo
+      // despues de iniciar la primera lectura (que es asincrona), asi
+      // que para cuando este onload corre, input.files ya esta vacio
+      // (limpiar .value en un <input type=file> vacia .files por
+      // especificacion). Antes esto hacia que r2.readAsText(undefined,...)
+      // fallara en silencio -- sin toast, sin indicador de guardado, tal
+      // como reporto el usuario -- cada vez que el CSV no era UTF-8 puro
+      // (tipico en CSVs exportados desde Excel en espanol con acentos).
+      r2.readAsText(file,'latin-1');
       return;
     }
     window.processUnifiedCsv(text,input);
@@ -7845,6 +7854,16 @@ function processUnifiedCsv(text,input){
         if(skipped) parts.push(`${skipped} omitido${skipped!==1?'s':''}`);
         if(phaseUnmatched) parts.push(`${phaseUnmatched} con fase no reconocida (revisa el CSV)`);
         if(typeUnmatched) parts.push(`${typeUnmatched} con tipo de cliente no reconocido (revisa el CSV)`);
+        // Si no se reconocio ninguna fila (0 en todos los contadores), el
+        // toast de abajo quedaba practicamente en blanco ("Importacion
+        // completa: ", sin nada despues de los dos puntos) -- facil de
+        // confundir con "no paso nada". La causa mas comun es que el CSV
+        // no tiene una columna TIPO con el valor Estudio/Arquitecto en
+        // cada fila (formato que este importador unificado requiere).
+        if(!parts.length){
+          toast('No se importó ninguna fila. Verifica que el CSV tenga una columna "TIPO" con el valor "Estudio" o "Arquitecto" en cada renglón.','⚠️');
+          return;
+        }
         toast('✓ Importación completa: '+parts.join(', '));
       };
       if(allDups.length) startDupResolution(allDups,applyAndFinish);
