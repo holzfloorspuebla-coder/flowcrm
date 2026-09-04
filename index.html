@@ -6376,10 +6376,15 @@ async function loadProjQuotesForProject(projectId, projectName, clientName){
   const el=document.getElementById('proj-quotes-'+projectId);
   if(!el) return;
   try{
-    const r=await fetch(_HARDCODED_URL+'/data?t='+Date.now(),{cache:'no-store'});
+    // Antes esto pedia /data completo (70 cotizaciones con fotos base64,
+    // ~21.6MB) solo para filtrar las 1-2 de este proyecto del lado del
+    // navegador -- se repetia cada vez que se abria CUALQUIER proyecto y
+    // era el principal responsable del consumo alto de egress en
+    // Supabase. Ahora se pide ya filtrado por el Worker (GET /quotes).
+    const r=await fetch(_HARDCODED_URL+'/quotes?projectId='+encodeURIComponent(projectId)+'&t='+Date.now(),{cache:'no-store'});
     if(!r.ok) throw new Error('HTTP '+r.status);
     const d=await r.json();
-    const quotes=(d.quotes||[]).filter(q=>String(q.crmProjectId)===String(projectId));
+    const quotes=d.quotes||[];
     if(!quotes.length){
       el.innerHTML='<div style="font-size:12px;color:var(--text3)">Sin cotizaciones todavía</div>';
       return;
