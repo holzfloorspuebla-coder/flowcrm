@@ -1255,9 +1255,18 @@ select.inp{cursor:pointer;}
         <div class="fg"><label class="lbl">LinkedIn arquitecto</label><input class="inp" id="c-linkedin" placeholder="linkedin.com/in/juan"></div>
       </div>
       <div class="r3">
-        <div class="fg"><label class="lbl">Ciudad arquitecto</label><input class="inp" id="c-city" placeholder="Ciudad de México"></div>
-        <div class="fg"><label class="lbl">Estado arquitecto</label><input class="inp" id="c-state" placeholder="CDMX"></div>
+        <div class="fg"><label class="lbl">Ciudad arquitecto</label>
+          <div style="display:flex;gap:6px"><select class="inp" id="c-city" style="flex:1"></select><button type="button" class="btn btn-ghost btn-sm" onclick="addLocationValue('cities','c-city')" title="Agregar ciudad nueva">+</button></div>
+        </div>
+        <div class="fg"><label class="lbl">Estado arquitecto</label>
+          <div style="display:flex;gap:6px"><select class="inp" id="c-state" style="flex:1"></select><button type="button" class="btn btn-ghost btn-sm" onclick="addLocationValue('states','c-state')" title="Agregar estado nuevo">+</button></div>
+        </div>
         <div class="fg"><label class="lbl">Origen</label><input class="inp" id="c-origin" placeholder="Referido / Expo / Web..."></div>
+      </div>
+      <div class="r3">
+        <div class="fg"><label class="lbl">País arquitecto</label>
+          <div style="display:flex;gap:6px"><select class="inp" id="c-country" style="flex:1"></select><button type="button" class="btn btn-ghost btn-sm" onclick="addLocationValue('countries','c-country')" title="Agregar país nuevo">+</button></div>
+        </div>
       </div>
       <div class="r3">
         <div class="fg"><label class="lbl">Segmento</label><select class="inp" id="c-segment"></select></div>
@@ -1310,8 +1319,12 @@ select.inp{cursor:pointer;}
         <div class="fg"><label class="lbl">Price List</label><input class="inp" id="c-pricelist" placeholder="PL-A"></div>
       </div>
       <div class="r3">
-        <div class="fg"><label class="lbl">Ciudad estudio</label><input class="inp" id="c-studio-city" placeholder="Ciudad de México"></div>
-        <div class="fg"><label class="lbl">Estado estudio</label><input class="inp" id="c-studio-state" placeholder="CDMX"></div>
+        <div class="fg"><label class="lbl">Ciudad estudio</label>
+          <div style="display:flex;gap:6px"><select class="inp" id="c-studio-city" style="flex:1"></select><button type="button" class="btn btn-ghost btn-sm" onclick="addLocationValue('cities','c-studio-city')" title="Agregar ciudad nueva">+</button></div>
+        </div>
+        <div class="fg"><label class="lbl">Estado estudio</label>
+          <div style="display:flex;gap:6px"><select class="inp" id="c-studio-state" style="flex:1"></select><button type="button" class="btn btn-ghost btn-sm" onclick="addLocationValue('states','c-studio-state')" title="Agregar estado nuevo">+</button></div>
+        </div>
       </div>
       <div class="r2">
         <div class="fg"><label class="lbl">Instagram estudio</label><input class="inp" id="c-studio-instagram" placeholder="@estudio_mx"></div>
@@ -1336,6 +1349,12 @@ select.inp{cursor:pointer;}
           <option value="proveedor">🏭 Proveedor</option>
           <option value="otro">🔹 Otro</option>
         </select>
+      </div>
+
+      <!-- Tipo (mismas 9 categorias que los contactos) -->
+      <div class="fg">
+        <label class="lbl">Tipo</label>
+        <select class="inp" id="s-type"></select>
       </div>
 
       <!-- Subcategoría de proveedor -->
@@ -1383,8 +1402,15 @@ select.inp{cursor:pointer;}
 
       <!-- Ubicación -->
       <div class="r2">
-        <div class="fg"><label class="lbl">Ciudad</label><input class="inp" id="s-city" placeholder="Ciudad de México"></div>
-        <div class="fg"><label class="lbl">Estado</label><input class="inp" id="s-state" placeholder="Ciudad de México"></div>
+        <div class="fg"><label class="lbl">Ciudad</label>
+          <div style="display:flex;gap:6px"><select class="inp" id="s-city" style="flex:1"></select><button type="button" class="btn btn-ghost btn-sm" onclick="addLocationValue('cities','s-city')" title="Agregar ciudad nueva">+</button></div>
+        </div>
+        <div class="fg"><label class="lbl">Estado</label>
+          <div style="display:flex;gap:6px"><select class="inp" id="s-state" style="flex:1"></select><button type="button" class="btn btn-ghost btn-sm" onclick="addLocationValue('states','s-state')" title="Agregar estado nuevo">+</button></div>
+        </div>
+      </div>
+      <div class="fg"><label class="lbl">País</label>
+        <div style="display:flex;gap:6px"><select class="inp" id="s-country" style="flex:1"></select><button type="button" class="btn btn-ghost btn-sm" onclick="addLocationValue('countries','s-country')" title="Agregar país nuevo">+</button></div>
       </div>
 
       <!-- Web + Vendedor -->
@@ -1793,6 +1819,9 @@ const DEFAULT_DATA={
   reminders:[],
   events:[],
   eventCategories:['Capacitación','Showroom','Feria'],
+  countries:['México'],
+  cities:[],
+  states:[],
 };
 
 function loadUsers(){
@@ -1837,6 +1866,9 @@ function loadData(){
     if(!data.reminders) data.reminders=[];
     if(!data.events) data.events=[];
     if(!data.eventCategories) data.eventCategories=JSON.parse(JSON.stringify(DEFAULT_DATA.eventCategories));
+    if(!data.countries||!data.countries.length) data.countries=JSON.parse(JSON.stringify(DEFAULT_DATA.countries));
+    if(!data.cities) data.cities=[];
+    if(!data.states) data.states=[];
     migrateContactStages(data);
     return data;
   }catch(e){return JSON.parse(JSON.stringify(DEFAULT_DATA));}
@@ -1974,6 +2006,9 @@ async function pushToDrive(){
         reminders:    D.reminders,
         events:       D.events,
         eventCategories: D.eventCategories,
+        countries:    D.countries,
+        cities:       D.cities,
+        states:       D.states,
       };
       const _metaStrings = {};
       const _metaChangedKeys = [];
@@ -2392,6 +2427,13 @@ async function loadFromDrive(silent=false){
           if(!D.eventCategories) D.eventCategories=[];
           remote.eventCategories.forEach(c=>{ if(!D.eventCategories.includes(c)){ D.eventCategories.push(c); mergeChanged=true; } });
         }
+        // countries/cities/states: mismo union simple, texto libre.
+        ['countries','cities','states'].forEach(lk=>{
+          if(remote[lk]&&remote[lk].length){
+            if(!D[lk]) D[lk]=[];
+            remote[lk].forEach(v=>{ if(!D[lk].some(x=>norm(x)===norm(v))){ D[lk].push(v); mergeChanged=true; } });
+          }
+        });
         // Normalizar IDs de fase antiguos que puedan venir del Worker (ej. c-contactado)
         migrateContactStages(D);
         // Non-record fields: take remote if it's newer overall
@@ -2559,6 +2601,9 @@ async function initApp(){
         if(!incoming.reminders)incoming.reminders=[];
         if(!incoming.events)incoming.events=[];
         if(!incoming.eventCategories)incoming.eventCategories=JSON.parse(JSON.stringify(DEFAULT_DATA.eventCategories));
+        if(!incoming.countries||!incoming.countries.length)incoming.countries=JSON.parse(JSON.stringify(DEFAULT_DATA.countries));
+        if(!incoming.cities)incoming.cities=[];
+        if(!incoming.states)incoming.states=[];
         incoming._savedAt=incoming._savedAt||Date.now();
         migrateContactStages(incoming);
         D=incoming;
@@ -2582,6 +2627,9 @@ async function initApp(){
             if(!incoming.reminders)incoming.reminders=[];
             if(!incoming.events)incoming.events=[];
             if(!incoming.eventCategories)incoming.eventCategories=JSON.parse(JSON.stringify(DEFAULT_DATA.eventCategories));
+            if(!incoming.countries||!incoming.countries.length)incoming.countries=JSON.parse(JSON.stringify(DEFAULT_DATA.countries));
+            if(!incoming.cities)incoming.cities=[];
+            if(!incoming.states)incoming.states=[];
             migrateContactStages(incoming);
             D=incoming;
             localStorage.setItem('fcrm_data',JSON.stringify(D));
@@ -2775,6 +2823,33 @@ function repairContactIdTypes(data){
   });
   return changed;
 }
+// Rellena D.countries/D.cities/D.states con los valores de ciudad/estado que
+// ya existen dispersos en contactos y estudios (antes eran texto libre), asi
+// el primer arranque tras esta actualizacion ya trae el dropdown poblado en
+// vez de vacio. Pais no tiene datos previos que migrar (campo nuevo), solo
+// se asegura el default ['Mexico']. Idempotente: en cargas posteriores no
+// hay valores nuevos que agregar porque los campos ya solo se llenan desde
+// estas listas (ver addLocationValue).
+function backfillLocationLists(data){
+  let changed=false;
+  if(!data.countries||!data.countries.length){ data.countries=JSON.parse(JSON.stringify(DEFAULT_DATA.countries)); changed=true; }
+  if(!data.cities) data.cities=[];
+  if(!data.states) data.states=[];
+  const addIfNew=(arr,val)=>{
+    const v=(val||'').trim();
+    if(v&&!arr.some(x=>norm(x)===norm(v))){ arr.push(v); return true; }
+    return false;
+  };
+  [...(data.contacts||[]),...(data.studios||[])].forEach(r=>{
+    if(addIfNew(data.cities,r.city)) changed=true;
+    if(addIfNew(data.states,r.state)) changed=true;
+  });
+  if(changed){
+    data.cities.sort((a,b)=>a.localeCompare(b,'es'));
+    data.states.sort((a,b)=>a.localeCompare(b,'es'));
+  }
+  return changed;
+}
 function bootApp(){
   // ONE-TIME MIGRATION: merge contacts from Abril and Karina that may be missing
   (function runMigration(){
@@ -2800,7 +2875,8 @@ function bootApp(){
     // autocorrige en la siguiente carga en vez de quedar roto para siempre.
     const changed=migrateContactTypes(D);
     const idsFixed=repairContactIdTypes(D);
-    if(changed||idsFixed){ saveData(); console.log('Migration clienttypes_aug26/contactIds: datos actualizados'); }
+    const locsFixed=backfillLocationLists(D);
+    if(changed||idsFixed||locsFixed){ saveData(); console.log('Migration clienttypes_aug26/contactIds/locations: datos actualizados'); }
   })();
   updateSidebarUser();
   showTareasNav();
@@ -5983,6 +6059,8 @@ function openProfile(id){
     ${owned?`<button class="btn btn-red btn-sm" onclick="deleteContact(${id})">🗑️</button>`:''}
     <button class="btn btn-ghost btn-sm" style="background:rgba(62,207,142,.12);color:var(--green);border-color:rgba(62,207,142,.3)" onclick="registerShowroomVisit(${id})">🏢 Registrar visita</button>
     <button class="btn btn-primary btn-sm" onclick="openProjectModal(null,${id})">＋ Proyecto</button>
+    <button class="btn btn-ghost btn-sm" onclick="openReminderModal(null,${id})">⏰ Recordatorio</button>
+    <button class="btn btn-ghost btn-sm" onclick="openEventModal(null,${id})">🎉 Evento</button>
     ${owned?`<button class="btn btn-ghost btn-sm" style="${c.inPipeline===false?'color:var(--accent)':'color:var(--text3)'}" onclick="toggleContactPipeline(${id})">${c.inPipeline===false?'🎯 Añadir al pipeline':'⏸ Quitar del pipeline'}</button>`:''}
   `;
 
@@ -6882,9 +6960,9 @@ function openContactModal(stageId,editId){
   const segs=D.segments||DEFAULT_SEGMENTS;
   $('c-segment').innerHTML=`<option value="">— Sin segmento —</option>`+segs.map(s=>`<option value="${s.id}">${s.icon} ${s.label}</option>`).join('');
   populateStudioSelect(null);
-  const allFields=['c-name','c-mailing-name','c-phone','c-email','c-email2','c-whatsapp','c-city','c-state','c-notes',
+  const allFields=['c-name','c-mailing-name','c-phone','c-email','c-email2','c-whatsapp','c-notes',
     'c-instagram','c-linkedin','c-studio-email','c-studio-email2','c-studio-phone','c-studio-whatsapp','c-web',
-    'c-studio-instagram','c-studio-linkedin','c-pricelist','c-origin','c-studio-city','c-studio-state'];
+    'c-studio-instagram','c-studio-linkedin','c-pricelist','c-origin'];
   if(editId){
     const c=D.contacts.find(x=>x.id===editId);
     allFields.forEach(i=>{const el=$(i);if(el)el.value='';});
@@ -6896,8 +6974,9 @@ function openContactModal(stageId,editId){
     $('c-whatsapp').value=c.whatsapp||'';
     $('c-instagram').value=c.instagram||'';
     $('c-linkedin').value=c.linkedin||'';
-    $('c-city').value=c.city||'';
-    $('c-state').value=c.state||'';
+    populateLocSelect('c-city','cities',c.city||'');
+    populateLocSelect('c-state','states',c.state||'');
+    populateLocSelect('c-country','countries',c.country||'');
     $('c-notes').value=c.notes||'';
     $('c-origin').value=c.origin||'';
     $('c-pricelist').value=c.priceList||'';
@@ -6910,8 +6989,8 @@ function openContactModal(stageId,editId){
     $('c-studio-whatsapp').value=linkedStudio?.whatsapp||c.studioWhatsapp||'';
     $('c-studio-instagram').value=linkedStudio?.instagram||c.studioInstagram||'';
     $('c-studio-linkedin').value=linkedStudio?.linkedin||c.studioLinkedin||'';
-    $('c-studio-city').value=linkedStudio?.city||c.studioCity||'';
-    $('c-studio-state').value=linkedStudio?.state||c.studioState||'';
+    populateLocSelect('c-studio-city','cities',linkedStudio?.city||c.studioCity||'');
+    populateLocSelect('c-studio-state','states',linkedStudio?.state||c.studioState||'');
     $('c-segment').value=c.segment||'';
     $('c-stage').value=c.stage||'';
     $('c-agent').value=c.agent;
@@ -6921,6 +7000,11 @@ function openContactModal(stageId,editId){
     onContactTypeChange(c.type||D.contactTypes[0]);
   }else{
     allFields.forEach(i=>{const el=$(i);if(el)el.value='';});
+    populateLocSelect('c-city','cities','');
+    populateLocSelect('c-state','states','');
+    populateLocSelect('c-country','countries','');
+    populateLocSelect('c-studio-city','cities','');
+    populateLocSelect('c-studio-state','states','');
     $('c-stage').value=stageId||'c-lead';
     $('c-agent').value=ME.id;
     onContactTypeChange($('c-type').value);
@@ -6975,6 +7059,7 @@ function saveContact(){
     linkedin:$('c-linkedin').value.trim(),
     city:$('c-city').value.trim(),
     state:$('c-state').value.trim(),
+    country:$('c-country').value.trim(),
     origin:$('c-origin').value.trim(),
     priceList:$('c-pricelist').value.trim(),
     web:$('c-web').value.trim(),
@@ -8002,6 +8087,32 @@ function addTag(){const inp=$('new-tag');const v=inp.value.trim();if(v&&!D.tags.
 function removeTag(t){D.tags=D.tags.filter(x=>x!==t);saveData();renderSettings();}
 
 // ══════════════════════════════════════════════════════
+//  UBICACIONES (pais/ciudad/estado) — listas editables compartidas
+// ══════════════════════════════════════════════════════
+// D.countries/D.cities/D.states son listas de texto libre que el usuario
+// puede seguir ampliando (mismo patron que D.eventCategories/D.tags).
+// Los selects de contacto y estudio (c-country/c-city/c-state,
+// s-country/s-city/s-state, c-studio-city/c-studio-state) se pueblan y
+// se les agregan valores nuevos con estas dos funciones.
+const LOCATION_LABELS={countries:'país',cities:'ciudad',states:'estado'};
+function populateLocSelect(selectId,listKey,currentVal){
+  const el=$(selectId);
+  if(!el) return;
+  if(!D[listKey]) D[listKey]=[];
+  const opts=D[listKey].slice().sort((a,b)=>a.localeCompare(b,'es'));
+  el.innerHTML='<option value="">— Sin especificar —</option>'+opts.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  el.value=currentVal||'';
+}
+function addLocationValue(listKey,selectId){
+  const label=LOCATION_LABELS[listKey]||listKey;
+  const v=(prompt('Nuevo '+label+':')||'').trim();
+  if(!v) return;
+  if(!D[listKey]) D[listKey]=[];
+  if(!D[listKey].some(x=>norm(x)===norm(v))){ D[listKey].push(v); saveData(); }
+  populateLocSelect(selectId,listKey,v);
+}
+
+// ══════════════════════════════════════════════════════
 //  RECORDATORIOS ENGINE
 // ══════════════════════════════════════════════════════
 // Recordatorios de fechas importantes (cumpleanos, aniversarios, etc.)
@@ -8063,7 +8174,7 @@ function renderReminders(){
   if(pendEl) pendEl.innerHTML=active.length?active.map(card).join(''):'<div style="color:var(--text3);font-size:13px;padding:8px 0">Sin recordatorios pendientes</div>';
   if(doneEl) doneEl.innerHTML=done.length?done.map(card).join(''):'<div style="color:var(--text3);font-size:13px;padding:8px 0">Sin recordatorios completados</div>';
 }
-function openReminderModal(id){
+function openReminderModal(id,preContactId){
   const r=id?D.reminders.find(x=>String(x.id)===String(id)):null;
   $('reminder-modal-title').textContent=r?'Editar recordatorio':'Nuevo recordatorio';
   $('rem-id').value=r?r.id:'';
@@ -8072,9 +8183,12 @@ function openReminderModal(id){
   $('rem-recurring').value=r&&r.recurring?(typeof r.recurring==='string'?r.recurring:'custom'):'';
   $('rem-custom-days').value=r&&r.recurring&&r.recurring.type==='custom'?r.recurring.days:'';
   $('rem-custom-days-wrap').style.display=r&&r.recurring&&r.recurring.type==='custom'?'':'none';
-  const c=r&&r.contactId?D.contacts.find(x=>String(x.id)===String(r.contactId)):null;
+  // preContactId: al abrir desde "+ Recordatorio" en la ficha de un contacto,
+  // se pre-carga ese contacto (mismo patron que openProjectModal(null,id)).
+  const linkedContactId=r?r.contactId:(preContactId||null);
+  const c=linkedContactId?D.contacts.find(x=>String(x.id)===String(linkedContactId)):null;
   $('rem-contact-search').value=c?c.name:'';
-  $('rem-contact-id').value=r&&r.contactId?r.contactId:'';
+  $('rem-contact-id').value=linkedContactId||'';
   $('rem-notes').value=r?(r.notes||''):'';
   $('rem-contact-list').innerHTML=(D.contacts||[]).slice(0,300).map(c=>`<option value="${esc(c.name)}" data-id="${c.id}">`).join('');
   $('rem-delete-btn').style.display=r?'':'none';
@@ -8187,7 +8301,7 @@ function addEventCategory(){
   sel.innerHTML=D.eventCategories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
   sel.value=v;
 }
-function openEventModal(id){
+function openEventModal(id,preContactId){
   const e=id?D.events.find(x=>String(x.id)===String(id)):null;
   $('event-modal-title').textContent=e?'Editar evento':'Nuevo evento';
   $('ev-id').value=e?e.id:'';
@@ -8198,7 +8312,9 @@ function openEventModal(id){
   const sel=$('ev-category');
   sel.innerHTML=D.eventCategories.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
   if(e&&e.category) sel.value=e.category;
-  S.evLinkedIds=new Set(e?(e.contactIds||[]):[]);
+  // preContactId: al abrir desde "+ Evento" en la ficha de un contacto, ese
+  // contacto queda pre-invitado (mismo patron que openReminderModal arriba).
+  S.evLinkedIds=new Set(e?(e.contactIds||[]):(preContactId?[Number(preContactId)]:[]));
   S.evContactPool=(D.contacts||[]).slice();
   $('ev-contact-search').value='';
   $('ev-contact-dropdown').style.display='none';
@@ -8516,20 +8632,26 @@ function openStudioModal(editId){
   const segs=D.segments||DEFAULT_SEGMENTS;
   $('s-segment').innerHTML=`<option value="">— Sin segmento —</option>`+segs.map(s=>`<option value="${s.id}">${s.icon} ${s.label}</option>`).join('');
   $('s-provstage').innerHTML=PV_STAGES.map(st=>`<option value="${st.id}">${esc(st.name)}</option>`).join('');
+  // Tipo: mismas 9 categorias que los contactos (D.contactTypes).
+  D.contactTypes=D.contactTypes||CONTACT_TYPES_CANONICAL;
+  $('s-type').innerHTML='<option value="">— Sin especificar —</option>'+sortedContactTypes(D.contactTypes).map(t=>`<option>${t}</option>`).join('');
   ['s-dup-warn','s-email-warn','s-phone-warn'].forEach(id=>$(id)?.classList.remove('show'));
   $('s-save-btn').disabled=false;$('s-save-btn').style.opacity='';
-  const fields=['s-name','s-email','s-email2','s-phone','s-whatsapp','s-city','s-state','s-web','s-pricelist','s-instagram','s-linkedin','s-notes','s-rfc','s-bank','s-clabe','s-account','s-workswith'];
+  const fields=['s-name','s-email','s-email2','s-phone','s-whatsapp','s-web','s-pricelist','s-instagram','s-linkedin','s-notes','s-rfc','s-bank','s-clabe','s-account','s-workswith'];
   if(editId){
     const s=(D.studios||[]).find(x=>x.id===editId);if(!s)return;
     $('s-name').value=s.name||'';
     $('s-email').value=s.email||'';      $('s-email2').value=s.email2||'';
     $('s-phone').value=s.phone||'';      $('s-whatsapp').value=s.whatsapp||'';
-    $('s-city').value=s.city||'';        $('s-state').value=s.state||'';
+    populateLocSelect('s-city','cities',s.city||'');
+    populateLocSelect('s-state','states',s.state||'');
+    populateLocSelect('s-country','countries',s.country||'');
     $('s-web').value=s.web||'';          $('s-pricelist').value=s.priceList||'';
     $('s-segment').value=s.segment||'';
     $('s-instagram').value=s.instagram||''; $('s-linkedin').value=s.linkedin||'';
     $('s-notes').value=s.notes||'';      $('s-agent').value=s.agent;
     $('s-orgtype').value=s.orgType||'';  $('s-provsub').value=s.providerCategory||'';
+    $('s-type').value=s.type||'';
     $('s-rfc').value=s.rfc||'';          $('s-bank').value=s.bank||'';
     $('s-clabe').value=s.clabe||'';      $('s-account').value=s.account||'';
     $('s-workswith').value=s.worksWith||'';
@@ -8538,8 +8660,11 @@ function openStudioModal(editId){
     $('s-provstage').value=s.providerStage||'pv-no-contactado';
   }else{
     fields.forEach(id=>{if($(id))$(id).value='';});
+    populateLocSelect('s-city','cities','');
+    populateLocSelect('s-state','states','');
+    populateLocSelect('s-country','countries','');
     $('s-segment').value='';
-    $('s-orgtype').value='';$('s-provsub').value='';
+    $('s-orgtype').value='';$('s-provsub').value='';$('s-type').value='';
     $('s-purchased').checked=false;$('s-contacted').checked=false;
     $('s-provstage').value='pv-no-contactado';
   }
@@ -8589,6 +8714,7 @@ function saveStudio(){
     whatsapp:  $('s-whatsapp').value.trim(),
     city:      $('s-city').value.trim(),
     state:     $('s-state').value.trim(),
+    country:   $('s-country').value.trim(),
     web:       $('s-web').value.trim(),
     priceList: $('s-pricelist').value.trim(),
     segment:   $('s-segment').value,
@@ -8598,6 +8724,7 @@ function saveStudio(){
     notes:     $('s-notes').value.trim(),
     orgType:          $('s-orgtype').value||'',
     providerCategory: $('s-provsub').value||'',
+    type:             $('s-type').value||'',
     rfc:              $('s-rfc').value.trim(),
     bank:             $('s-bank').value.trim(),
     clabe:            $('s-clabe').value.trim(),
